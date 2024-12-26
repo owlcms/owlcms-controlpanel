@@ -1,9 +1,7 @@
 package downloadUtils
 
 import (
-	"archive/tar"
 	"archive/zip"
-	"compress/gzip"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +11,7 @@ import (
 
 // DownloadZip downloads a zip file from the given URL and saves it to the specified path.
 func DownloadZip(url, destPath string) error {
+	fmt.Printf("Attempting to download from URL: %s\n", url)
 	resp, err := http.Get(url)
 	if err != nil {
 		return fmt.Errorf("failed to download zip from %s: %w", url, err)
@@ -32,59 +31,6 @@ func DownloadZip(url, destPath string) error {
 	_, err = io.Copy(out, resp.Body)
 	if err != nil {
 		return fmt.Errorf("failed to copy zip data: %w", err)
-	}
-
-	return nil
-}
-
-// DownloadAndExtractTarGz downloads and extracts a .tar.gz file.
-func DownloadAndExtractTarGz(url, destDir string) error {
-	resp, err := http.Get(url)
-	if err != nil {
-		return fmt.Errorf("failed to download tar.gz from %s: %w", url, err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("server returned non-200 status: %s for %s", resp.Status, url)
-	}
-	defer resp.Body.Close()
-
-	gzReader, err := gzip.NewReader(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to create gzip reader: %w", err)
-	}
-	defer gzReader.Close()
-
-	tarReader := tar.NewReader(gzReader)
-
-	for {
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			break // End of archive
-		}
-		if err != nil {
-			return fmt.Errorf("failed to read tar entry: %w", err)
-		}
-
-		target := filepath.Join(destDir, header.Name)
-
-		switch header.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(target, 0755); err != nil {
-				return fmt.Errorf("failed to create directory: %w", err)
-			}
-		case tar.TypeReg:
-			outFile, err := os.Create(target)
-			if err != nil {
-				return fmt.Errorf("failed to create file: %w", err)
-			}
-			defer outFile.Close()
-
-			if _, err := io.Copy(outFile, tarReader); err != nil {
-				return fmt.Errorf("failed to write file data: %w", err)
-			}
-		default: // Handle other types if needed (e.g., Symlink)
-			fmt.Printf("Unhandled tar entry type: %c for %s\n", header.Typeflag, header.Name)
-		}
 	}
 
 	return nil
@@ -131,20 +77,3 @@ func ExtractZip(src, dest string) error {
 	}
 	return nil
 }
-
-// Remove the DownloadAndExtractZip function
-// func DownloadAndExtractZip(url, destDir string) error {
-// 	zipPath := filepath.Join(destDir, "temp.zip")
-// 	err := DownloadZip(url, zipPath)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to download zip: %w", err)
-// 	}
-// 	defer os.Remove(zipPath)
-
-// 	err = ExtractZip(zipPath, destDir)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to extract zip: %w", err)
-// 	}
-
-// 	return nil
-// }

@@ -6,8 +6,15 @@ import (
 	"image/color"
 	"io"
 	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"runtime"
+	"sort"
 
 	"owlcms-launcher/downloadUtils"
+	"owlcms-launcher/javacheck"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -76,6 +83,65 @@ func fetchReleases() ([]string, error) {
 	return releaseNames, nil
 }
 
+func findLatestInstalled() string {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		return ""
+	}
+
+	// Version pattern that matches x.x.x and optional -rc/-alpha/-beta suffix
+	versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+(?:-(?:rc|alpha|beta)(?:\d+)?)?$`)
+	var versions []string
+	for _, entry := range entries {
+		if entry.IsDir() && versionPattern.MatchString(entry.Name()) {
+			versions = append(versions, entry.Name())
+		}
+	}
+
+	if len(versions) == 0 {
+		return ""
+	}
+
+	sort.Sort(sort.Reverse(sort.StringSlice(versions)))
+	return versions[0]
+}
+
+func checkJava() error {
+	return javacheck.CheckJava()
+}
+
+func launchOwlcms(version string) error {
+	// Store current directory to restore it later
+	originalDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("getting current directory: %w", err)
+	}
+
+	// Look for owlcms.jar in the version directory
+	jarPath := filepath.Join(version, "owlcms.jar")
+	if _, err := os.Stat(jarPath); os.IsNotExist(err) {
+		return fmt.Errorf("owlcms.jar not found in %s directory", version)
+	}
+
+	// Change to version directory
+	if err := os.Chdir(version); err != nil {
+		return fmt.Errorf("changing to version directory: %w", err)
+	}
+	defer os.Chdir(originalDir)
+
+	javaCmd := "java"
+	localJava := filepath.Join(originalDir, "java17", "bin", "java")
+	if runtime.GOOS == "windows" {
+		localJava += ".exe"
+	}
+	if _, err := os.Stat(localJava); err == nil {
+		javaCmd = localJava
+	}
+
+	cmd := exec.Command(javaCmd, "-jar", "owlcms.jar")
+	return cmd.Start()
+}
+
 func main() {
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
 	a.Settings().SetTheme(newMyTheme())
@@ -141,10 +207,31 @@ func main() {
 	})
 	releaseDropdown.PlaceHolder = "Choose a release version"
 
+	launchButton := widget.NewButton("Launch OWLCMS", func() {
+		version := findLatestInstalled()
+		if version == "" {
+			dialog.ShowError(fmt.Errorf("no OWLCMS version installed"), w)
+			return
+		}
+
+		// Check Java installation (will also install if needed)
+		if err := checkJava(); err != nil {
+			dialog.ShowError(fmt.Errorf("java check/installation failed: %w", err), w)
+			return
+		}
+
+		// Launch OWLCMS
+		if err := launchOwlcms(version); err != nil {
+			dialog.ShowError(err, w)
+			return
+		}
+	})
+
 	mainContent := container.NewVBox(
 		widget.NewLabel("OWLCMS Launcher"),
 		releaseLabel,
 		releaseDropdown,
+		launchButton, // Add launch button to main content
 	)
 
 	w.SetContent(loadingContainer)
