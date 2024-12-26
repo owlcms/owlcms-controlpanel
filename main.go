@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 
+	"owlcms-launcher/downloadUtils"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/canvas"
@@ -78,6 +80,7 @@ func main() {
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
 	a.Settings().SetTheme(newMyTheme())
 	w := a.NewWindow("OWLCMS Launcher")
+	w.Resize(fyne.NewSize(600, 300)) // Larger initial window size
 
 	progress := widget.NewProgressBarInfinite()
 	loadingText := canvas.NewText("Fetching releases...", color.Black)
@@ -85,8 +88,56 @@ func main() {
 
 	releaseLabel := widget.NewLabel("Select OWLCMS Release:")
 	releaseDropdown := widget.NewSelect([]string{}, func(selected string) {
-		dialog.ShowInformation("Selected Release",
-			fmt.Sprintf("Starting download of %s...", selected), w)
+		urlPrefix := "https://github.com/owlcms/owlcms4-prerelease/releases/download"
+		fileName := fmt.Sprintf("owlcms_%s.zip", selected)
+		zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, selected, fileName)
+		zipPath := fileName
+		extractPath := selected // Use the release version as subdirectory
+
+		dialog.ShowConfirm("Confirm Download",
+			fmt.Sprintf("Do you want to download and install OWLCMS version %s?", selected),
+			func(ok bool) {
+				if !ok {
+					return
+				}
+
+				// Show progress dialog
+				progressDialog := dialog.NewCustom(
+					"Installing OWLCMS",
+					"Please wait...",
+					widget.NewTextGridFromString("Downloading and extracting files..."),
+					w)
+				progressDialog.Show()
+
+				// Download the ZIP file using downloadUtils
+				err := downloadUtils.DownloadZip(zipURL, zipPath)
+				if err != nil {
+					progressDialog.Hide()
+					dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
+					return
+				}
+
+				// Extract the ZIP file to version-specific subdirectory
+				err = downloadUtils.ExtractZip(zipPath, extractPath)
+				if err != nil {
+					progressDialog.Hide()
+					dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
+					return
+				}
+
+				// Hide progress dialog
+				progressDialog.Hide()
+
+				// Show success panel with installation details
+				message := fmt.Sprintf(
+					"Successfully installed OWLCMS version %s\n\n"+
+						"Location: %s\n\n"+
+						"The program files have been extracted to the above directory.",
+					selected, extractPath)
+
+				dialog.ShowInformation("Installation Complete", message, w)
+			},
+			w)
 	})
 	releaseDropdown.PlaceHolder = "Choose a release version"
 
@@ -97,7 +148,7 @@ func main() {
 	)
 
 	w.SetContent(loadingContainer)
-	w.Resize(fyne.NewSize(400, 200))
+	w.Resize(fyne.NewSize(800, 600))
 
 	go func() {
 		releases, err := fetchReleases()
