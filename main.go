@@ -9,7 +9,7 @@ import (
 
 func main() {
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
-	w := a.NewWindow("Simple Fyne App")
+	w := a.NewWindow("owlcms launcher")
 
 	// Create a label to display the click status
 	clickLabel := widget.NewLabel("")
