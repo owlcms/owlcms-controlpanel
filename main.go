@@ -7,15 +7,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"owlcms-launcher/downloadUtils"
 	"owlcms-launcher/javacheck"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -164,10 +163,6 @@ func main() {
 	w := a.NewWindow("OWLCMS Launcher")
 	w.Resize(fyne.NewSize(600, 300)) // Larger initial window size
 
-	progress := widget.NewProgressBarInfinite()
-	loadingText := canvas.NewText("Fetching releases...", color.Black)
-	loadingContainer := container.NewVBox(loadingText, progress)
-
 	// Create stop button and status label
 	stopButton = widget.NewButton("Stop", nil)
 	statusLabel = widget.NewLabel("")
@@ -220,19 +215,29 @@ func main() {
 		),
 	)
 
-	w.SetContent(loadingContainer)
+	w.SetContent(mainContent)
 	w.Resize(fyne.NewSize(800, 600))
 
+	// Show installed versions first
+	w.SetContent(mainContent)
+
+	releasesChan := make(chan []string)
+	errChan := make(chan error)
+
+	go fetchReleasesInBackground(releasesChan, errChan)
+
 	go func() {
-		releases, err := fetchReleases()
-		if err != nil {
-			dialog.ShowError(err, w)
-			return
+		select {
+		case releases := <-releasesChan:
+			releaseDropdown.Options = releases // Set the available releases in dropdown
+			// Show the main content with the populated version list
+			w.Canvas().Refresh(mainContent)
+		case err := <-errChan:
+			fmt.Printf("Error fetching releases: %v\n", err)
+			w.SetContent(widget.NewLabel("Internet access not available, cannot show the available versions"))
+		case <-time.After(10 * time.Second):
+			w.SetContent(widget.NewLabel("Internet access not available, cannot show the available versions"))
 		}
-		releaseDropdown.Options = releases // Set the available releases in dropdown
-		// Show the main content with the populated version list
-		w.SetContent(mainContent)
-		w.Canvas().Refresh(mainContent)
 	}()
 
 	w.SetCloseIntercept(func() {
