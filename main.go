@@ -12,7 +12,6 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
-	"strings"
 	"time"
 
 	"owlcms-launcher/downloadUtils"
@@ -108,6 +107,24 @@ func findLatestInstalled() string {
 	return versions[0]
 }
 
+func getAllInstalledVersions() []string {
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		return nil
+	}
+
+	versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+(?:-(?:rc|alpha|beta)(?:\d+)?)?$`)
+	var versions []string
+	for _, entry := range entries {
+		if entry.IsDir() && versionPattern.MatchString(entry.Name()) {
+			versions = append(versions, entry.Name())
+		}
+	}
+
+	sort.Sort(sort.Reverse(sort.StringSlice(versions)))
+	return versions
+}
+
 func checkJava() error {
 	return javacheck.CheckJava()
 }
@@ -162,43 +179,43 @@ func monitorProcess(cmd *exec.Cmd) chan error {
 }
 
 var (
-	currentProcess   *exec.Cmd
-	globalStopButton *widget.Button
-	statusLabel      *widget.Label // Add status label
-	killedByUs       bool          // Add flag to track if we initiated the kill
+	currentProcess *exec.Cmd
+	currentVersion string // Add to track current version
+	statusLabel    *widget.Label
+	killedByUs     bool
 )
 
-func stopOwlcms() error {
-	if currentProcess != nil && currentProcess.Process != nil {
-		pid := currentProcess.Process.Pid
-		killedByUs = true // Set flag before killing
-		err := currentProcess.Process.Kill()
-		if err != nil {
-			killedByUs = false // Reset flag if kill failed
-			return fmt.Errorf("failed to stop OWLCMS (PID: %d): %w", pid, err)
-		}
-		fmt.Printf("Stopped OWLCMS (PID: %d)\n", pid)
-		// Add death confirmation
-		fmt.Printf("OWLCMS process %d has been terminated\n", pid)
-		statusLabel.SetText(fmt.Sprintf("OWLCMS process %d has been terminated", pid))
-		currentProcess = nil
-		return nil
+func createStopButton(w fyne.Window) *widget.Button {
+	stopButton := widget.NewButton("Stop", nil)
+	stopButton.Hidden = true
+	stopButton.OnTapped = func() {
+		fmt.Printf("Stopping OWLCMS %s...\n", currentVersion)
+		statusLabel.SetText(fmt.Sprintf("Stopping OWLCMS %s...", currentVersion))
+
+		go func() {
+			if currentProcess == nil || currentProcess.Process == nil {
+				return
+			}
+			pid := currentProcess.Process.Pid
+			killedByUs = true
+			err := currentProcess.Process.Kill()
+			if err != nil {
+				killedByUs = false
+				dialog.ShowError(fmt.Errorf("failed to stop OWLCMS %s (PID: %d): %w", currentVersion, pid, err), w)
+				return
+			}
+			fmt.Printf("OWLCMS %s (PID: %d) has been stopped\n", currentVersion, pid)
+			statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) has been stopped", currentVersion, pid))
+			currentProcess = nil
+			stopButton.Hide()
+		}()
 	}
-	return nil
+	return stopButton
 }
 
-// isKilled checks if the process was killed (either by us or externally)
-func isKilled(err error) bool {
-	if err == nil {
-		return false
-	}
-	return err.Error() == "signal: killed" ||
-		err.Error() == "os: process already finished" ||
-		strings.Contains(err.Error(), "process was killed")
-}
-
-func launchOwlcms(version string, launchButton *widget.Button) error {
-	statusLabel.SetText("Starting OWLCMS...")
+func launchOwlcms(version string, launchButton, stopButton *widget.Button) error {
+	currentVersion = version // Store current version
+	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s...", version))
 	// Store current directory to restore it later
 	originalDir, err := os.Getwd()
 	if err != nil {
@@ -230,15 +247,16 @@ func launchOwlcms(version string, launchButton *widget.Button) error {
 
 	cmd := exec.Command(javaCmd, "-jar", "owlcms.jar")
 	if err := cmd.Start(); err != nil {
-		statusLabel.SetText("Failed to start OWLCMS")
+		statusLabel.SetText(fmt.Sprintf("Failed to start OWLCMS %s", version))
 		launchButton.Show() // Show launch button again if start fails
-		return fmt.Errorf("failed to start OWLCMS: %w", err)
+		return fmt.Errorf("failed to start OWLCMS %s: %w", version, err)
 	}
 
-	fmt.Printf("Launching OWLCMS (PID: %d), waiting for port 8080...\n", cmd.Process.Pid)
-	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS (PID: %d), please wait...", cmd.Process.Pid))
+	fmt.Printf("Launching OWLCMS %s (PID: %d), waiting for port 8080...\n", version, cmd.Process.Pid)
+	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s (PID: %d), please wait...", version, cmd.Process.Pid))
 	currentProcess = cmd
-	globalStopButton.Show()
+	stopButton.SetText(fmt.Sprintf("Stop OWLCMS %s", version))
+	stopButton.Show()
 
 	killedByUs = false // Reset flag when starting new process
 
@@ -250,7 +268,7 @@ func launchOwlcms(version string, launchButton *widget.Button) error {
 		if err := <-monitorChan; err != nil {
 			fmt.Printf("OWLCMS process %d failed to start properly: %v\n", cmd.Process.Pid, err)
 			statusLabel.SetText(fmt.Sprintf("OWLCMS process %d failed to start properly", cmd.Process.Pid))
-			globalStopButton.Hide()
+			stopButton.Hide()
 			launchButton.Show()
 			currentProcess = nil
 			return
@@ -265,79 +283,24 @@ func launchOwlcms(version string, launchButton *widget.Button) error {
 
 		if killedByUs {
 			// If we killed it, just report normal termination
-			fmt.Printf("OWLCMS process %d was stopped by user\n", pid)
-			statusLabel.SetText(fmt.Sprintf("OWLCMS process %d was stopped by user", pid))
+			fmt.Printf("OWLCMS %s (PID: %d) was stopped by user\n", version, pid)
+			statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) was stopped by user", version, pid))
 		} else if err != nil {
 			// Only report error if it wasn't killed by us
-			fmt.Printf("OWLCMS process %d terminated with error: %v\n", pid, err)
-			statusLabel.SetText(fmt.Sprintf("OWLCMS process %d terminated with error", pid))
+			fmt.Printf("OWLCMS %s (PID: %d) terminated with error: %v\n", version, pid, err)
+			statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) terminated with error", version, pid))
 		} else {
-			fmt.Printf("OWLCMS process %d exited normally\n", pid)
-			statusLabel.SetText(fmt.Sprintf("OWLCMS process %d exited normally", pid))
+			fmt.Printf("OWLCMS %s (PID: %d) exited normally\n", version, pid)
+			statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) exited normally", version, pid))
 		}
 
 		currentProcess = nil
 		killedByUs = false // Reset flag
-		globalStopButton.Hide()
+		stopButton.Hide()
 		launchButton.Show()
 	}()
 
 	return nil
-}
-
-func createButtons(w fyne.Window) (*widget.Button, *widget.Button) {
-	var stopButton *widget.Button
-	var launchButton *widget.Button
-
-	stopCallback := func() {
-		fmt.Println("Stopping OWLCMS...")         // Log immediately when button is clicked
-		statusLabel.SetText("Stopping OWLCMS...") // Update GUI immediately
-
-		// Now do the actual stopping in background
-		go func() {
-			if currentProcess == nil || currentProcess.Process == nil {
-				return
-			}
-			pid := currentProcess.Process.Pid
-			fmt.Printf("Attempting to stop OWLCMS process (PID: %d)...\n", pid)
-			statusLabel.SetText(fmt.Sprintf("Stopping OWLCMS process %d...", pid))
-
-			if err := stopOwlcms(); err != nil {
-				dialog.ShowError(err, w)
-				statusLabel.SetText(fmt.Sprintf("Failed to stop OWLCMS process %d", pid))
-				return
-			}
-			globalStopButton.Hide()
-			launchButton.Show()
-		}()
-	}
-
-	stopButton = widget.NewButton("Stop OWLCMS", stopCallback)
-	stopButton.Hide()
-	globalStopButton = stopButton
-
-	launchButton = widget.NewButton("Launch OWLCMS", func() {
-		version := findLatestInstalled()
-		if version == "" {
-			dialog.ShowError(fmt.Errorf("no OWLCMS version installed"), w)
-			return
-		}
-
-		fmt.Println("Launching OWLCMS...")
-		if err := checkJava(); err != nil {
-			dialog.ShowError(fmt.Errorf("java check/installation failed: %w", err), w)
-			return
-		}
-
-		launchButton.Hide() // Hide launch button immediately when clicked
-
-		if err := launchOwlcms(version, launchButton); err != nil {
-			dialog.ShowError(err, w)
-			return
-		}
-	})
-
-	return launchButton, stopButton
 }
 
 func main() {
@@ -350,13 +313,13 @@ func main() {
 	loadingText := canvas.NewText("Fetching releases...", color.Black)
 	loadingContainer := container.NewVBox(loadingText, progress)
 
-	releaseLabel := widget.NewLabel("Select OWLCMS Release:")
+	// Create release dropdown for downloads
 	releaseDropdown := widget.NewSelect([]string{}, func(selected string) {
 		urlPrefix := "https://github.com/owlcms/owlcms4-prerelease/releases/download"
 		fileName := fmt.Sprintf("owlcms_%s.zip", selected)
 		zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, selected, fileName)
 		zipPath := fileName
-		extractPath := selected // Use the release version as subdirectory
+		extractPath := selected
 
 		dialog.ShowConfirm("Confirm Download",
 			fmt.Sprintf("Do you want to download and install OWLCMS version %s?", selected),
@@ -403,18 +366,116 @@ func main() {
 			},
 			w)
 	})
-	releaseDropdown.PlaceHolder = "Choose a release version"
+	releaseDropdown.PlaceHolder = "Choose a release to download"
 
-	launchButton, stopButton := createButtons(w)
+	// Create version list
+	versions := getAllInstalledVersions()
 
-	statusLabel = widget.NewLabel("") // Create status label
+	// Create stop button
+	stopButton := createStopButton(w)
+
+	// Create version list with launch buttons
+	versionList := widget.NewList(
+		func() int { return len(versions) },
+		func() fyne.CanvasObject {
+			// Create template with version label and launch button side by side
+			label := widget.NewLabel("Template")
+			button := widget.NewButton("Launch", nil)
+			return container.NewBorder(nil, nil, nil, button, label)
+		},
+		func(index widget.ListItemID, item fyne.CanvasObject) {
+			// Get the container and its children
+			cont := item.(*fyne.Container)
+			label := cont.Objects[0].(*widget.Label)
+			button := cont.Objects[1].(*widget.Button)
+
+			// Set version text
+			if index < len(versions) {
+				version := versions[index]
+				label.SetText(version)
+				button.OnTapped = func() {
+					if currentProcess != nil {
+						dialog.ShowError(fmt.Errorf("OWLCMS is already running"), w)
+						return
+					}
+
+					fmt.Printf("Launching version %s\n", version)
+					if err := checkJava(); err != nil {
+						dialog.ShowError(fmt.Errorf("java check/installation failed: %w", err), w)
+						return
+					}
+
+					if err := launchOwlcms(version, button, stopButton); err != nil {
+						dialog.ShowError(err, w)
+						return
+					}
+				}
+			}
+		},
+	)
+
+	versionList.OnSelected = func(id widget.ListItemID) {
+		if id < len(versions) {
+			// Only log selection, no need to store index
+			fmt.Printf("Selected version: %s\n", versions[id])
+		}
+	}
+
+	// Select first version by default if available
+	if len(versions) > 0 {
+		versionList.Select(0)
+	}
+
+	// Set initial selection using findLatestInstalled
+	if latest := findLatestInstalled(); latest != "" {
+		// Find index of latest version
+		for i, v := range versions {
+			if v == latest {
+				versionList.Select(i)
+				break
+			}
+		}
+	}
+
+	// Create scroll container for version list with dynamic size
+	versionScroll := container.NewVScroll(versionList)
+	minHeight := 50 // minimum height
+	rowHeight := 40 // approximate height per row
+	numVersions := len(versions)
+	if numVersions > 0 {
+		// Set height based on number of versions, but cap at 4 rows
+		height := minHeight + (rowHeight * min(numVersions, 4))
+		versionScroll.SetMinSize(fyne.NewSize(400, float32(height)))
+	} else {
+		versionScroll.SetMinSize(fyne.NewSize(400, float32(minHeight)))
+	}
+
+	statusLabel = widget.NewLabel("")
+	statusLabel.Wrapping = fyne.TextWrapWord // Allow status messages to wrap
+
+	// Create layout with tighter grouping of controls
+	installedGroup := container.NewVBox(
+		widget.NewLabel("Installed Versions:"),
+		versionScroll,
+		container.NewVBox( // Put controls directly under version list
+			container.NewHBox(stopButton),
+			statusLabel,
+		),
+	)
+
+	downloadGroup := container.NewVBox(
+		widget.NewLabelWithStyle("Download New Version", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		widget.NewLabel("Download and install a new version of OWLCMS from GitHub:"),
+		releaseDropdown,
+	)
 
 	mainContent := container.NewVBox(
-		widget.NewLabel("OWLCMS Launcher"),
-		releaseLabel,
-		releaseDropdown,
-		container.NewHBox(launchButton, stopButton),
-		statusLabel, // Add status label to UI
+		widget.NewLabelWithStyle("OWLCMS Launcher", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		installedGroup,
+		container.NewHBox(
+			downloadGroup,
+			widget.NewLabel(""),
+		),
 	)
 
 	w.SetContent(loadingContainer)
@@ -426,10 +487,17 @@ func main() {
 			dialog.ShowError(err, w)
 			return
 		}
-		releaseDropdown.Options = releases
+		releaseDropdown.Options = releases // Set the available releases in dropdown
 		w.SetContent(mainContent)
 		w.Canvas().Refresh(mainContent)
 	}()
 
 	w.ShowAndRun()
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
