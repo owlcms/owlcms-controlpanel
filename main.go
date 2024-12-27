@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 
+	"owlcms-launcher/downloadUtils"
 	"owlcms-launcher/javacheck"
 
 	"fyne.io/fyne/v2"
@@ -84,7 +85,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button, downl
 
 	javaCmd := "java"
 	localJava := filepath.Join(originalDir, "java17", "bin", "java")
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == "windows" && !downloadUtils.IsWSL() {
 		localJava = filepath.Join(originalDir, "java17", "bin", "javaw.exe")
 		javaCmd = "javaw"
 	}

@@ -283,16 +283,18 @@ func getTemurinDownloadURL() (string, error) {
 
 func findJava() (string, error) {
 	javaHome := os.Getenv("JAVA_HOME")
+	javaCommand := "java"
+	if runtime.GOOS == "windows" && !isWSL() {
+		javaCommand = "javaw"
+	}
 	if javaHome != "" {
-		javaExecutable := filepath.Join(javaHome, "bin", "java")
-		if runtime.GOOS == "windows" && !isWSL() {
-			javaExecutable = filepath.Join(javaHome, "bin", "javaw.exe")
-		}
+		javaExecutable := filepath.Join(javaHome, "bin", javaCommand)
 		if _, err := os.Stat(javaExecutable); err == nil {
 			return javaExecutable, nil
 		}
 	}
-	javaPath, err := exec.LookPath("java")
+
+	javaPath, err := exec.LookPath(javaCommand)
 	if err == nil {
 		return javaPath, nil
 	}
