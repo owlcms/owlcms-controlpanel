@@ -89,18 +89,18 @@ func CheckJava() error {
 		return nil
 	}
 
-	// Then check for system Java
-	javaPath, err = findJava()
-	if err == nil {
-		version, err := getJavaVersion(javaPath)
-		if err == nil && version >= 17 {
-			fmt.Printf("System Java %d found at: %s\n", version, javaPath)
-			return nil
-		}
-		if err == nil {
-			fmt.Printf("System Java version %d is too old, need 17 or later\n", version)
-		}
-	}
+	// // Then check for system Java
+	// javaPath, err = findJava()
+	// if err == nil {
+	// 	version, err := getJavaVersion(javaPath)
+	// 	if err == nil && version >= 17 {
+	// 		fmt.Printf("System Java %d found at: %s\n", version, javaPath)
+	// 		return nil
+	// 	}
+	// 	if err == nil {
+	// 		fmt.Printf("System Java version %d is too old, need 17 or later\n", version)
+	// 	}
+	// }
 
 	fmt.Println("Suitable Java not found. Downloading from Temurin...")
 
