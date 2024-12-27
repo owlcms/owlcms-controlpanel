@@ -215,6 +215,12 @@ func createStopButton(w fyne.Window) *widget.Button {
 
 func launchOwlcms(version string, launchButton, stopButton *widget.Button) error {
 	currentVersion = version // Store current version
+
+	// Check if port 8080 is already in use
+	if err := checkPort(); err == nil {
+		return fmt.Errorf("OWLCMS is already running on port 8080")
+	}
+
 	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s...", version))
 	// Store current directory to restore it later
 	originalDir, err := os.Getwd()
@@ -376,7 +382,7 @@ func main() {
 
 	// Create version list with launch buttons
 	versionList := widget.NewList(
-		func() int { return len(versions) },
+		func() int { return len(versions) }, // No extra row for stop button
 		func() fyne.CanvasObject {
 			// Create template with version label and launch button side by side
 			label := widget.NewLabel("Template")
@@ -390,25 +396,24 @@ func main() {
 			button := cont.Objects[1].(*widget.Button)
 
 			// Set version text
-			if index < len(versions) {
-				version := versions[index]
-				label.SetText(version)
-				button.OnTapped = func() {
-					if currentProcess != nil {
-						dialog.ShowError(fmt.Errorf("OWLCMS is already running"), w)
-						return
-					}
+			version := versions[index]
+			label.SetText(version)
+			button.SetText("Launch")
+			button.OnTapped = func() {
+				if currentProcess != nil {
+					dialog.ShowError(fmt.Errorf("OWLCMS is already running"), w)
+					return
+				}
 
-					fmt.Printf("Launching version %s\n", version)
-					if err := checkJava(); err != nil {
-						dialog.ShowError(fmt.Errorf("java check/installation failed: %w", err), w)
-						return
-					}
+				fmt.Printf("Launching version %s\n", version)
+				if err := checkJava(); err != nil {
+					dialog.ShowError(fmt.Errorf("java check/installation failed: %w", err), w)
+					return
+				}
 
-					if err := launchOwlcms(version, button, stopButton); err != nil {
-						dialog.ShowError(err, w)
-						return
-					}
+				if err := launchOwlcms(version, button, stopButton); err != nil {
+					dialog.ShowError(err, w)
+					return
 				}
 			}
 		},
@@ -453,14 +458,12 @@ func main() {
 	statusLabel = widget.NewLabel("")
 	statusLabel.Wrapping = fyne.TextWrapWord // Allow status messages to wrap
 
-	// Create layout with tighter grouping of controls
+	// Create more compact layout without padding
 	installedGroup := container.NewVBox(
 		widget.NewLabel("Installed Versions:"),
 		versionScroll,
-		container.NewVBox( // Put controls directly under version list
-			container.NewHBox(stopButton),
-			statusLabel,
-		),
+		container.NewHBox(stopButton),
+		statusLabel,
 	)
 
 	downloadGroup := container.NewVBox(
@@ -488,6 +491,7 @@ func main() {
 			return
 		}
 		releaseDropdown.Options = releases // Set the available releases in dropdown
+		// Show the main content with the populated version list
 		w.SetContent(mainContent)
 		w.Canvas().Refresh(mainContent)
 	}()
