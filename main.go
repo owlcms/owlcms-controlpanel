@@ -50,6 +50,7 @@ var (
 	statusLabel      *widget.Label
 	stopButton       *widget.Button
 	versionContainer *fyne.Container
+	stopContainer    *fyne.Container
 )
 
 func launchOwlcms(version string, launchButton, stopButton *widget.Button, downloadGroup, versionContainer *fyne.Container) error {
@@ -102,6 +103,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button, downl
 	currentProcess = cmd
 	stopButton.SetText(fmt.Sprintf("Stop OWLCMS %s", version))
 	stopButton.Show()
+	stopContainer.Show()
 	downloadGroup.Hide()
 	versionContainer.Hide()
 
@@ -114,6 +116,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button, downl
 			fmt.Printf("OWLCMS process %d failed to start properly: %v\n", cmd.Process.Pid, err)
 			statusLabel.SetText(fmt.Sprintf("OWLCMS process %d failed to start properly", cmd.Process.Pid))
 			stopButton.Hide()
+			stopContainer.Hide()
 			launchButton.Show()
 			currentProcess = nil
 			downloadGroup.Show()
@@ -144,6 +147,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button, downl
 		currentProcess = nil
 		killedByUs = false // Reset flag
 		stopButton.Hide()
+		stopContainer.Hide()
 		launchButton.Show()
 		downloadGroup.Show()
 		versionContainer.Show()
@@ -170,13 +174,14 @@ func main() {
 	// Create containers
 	downloadGroup := container.NewVBox()
 	versionContainer = container.NewVBox()
-	stopContainer := container.NewVBox(stopButton, statusLabel)
+	stopContainer = container.NewVBox(stopButton, statusLabel)
 
 	// Configure stop button behavior
 	stopButton.OnTapped = func() {
 		stopProcess(currentProcess, currentVersion, stopButton, downloadGroup, versionContainer, statusLabel, w)
 	}
 	stopButton.Hide()
+	stopContainer.Hide()
 
 	// Initialize version list
 	versionList := createVersionList(w, stopButton, downloadGroup, versionContainer)
@@ -205,8 +210,8 @@ func main() {
 
 	mainContent := container.NewVBox(
 		widget.NewLabelWithStyle("OWLCMS Launcher", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-		versionContainer,
 		stopContainer,
+		versionContainer,
 		container.NewHBox(
 			downloadGroup,
 			widget.NewLabel(""),
