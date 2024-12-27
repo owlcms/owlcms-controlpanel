@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"time"
 )
 
@@ -43,6 +45,37 @@ func DownloadZip(url, destPath string) error {
 
 	fmt.Printf("Successfully downloaded file to: %s\n", destPath)
 	return nil
+}
+
+// IsWSL checks if the program is running under Windows Subsystem for Linux.
+func IsWSL() bool {
+	_, err := os.Stat("/proc/version")
+	if err != nil {
+		return false
+	}
+	version, err := os.ReadFile("/proc/version")
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(version), "Microsoft")
+}
+
+// GetDownloadURL returns the correct download URL based on the operating system.
+func GetDownloadURL(baseURL string) string {
+	var asset string
+	if IsWSL() {
+		asset = "temurin.tar.gz"
+	} else {
+		switch runtime.GOOS {
+		case "windows":
+			asset = "temurin.zip"
+		case "linux":
+			asset = "temurin.tar.gz"
+		default:
+			asset = "temurin.zip"
+		}
+	}
+	return fmt.Sprintf("%s/%s", baseURL, asset)
 }
 
 // ExtractZip extracts a zip archive to the specified destination directory.

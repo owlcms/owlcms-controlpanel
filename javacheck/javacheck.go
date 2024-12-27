@@ -117,19 +117,19 @@ func CheckJava() error {
 	}
 
 	archivePath := filepath.Join(javaDir, "temurin")
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == "windows" && !isWSL() {
 		archivePath += ".zip"
 	} else {
 		archivePath += ".tar.gz"
 	}
 
 	if err := downloadUtils.DownloadZip(url, archivePath); err != nil {
-		return fmt.Errorf("downloading Temurin: %w", err)
+		return fmt.Errorf("error downloading Temurin: %w", err)
 	}
 
-	if runtime.GOOS == "windows" {
+	if runtime.GOOS == "windows" && !isWSL() {
 		if err := downloadUtils.ExtractZip(archivePath, javaDir); err != nil {
-			return fmt.Errorf("extracting Temurin zip: %w", err)
+			return fmt.Errorf("error extracting Temurin zip: %w", err)
 		}
 	} else {
 		if err := downloadUtils.ExtractTarGz(archivePath, javaDir); err != nil {
@@ -239,22 +239,33 @@ func getTemurinDownloadURL() (string, error) {
 	fmt.Printf("\nRunning on: OS=%s, ARCH=%s, WSL=%v\n", runtime.GOOS, runtime.GOARCH, isWSL())
 
 	// Print all available assets for debugging
-	fmt.Println("\nAvailable assets:")
-	for _, asset := range release.Assets {
-		fmt.Printf("- %s\n", asset.Name)
-	}
+	// fmt.Println("\nAvailable assets:")
+	// for _, asset := range release.Assets {
+	// 	fmt.Printf("- %s\n", asset.Name)
+	// }
 
 	// Always use Linux pattern for WSL/Linux, but with correct version
 	var pattern string
-	switch runtime.GOARCH {
-	case "amd64":
-		pattern = fmt.Sprintf("OpenJDK17U-jre_x64_linux_hotspot_%s.tar.gz", version)
-	case "arm64":
-		pattern = fmt.Sprintf("OpenJDK17U-jre_aarch64_linux_hotspot_%s.tar.gz", version)
-	case "arm":
-		pattern = fmt.Sprintf("OpenJDK17U-jre_arm_linux_hotspot_%s.tar.gz", version)
-	default:
-		return "", fmt.Errorf("unsupported architecture: %s", runtime.GOARCH)
+	if isWSL() || runtime.GOOS == "linux" {
+		switch runtime.GOARCH {
+		case "amd64":
+			pattern = fmt.Sprintf("OpenJDK17U-jre_x64_linux_hotspot_%s.tar.gz", version)
+		case "arm64":
+			pattern = fmt.Sprintf("OpenJDK17U-jre_aarch64_linux_hotspot_%s.tar.gz", version)
+		case "arm":
+			pattern = fmt.Sprintf("OpenJDK17U-jre_arm_linux_hotspot_%s.tar.gz", version)
+		default:
+			return "", fmt.Errorf("unsupported architecture: %s", runtime.GOARCH)
+		}
+	} else {
+		switch runtime.GOARCH {
+		case "amd64":
+			pattern = fmt.Sprintf("OpenJDK17U-jre_x64_windows_hotspot_%s.zip", version)
+		case "arm64":
+			pattern = fmt.Sprintf("OpenJDK17U-jre_aarch64_windows_hotspot_%s.zip", version)
+		default:
+			return "", fmt.Errorf("unsupported architecture: %s", runtime.GOARCH)
+		}
 	}
 
 	fmt.Printf("\nLooking for asset: %s\n", pattern)

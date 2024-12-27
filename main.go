@@ -85,7 +85,8 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button, downl
 	javaCmd := "java"
 	localJava := filepath.Join(originalDir, "java17", "bin", "java")
 	if runtime.GOOS == "windows" {
-		localJava += ".exe"
+		localJava = filepath.Join(originalDir, "java17", "bin", "javaw.exe")
+		javaCmd = "javaw"
 	}
 	if _, err := os.Stat(localJava); err == nil {
 		javaCmd = localJava
@@ -232,6 +233,13 @@ func main() {
 		w.SetContent(mainContent)
 		w.Canvas().Refresh(mainContent)
 	}()
+
+	w.SetCloseIntercept(func() {
+		if currentProcess != nil {
+			stopProcess(currentProcess, currentVersion, stopButton, downloadGroup, versionContainer, statusLabel, w)
+		}
+		w.Close()
+	})
 
 	w.ShowAndRun()
 }
