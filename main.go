@@ -185,36 +185,7 @@ var (
 	killedByUs     bool
 )
 
-func createStopButton(w fyne.Window, downloadGroup *fyne.Container) *widget.Button {
-	stopButton := widget.NewButton("Stop", nil)
-	stopButton.Hidden = true
-	stopButton.OnTapped = func() {
-		fmt.Printf("Stopping OWLCMS %s...\n", currentVersion)
-		statusLabel.SetText(fmt.Sprintf("Stopping OWLCMS %s...", currentVersion))
-
-		go func() {
-			if currentProcess == nil || currentProcess.Process == nil {
-				return
-			}
-			pid := currentProcess.Process.Pid
-			killedByUs = true
-			err := currentProcess.Process.Kill()
-			if err != nil {
-				killedByUs = false
-				dialog.ShowError(fmt.Errorf("failed to stop OWLCMS %s (PID: %d): %w", currentVersion, pid, err), w)
-				return
-			}
-			fmt.Printf("OWLCMS %s (PID: %d) has been stopped\n", currentVersion, pid)
-			statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) has been stopped", currentVersion, pid))
-			currentProcess = nil
-			stopButton.Hide()
-			downloadGroup.Show()
-		}()
-	}
-	return stopButton
-}
-
-func launchOwlcms(version string, launchButton, stopButton *widget.Button, downloadGroup *fyne.Container) error {
+func launchOwlcms(version string, launchButton, stopButton *widget.Button, downloadGroup, versionContainer *fyne.Container) error {
 	currentVersion = version // Store current version
 
 	// Check if port 8080 is already in use
@@ -265,6 +236,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button, downl
 	stopButton.SetText(fmt.Sprintf("Stop OWLCMS %s", version))
 	stopButton.Show()
 	downloadGroup.Hide()
+	versionContainer.Hide()
 
 	killedByUs = false // Reset flag when starting new process
 
@@ -280,6 +252,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button, downl
 			launchButton.Show()
 			currentProcess = nil
 			downloadGroup.Show()
+			versionContainer.Show()
 			return
 		}
 
@@ -308,6 +281,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button, downl
 		stopButton.Hide()
 		launchButton.Show()
 		downloadGroup.Show()
+		versionContainer.Show()
 	}()
 
 	return nil
@@ -326,9 +300,42 @@ func main() {
 	// Create version list
 	versions := getAllInstalledVersions()
 
-	// Create stop button
+	// Create stop button and status label
+	stopButton := widget.NewButton("Stop", nil)
+	statusLabel = widget.NewLabel("")
+	statusLabel.Wrapping = fyne.TextWrapWord // Allow status messages to wrap
+
+	// Create containers
 	downloadGroup := container.NewVBox()
-	stopButton := createStopButton(w, downloadGroup)
+	versionContainer := container.NewVBox()
+	stopContainer := container.NewVBox(stopButton, statusLabel)
+
+	// Configure stop button behavior
+	stopButton.OnTapped = func() {
+		fmt.Printf("Stopping OWLCMS %s...\n", currentVersion)
+		statusLabel.SetText(fmt.Sprintf("Stopping OWLCMS %s...", currentVersion))
+
+		go func() {
+			if currentProcess == nil || currentProcess.Process == nil {
+				return
+			}
+			pid := currentProcess.Process.Pid
+			killedByUs = true
+			err := currentProcess.Process.Kill()
+			if err != nil {
+				killedByUs = false
+				dialog.ShowError(fmt.Errorf("failed to stop OWLCMS %s (PID: %d): %w", currentVersion, pid, err), w)
+				return
+			}
+			fmt.Printf("OWLCMS %s (PID: %d) has been stopped\n", currentVersion, pid)
+			statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) has been stopped", currentVersion, pid))
+			currentProcess = nil
+			stopButton.Hide()
+			downloadGroup.Show()
+			versionContainer.Show()
+		}()
+	}
+	stopButton.Hide()
 
 	// Create version list with launch buttons
 	versionList := widget.NewList(
@@ -361,7 +368,7 @@ func main() {
 					return
 				}
 
-				if err := launchOwlcms(version, button, stopButton, downloadGroup); err != nil {
+				if err := launchOwlcms(version, button, stopButton, downloadGroup, versionContainer); err != nil {
 					dialog.ShowError(err, w)
 					return
 				}
@@ -405,16 +412,11 @@ func main() {
 		versionScroll.SetMinSize(fyne.NewSize(400, float32(minHeight)))
 	}
 
-	statusLabel = widget.NewLabel("")
-	statusLabel.Wrapping = fyne.TextWrapWord // Allow status messages to wrap
-
 	// Create more compact layout without padding
-	installedGroup := container.NewVBox(
+	versionContainer.Objects = []fyne.CanvasObject{
 		widget.NewLabel("Installed Versions:"),
 		versionScroll,
-		container.NewHBox(stopButton),
-		statusLabel,
-	)
+	}
 
 	// Create release dropdown for downloads
 	releaseDropdown := widget.NewSelect([]string{}, func(selected string) {
@@ -484,7 +486,8 @@ func main() {
 
 	mainContent := container.NewVBox(
 		widget.NewLabelWithStyle("OWLCMS Launcher", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-		installedGroup,
+		versionContainer,
+		stopContainer,
 		container.NewHBox(
 			downloadGroup,
 			widget.NewLabel(""),
