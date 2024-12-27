@@ -319,61 +319,6 @@ func main() {
 	loadingText := canvas.NewText("Fetching releases...", color.Black)
 	loadingContainer := container.NewVBox(loadingText, progress)
 
-	// Create release dropdown for downloads
-	releaseDropdown := widget.NewSelect([]string{}, func(selected string) {
-		urlPrefix := "https://github.com/owlcms/owlcms4-prerelease/releases/download"
-		fileName := fmt.Sprintf("owlcms_%s.zip", selected)
-		zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, selected, fileName)
-		zipPath := fileName
-		extractPath := selected
-
-		dialog.ShowConfirm("Confirm Download",
-			fmt.Sprintf("Do you want to download and install OWLCMS version %s?", selected),
-			func(ok bool) {
-				if !ok {
-					return
-				}
-
-				// Show progress dialog
-				progressDialog := dialog.NewCustom(
-					"Installing OWLCMS",
-					"Please wait...",
-					widget.NewTextGridFromString("Downloading and extracting files..."),
-					w)
-				progressDialog.Show()
-
-				// Download the ZIP file using downloadUtils
-				err := downloadUtils.DownloadZip(zipURL, zipPath)
-				if err != nil {
-					progressDialog.Hide()
-					dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
-					return
-				}
-
-				// Extract the ZIP file to version-specific subdirectory
-				err = downloadUtils.ExtractZip(zipPath, extractPath)
-				if err != nil {
-					progressDialog.Hide()
-					dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
-					return
-				}
-
-				// Hide progress dialog
-				progressDialog.Hide()
-
-				// Show success panel with installation details
-				message := fmt.Sprintf(
-					"Successfully installed OWLCMS version %s\n\n"+
-						"Location: %s\n\n"+
-						"The program files have been extracted to the above directory.",
-					selected, extractPath)
-
-				dialog.ShowInformation("Installation Complete", message, w)
-			},
-			w)
-	})
-	releaseDropdown.PlaceHolder = "Choose a release to download"
-
 	// Create version list
 	versions := getAllInstalledVersions()
 
@@ -465,6 +410,66 @@ func main() {
 		container.NewHBox(stopButton),
 		statusLabel,
 	)
+
+	// Create release dropdown for downloads
+	releaseDropdown := widget.NewSelect([]string{}, func(selected string) {
+		urlPrefix := "https://github.com/owlcms/owlcms4-prerelease/releases/download"
+		fileName := fmt.Sprintf("owlcms_%s.zip", selected)
+		zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, selected, fileName)
+		zipPath := fileName
+		extractPath := selected
+
+		dialog.ShowConfirm("Confirm Download",
+			fmt.Sprintf("Do you want to download and install OWLCMS version %s?", selected),
+			func(ok bool) {
+				if !ok {
+					return
+				}
+
+				// Show progress dialog
+				progressDialog := dialog.NewCustom(
+					"Installing OWLCMS",
+					"Please wait...",
+					widget.NewTextGridFromString("Downloading and extracting files..."),
+					w)
+				progressDialog.Show()
+
+				// Download the ZIP file using downloadUtils
+				err := downloadUtils.DownloadZip(zipURL, zipPath)
+				if err != nil {
+					progressDialog.Hide()
+					dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
+					return
+				}
+
+				// Extract the ZIP file to version-specific subdirectory
+				err = downloadUtils.ExtractZip(zipPath, extractPath)
+				if err != nil {
+					progressDialog.Hide()
+					dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
+					return
+				}
+
+				// Hide progress dialog
+				progressDialog.Hide()
+
+				// Show success panel with installation details
+				message := fmt.Sprintf(
+					"Successfully installed OWLCMS version %s\n\n"+
+						"Location: %s\n\n"+
+						"The program files have been extracted to the above directory.",
+					selected, extractPath)
+
+				dialog.ShowInformation("Installation Complete", message, w)
+
+				// Refresh the version list
+				versions = getAllInstalledVersions()
+				versionList.Length = func() int { return len(versions) }
+				versionList.Refresh()
+			},
+			w)
+	})
+	releaseDropdown.PlaceHolder = "Choose a release to download"
 
 	downloadGroup := container.NewVBox(
 		widget.NewLabelWithStyle("Download New Version", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
