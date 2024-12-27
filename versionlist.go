@@ -65,6 +65,7 @@ func createVersionList(w fyne.Window, stopButton *widget.Button, downloadGroup, 
 			removeButton := widget.NewButton("Remove", nil)
 			launchButton.Resize(fyne.NewSize(80, 25))
 			removeButton.Resize(fyne.NewSize(80, 25))
+			launchButton.Importance = widget.HighImportance // Make the launch button important
 			return container.NewBorder(nil, nil, nil, container.NewHBox(launchButton, removeButton), label)
 		},
 		func(index widget.ListItemID, item fyne.CanvasObject) {
