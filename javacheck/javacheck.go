@@ -1,9 +1,7 @@
 package javacheck
 
 import (
-	"archive/tar"
-	"archive/zip"
-	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,21 +10,99 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
+	"strings"
+
+	"owlcms-launcher/downloadUtils"
 )
+
+// compareVersions compares two jdk directory names and returns true if a is more recent than b
+func compareVersions(a, b string) bool {
+	// Extract version numbers from directory names (e.g., "jdk-17.0.9+9" -> "17.0.9")
+	aVersion := strings.TrimPrefix(a, "jdk-")
+	bVersion := strings.TrimPrefix(b, "jdk-")
+
+	// Split into components
+	aParts := strings.Split(strings.Split(aVersion, "+")[0], ".")
+	bParts := strings.Split(strings.Split(bVersion, "+")[0], ".")
+
+	// Compare each component
+	for i := 0; i < len(aParts) && i < len(bParts); i++ {
+		aNum, _ := strconv.Atoi(aParts[i])
+		bNum, _ := strconv.Atoi(bParts[i])
+		if aNum != bNum {
+			return aNum > bNum
+		}
+	}
+	return len(aParts) > len(bParts)
+}
+
+func findLocalJava() (string, error) {
+	javaDir := "java17"
+	if _, err := os.Stat(javaDir); err != nil {
+		return "", fmt.Errorf("java17 directory not found")
+	}
+
+	entries, err := os.ReadDir(javaDir)
+	if err != nil {
+		return "", fmt.Errorf("reading java directory: %w", err)
+	}
+
+	// Find directories starting with "jdk" or "jre"
+	var jdkDirs []string
+	for _, entry := range entries {
+		if entry.IsDir() && (strings.HasPrefix(entry.Name(), "jdk") || strings.HasPrefix(entry.Name(), "jre")) {
+			jdkDirs = append(jdkDirs, entry.Name())
+		}
+	}
+
+	if len(jdkDirs) == 0 {
+		return "", fmt.Errorf("no Java installation found in %s", javaDir)
+	}
+
+	// Sort to get the latest version using semantic versioning
+	sort.Slice(jdkDirs, func(i, j int) bool {
+		return compareVersions(jdkDirs[i], jdkDirs[j])
+	})
+	latestJDK := jdkDirs[0]
+
+	// Check for java executable
+	javaExe := "java"
+	if runtime.GOOS == "windows" {
+		javaExe += ".exe"
+	}
+	javaPath := filepath.Join(javaDir, latestJDK, "bin", javaExe)
+
+	if _, err := os.Stat(javaPath); err != nil {
+		return "", fmt.Errorf("java executable not found in %s", javaPath)
+	}
+	return javaPath, nil
+}
 
 // CheckJava checks for Java 17 or later and downloads/installs it if necessary.
 func CheckJava() error {
-	// javaPath, err := findJava()
-	// if err == nil {
-	// 	version, err := getJavaVersion(javaPath)
-	// 	if err == nil && version >= 17 {
-	// 		fmt.Println("Java 17 or later found:", javaPath, "Version:", version)
-	// 		return nil // Java 17+ is already installed.
-	// 	}
-	// }
+	// First check for local Java installation
+	javaPath, err := findLocalJava()
+	if err == nil {
+		fmt.Printf("Found local Java at: %s\n", javaPath)
+		return nil
+	}
 
-	fmt.Println("Java 17 or later not found. Downloading from Temurin...")
+	// Then check for system Java
+	javaPath, err = findJava()
+	if err == nil {
+		version, err := getJavaVersion(javaPath)
+		if err == nil && version >= 17 {
+			fmt.Printf("System Java %d found at: %s\n", version, javaPath)
+			return nil
+		}
+		if err == nil {
+			fmt.Printf("System Java version %d is too old, need 17 or later\n", version)
+		}
+	}
+
+	fmt.Println("Suitable Java not found. Downloading from Temurin...")
 
 	javaDir := "java17"
 	if _, err := os.Stat(javaDir); os.IsNotExist(err) {
@@ -47,16 +123,16 @@ func CheckJava() error {
 		archivePath += ".tar.gz"
 	}
 
-	if err := downloadFile(archivePath, url); err != nil {
+	if err := downloadUtils.DownloadZip(url, archivePath); err != nil {
 		return fmt.Errorf("downloading Temurin: %w", err)
 	}
 
 	if runtime.GOOS == "windows" {
-		if err := extractZip(archivePath, javaDir); err != nil {
+		if err := downloadUtils.ExtractZip(archivePath, javaDir); err != nil {
 			return fmt.Errorf("extracting Temurin zip: %w", err)
 		}
 	} else {
-		if err := extractTarGz(archivePath, javaDir); err != nil {
+		if err := downloadUtils.ExtractTarGz(archivePath, javaDir); err != nil {
 			return fmt.Errorf("extracting Temurin tar.gz: %w", err)
 		}
 	}
@@ -72,82 +148,126 @@ func CheckJava() error {
 type TemurinRelease struct {
 	Name    string `json:"name"`
 	TagName string `json:"tag_name"`
+	Assets  []struct {
+		Name               string `json:"name"`
+		BrowserDownloadURL string `json:"browser_download_url"`
+	} `json:"assets"`
 }
 
-// func getLatestTemurinVersion() (string, error) {
-// 	// Get all releases instead of just the latest
-// 	resp, err := http.Get("https://api.github.com/repos/adoptium/temurin17-binaries/releases")
-// 	if err != nil {
-// 		return "", fmt.Errorf("failed to fetch versions: %w", err)
-// 	}
-// 	defer resp.Body.Close()
+// isWSL returns true if running under Windows Subsystem for Linux
+func isWSL() bool {
+	data, err := os.ReadFile("/proc/version")
+	if err != nil {
+		return false
+	}
+	return strings.Contains(strings.ToLower(string(data)), "microsoft")
+}
 
-// 	if resp.StatusCode != http.StatusOK {
-// 		return "", fmt.Errorf("server returned status %s", resp.Status)
-// 	}
+func findLatestTemurinRelease() (string, error) {
+	// Get latest release info from API
+	req, err := http.NewRequest("GET", "https://api.github.com/repos/adoptium/temurin17-binaries/releases/latest", nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
 
-// 	body, err := io.ReadAll(resp.Body)
-// 	if err != nil {
-// 		return "", fmt.Errorf("failed to read response: %w", err)
-// 	}
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req.Header.Set("User-Agent", "owlcms-launcher")
 
-// 	var releases []TemurinRelease
-// 	if err := json.Unmarshal(body, &releases); err != nil {
-// 		return "", fmt.Errorf("failed to parse response: %w", err)
-// 	}
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch latest release: %w", err)
+	}
+	defer resp.Body.Close()
 
-// 	// Find the latest Java 17 version and keep exact version format
-// 	for _, release := range releases {
-// 		if strings.HasPrefix(release.TagName, "jdk-17.") {
-// 			// Split the version into parts: jdk-17.0.9+9.1 -> [17.0.9, 9.1]
-// 			version := strings.TrimPrefix(release.TagName, "jdk-")
-// 			parts := strings.Split(version, "+")
-// 			if len(parts) != 2 {
-// 				continue
-// 			}
-// 			// Format for download URL: 17.0.9_9.1
-// 			downloadVersion := fmt.Sprintf("%s_%s", parts[0], parts[1])
-// 			// Keep original version for URL path
-// 			urlVersion := version
-// 			return fmt.Sprintf("%s|%s", urlVersion, downloadVersion), nil
-// 		}
-// 	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("GitHub API returned status %d: %s\nBody: %s", resp.StatusCode, resp.Status, string(body))
+	}
 
-// 	return "", fmt.Errorf("no Java 17 version found")
-// }
+	var release TemurinRelease
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return "", fmt.Errorf("failed to parse release: %w", err)
+	}
+
+	fmt.Printf("Latest Temurin release: %s\n", release.TagName)
+	return release.TagName, nil
+}
 
 func getTemurinDownloadURL() (string, error) {
-	// Use fixed version 17.0.9+9 which is known to work
-	baseURL := "https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.9%2B9/"
-	var filename string
-
-	osName := runtime.GOOS
-	arch := runtime.GOARCH
-
-	switch osName {
-	case "windows":
-		filename = "OpenJDK17U-jre_x64_windows_hotspot_17.0.9_9.zip"
-	case "darwin":
-		if arch == "arm64" {
-			filename = "OpenJDK17U-jre_aarch64_mac_hotspot_17.0.9_9.tar.gz"
-		} else {
-			filename = "OpenJDK17U-jre_x64_mac_hotspot_17.0.9_9.tar.gz"
-		}
-	case "linux":
-		switch arch {
-		case "amd64":
-			filename = "OpenJDK17U-jre_x64_linux_hotspot_17.0.9_9.tar.gz"
-		case "arm64":
-			filename = "OpenJDK17U-jre_aarch64_linux_hotspot_17.0.9_9.tar.gz"
-		case "arm":
-			filename = "OpenJDK17U-jre_arm_linux_hotspot_17.0.9_9.tar.gz"
-		default:
-			return "", fmt.Errorf("unsupported linux architecture: %s", arch)
-		}
-	default:
-		return "", fmt.Errorf("unsupported operating system: %s", osName)
+	// Get the latest release tag
+	tag, err := findLatestTemurinRelease()
+	if err != nil {
+		return "", fmt.Errorf("failed to get latest version: %w", err)
 	}
-	return baseURL + filename, nil
+
+	// Extract version number from tag (e.g., "jdk-17.0.13+11" -> "17.0.13_11")
+	version := strings.TrimPrefix(tag, "jdk-")
+	version = strings.ReplaceAll(version, "+", "_")
+
+	// Use the tag to get specific release
+	releaseURL := fmt.Sprintf("https://api.github.com/repos/adoptium/temurin17-binaries/releases/tags/%s", tag)
+
+	req, err := http.NewRequest("GET", releaseURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// Add headers required by GitHub API
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req.Header.Set("User-Agent", "owlcms-launcher")
+
+	// Make the request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch release: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("GitHub API returned status %d: %s\nBody: %s", resp.StatusCode, resp.Status, string(body))
+	}
+
+	var release TemurinRelease
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return "", fmt.Errorf("failed to parse release: %w", err)
+	}
+
+	// Print environment info for debugging
+	fmt.Printf("\nRunning on: OS=%s, ARCH=%s, WSL=%v\n", runtime.GOOS, runtime.GOARCH, isWSL())
+
+	// Print all available assets for debugging
+	fmt.Println("\nAvailable assets:")
+	for _, asset := range release.Assets {
+		fmt.Printf("- %s\n", asset.Name)
+	}
+
+	// Always use Linux pattern for WSL/Linux, but with correct version
+	var pattern string
+	switch runtime.GOARCH {
+	case "amd64":
+		pattern = fmt.Sprintf("OpenJDK17U-jre_x64_linux_hotspot_%s.tar.gz", version)
+	case "arm64":
+		pattern = fmt.Sprintf("OpenJDK17U-jre_aarch64_linux_hotspot_%s.tar.gz", version)
+	case "arm":
+		pattern = fmt.Sprintf("OpenJDK17U-jre_arm_linux_hotspot_%s.tar.gz", version)
+	default:
+		return "", fmt.Errorf("unsupported architecture: %s", runtime.GOARCH)
+	}
+
+	fmt.Printf("\nLooking for asset: %s\n", pattern)
+
+	// Look for exact matching JRE asset
+	for _, asset := range release.Assets {
+		if asset.Name == pattern {
+			fmt.Printf("Found matching JRE: %s\n", asset.Name)
+			return asset.BrowserDownloadURL, nil
+		}
+	}
+
+	return "", fmt.Errorf("no matching JRE found (looking for %s)", pattern)
 }
 
 func findJava() (string, error) {
@@ -203,130 +323,4 @@ func getJavaVersion(javaPath string) (int, error) {
 	}
 
 	return 0, fmt.Errorf("could not parse java version from output: %s", string(output))
-}
-
-func extractTarGz(tarGzPath, dest string) error {
-	r, err := os.Open(tarGzPath)
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-
-	gzr, err := gzip.NewReader(r)
-	if err != nil {
-		return err
-	}
-	defer gzr.Close()
-
-	tr := tar.NewReader(gzr)
-
-	for {
-		header, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return err
-		}
-
-		target := filepath.Join(dest, header.Name)
-
-		switch header.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(target, 0755); err != nil {
-				return err
-			}
-		case tar.TypeReg:
-			outFile, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
-			if err != nil {
-				return err
-			}
-			if _, err := io.Copy(outFile, tr); err != nil {
-				outFile.Close()
-				return err
-			}
-			outFile.Close()
-		}
-	}
-	return nil
-}
-
-func downloadFile(filepath string, url string) error {
-	fmt.Printf("Attempting to download from URL: %s\n", url)
-	resp, err := http.Get(url)
-	if err != nil {
-		return fmt.Errorf("download request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("server returned status %s", resp.Status)
-	}
-
-	// Check if we have a content length
-	if resp.ContentLength <= 0 {
-		return fmt.Errorf("invalid file size received from server")
-	}
-
-	// Create the file
-	out, err := os.Create(filepath)
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
-	}
-	defer out.Close()
-
-	// Copy with size validation
-	written, err := io.Copy(out, resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to save file: %w", err)
-	}
-
-	if resp.ContentLength != written {
-		return fmt.Errorf("incomplete download: expected %d bytes but got %d", resp.ContentLength, written)
-	}
-
-	return nil
-}
-
-func extractZip(zipPath, dest string) error {
-	r, err := zip.OpenReader(zipPath)
-	if err != nil {
-		return err
-	}
-	defer r.Close()
-
-	for _, f := range r.File {
-		fpath := filepath.Join(dest, f.Name)
-
-		if f.FileInfo().IsDir() {
-			if err := os.MkdirAll(fpath, os.ModePerm); err != nil {
-				return err
-			}
-			continue
-		}
-
-		if err := os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
-			return err
-		}
-
-		rc, err := f.Open()
-		if err != nil {
-			return err
-		}
-
-		outFile, err := os.OpenFile(fpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
-		if err != nil {
-			rc.Close()
-			return err
-		}
-
-		_, err = io.Copy(outFile, rc)
-		outFile.Close()
-		rc.Close()
-
-		if err != nil {
-			return err
-		}
-	}
-	return nil
 }

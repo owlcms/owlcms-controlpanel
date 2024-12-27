@@ -1,7 +1,9 @@
 package downloadUtils
 
 import (
+	"archive/tar"
 	"archive/zip"
+	"compress/gzip"
 	"fmt"
 	"io"
 	"net/http"
@@ -73,6 +75,53 @@ func ExtractZip(src, dest string) error {
 
 		if err != nil {
 			return fmt.Errorf("failed to copy file data from zip: %w", err)
+		}
+	}
+	return nil
+}
+
+// ExtractTarGz extracts a tar.gz archive to the specified destination directory.
+func ExtractTarGz(tarGzPath, dest string) error {
+	r, err := os.Open(tarGzPath)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	gzr, err := gzip.NewReader(r)
+	if err != nil {
+		return err
+	}
+	defer gzr.Close()
+
+	tr := tar.NewReader(gzr)
+
+	for {
+		header, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		target := filepath.Join(dest, header.Name)
+
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, 0755); err != nil {
+				return err
+			}
+		case tar.TypeReg:
+			outFile, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(outFile, tr); err != nil {
+				outFile.Close()
+				return err
+			}
+			outFile.Close()
 		}
 	}
 	return nil

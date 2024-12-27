@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
+	"strings"
+	"time"
 
 	"owlcms-launcher/downloadUtils"
 	"owlcms-launcher/javacheck"
@@ -110,7 +112,93 @@ func checkJava() error {
 	return javacheck.CheckJava()
 }
 
-func launchOwlcms(version string) error {
+// checkPort tries to connect to localhost:8080 and returns nil if successful
+func checkPort() error {
+	resp, err := http.Get("http://localhost:8080")
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	return nil
+}
+
+func monitorProcess(cmd *exec.Cmd) chan error {
+	result := make(chan error, 1)
+	go func() {
+		// Start a goroutine to wait for process exit
+		done := make(chan error, 1)
+		go func() {
+			done <- cmd.Wait()
+		}()
+
+		// Try connecting to port 8080 for up to 60 seconds
+		timeout := time.After(60 * time.Second)
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case err := <-done:
+				// Process exited before port was available
+				if err != nil {
+					result <- fmt.Errorf("process failed: %w", err)
+				} else {
+					result <- fmt.Errorf("process exited before becoming ready")
+				}
+				return
+			case <-timeout:
+				result <- fmt.Errorf("timed out waiting for process to become ready")
+				return
+			case <-ticker.C:
+				if err := checkPort(); err == nil {
+					// Port is responding, process is ready
+					result <- nil
+					return
+				}
+			}
+		}
+	}()
+	return result
+}
+
+var (
+	currentProcess   *exec.Cmd
+	globalStopButton *widget.Button
+	statusLabel      *widget.Label // Add status label
+	killedByUs       bool          // Add flag to track if we initiated the kill
+)
+
+func stopOwlcms() error {
+	if currentProcess != nil && currentProcess.Process != nil {
+		pid := currentProcess.Process.Pid
+		killedByUs = true // Set flag before killing
+		err := currentProcess.Process.Kill()
+		if err != nil {
+			killedByUs = false // Reset flag if kill failed
+			return fmt.Errorf("failed to stop OWLCMS (PID: %d): %w", pid, err)
+		}
+		fmt.Printf("Stopped OWLCMS (PID: %d)\n", pid)
+		// Add death confirmation
+		fmt.Printf("OWLCMS process %d has been terminated\n", pid)
+		statusLabel.SetText(fmt.Sprintf("OWLCMS process %d has been terminated", pid))
+		currentProcess = nil
+		return nil
+	}
+	return nil
+}
+
+// isKilled checks if the process was killed (either by us or externally)
+func isKilled(err error) bool {
+	if err == nil {
+		return false
+	}
+	return err.Error() == "signal: killed" ||
+		err.Error() == "os: process already finished" ||
+		strings.Contains(err.Error(), "process was killed")
+}
+
+func launchOwlcms(version string, launchButton *widget.Button) error {
+	statusLabel.SetText("Starting OWLCMS...")
 	// Store current directory to restore it later
 	originalDir, err := os.Getwd()
 	if err != nil {
@@ -120,11 +208,13 @@ func launchOwlcms(version string) error {
 	// Look for owlcms.jar in the version directory
 	jarPath := filepath.Join(version, "owlcms.jar")
 	if _, err := os.Stat(jarPath); os.IsNotExist(err) {
+		launchButton.Show() // Show launch button again if start fails
 		return fmt.Errorf("owlcms.jar not found in %s directory", version)
 	}
 
 	// Change to version directory
 	if err := os.Chdir(version); err != nil {
+		launchButton.Show() // Show launch button again if start fails
 		return fmt.Errorf("changing to version directory: %w", err)
 	}
 	defer os.Chdir(originalDir)
@@ -139,7 +229,115 @@ func launchOwlcms(version string) error {
 	}
 
 	cmd := exec.Command(javaCmd, "-jar", "owlcms.jar")
-	return cmd.Start()
+	if err := cmd.Start(); err != nil {
+		statusLabel.SetText("Failed to start OWLCMS")
+		launchButton.Show() // Show launch button again if start fails
+		return fmt.Errorf("failed to start OWLCMS: %w", err)
+	}
+
+	fmt.Printf("Launching OWLCMS (PID: %d), waiting for port 8080...\n", cmd.Process.Pid)
+	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS (PID: %d), please wait...", cmd.Process.Pid))
+	currentProcess = cmd
+	globalStopButton.Show()
+
+	killedByUs = false // Reset flag when starting new process
+
+	// Monitor the process in background
+	monitorChan := monitorProcess(cmd)
+
+	// Wait for monitoring result in background
+	go func() {
+		if err := <-monitorChan; err != nil {
+			fmt.Printf("OWLCMS process %d failed to start properly: %v\n", cmd.Process.Pid, err)
+			statusLabel.SetText(fmt.Sprintf("OWLCMS process %d failed to start properly", cmd.Process.Pid))
+			globalStopButton.Hide()
+			launchButton.Show()
+			currentProcess = nil
+			return
+		}
+
+		fmt.Printf("OWLCMS process %d is ready (port 8080 responding)\n", cmd.Process.Pid)
+		statusLabel.SetText(fmt.Sprintf("OWLCMS running (PID: %d)", cmd.Process.Pid))
+
+		// Process is stable, wait for it to end
+		err := cmd.Wait()
+		pid := cmd.Process.Pid
+
+		if killedByUs {
+			// If we killed it, just report normal termination
+			fmt.Printf("OWLCMS process %d was stopped by user\n", pid)
+			statusLabel.SetText(fmt.Sprintf("OWLCMS process %d was stopped by user", pid))
+		} else if err != nil {
+			// Only report error if it wasn't killed by us
+			fmt.Printf("OWLCMS process %d terminated with error: %v\n", pid, err)
+			statusLabel.SetText(fmt.Sprintf("OWLCMS process %d terminated with error", pid))
+		} else {
+			fmt.Printf("OWLCMS process %d exited normally\n", pid)
+			statusLabel.SetText(fmt.Sprintf("OWLCMS process %d exited normally", pid))
+		}
+
+		currentProcess = nil
+		killedByUs = false // Reset flag
+		globalStopButton.Hide()
+		launchButton.Show()
+	}()
+
+	return nil
+}
+
+func createButtons(w fyne.Window) (*widget.Button, *widget.Button) {
+	var stopButton *widget.Button
+	var launchButton *widget.Button
+
+	stopCallback := func() {
+		fmt.Println("Stopping OWLCMS...")         // Log immediately when button is clicked
+		statusLabel.SetText("Stopping OWLCMS...") // Update GUI immediately
+
+		// Now do the actual stopping in background
+		go func() {
+			if currentProcess == nil || currentProcess.Process == nil {
+				return
+			}
+			pid := currentProcess.Process.Pid
+			fmt.Printf("Attempting to stop OWLCMS process (PID: %d)...\n", pid)
+			statusLabel.SetText(fmt.Sprintf("Stopping OWLCMS process %d...", pid))
+
+			if err := stopOwlcms(); err != nil {
+				dialog.ShowError(err, w)
+				statusLabel.SetText(fmt.Sprintf("Failed to stop OWLCMS process %d", pid))
+				return
+			}
+			globalStopButton.Hide()
+			launchButton.Show()
+		}()
+	}
+
+	stopButton = widget.NewButton("Stop OWLCMS", stopCallback)
+	stopButton.Hide()
+	globalStopButton = stopButton
+
+	launchButton = widget.NewButton("Launch OWLCMS", func() {
+		version := findLatestInstalled()
+		if version == "" {
+			dialog.ShowError(fmt.Errorf("no OWLCMS version installed"), w)
+			return
+		}
+
+		fmt.Println("Launching OWLCMS...")
+		if err := checkJava(); err != nil {
+			dialog.ShowError(fmt.Errorf("java check/installation failed: %w", err), w)
+			return
+		}
+
+		launchButton.Hide() // Hide launch button immediately when clicked
+
+		if err := launchOwlcms(version, launchButton); err != nil {
+			dialog.ShowError(err, w)
+			return
+		}
+	})
+
+	return launchButton, stopButton
 }
 
 func main() {
@@ -207,31 +405,16 @@ func main() {
 	})
 	releaseDropdown.PlaceHolder = "Choose a release version"
 
-	launchButton := widget.NewButton("Launch OWLCMS", func() {
-		version := findLatestInstalled()
-		if version == "" {
-			dialog.ShowError(fmt.Errorf("no OWLCMS version installed"), w)
-			return
-		}
+	launchButton, stopButton := createButtons(w)
 
-		// Check Java installation (will also install if needed)
-		if err := checkJava(); err != nil {
-			dialog.ShowError(fmt.Errorf("java check/installation failed: %w", err), w)
-			return
-		}
-
-		// Launch OWLCMS
-		if err := launchOwlcms(version); err != nil {
-			dialog.ShowError(err, w)
-			return
-		}
-	})
+	statusLabel = widget.NewLabel("") // Create status label
 
 	mainContent := container.NewVBox(
 		widget.NewLabel("OWLCMS Launcher"),
 		releaseLabel,
 		releaseDropdown,
-		launchButton, // Add launch button to main content
+		container.NewHBox(launchButton, stopButton),
+		statusLabel, // Add status label to UI
 	)
 
 	w.SetContent(loadingContainer)
