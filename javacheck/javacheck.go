@@ -70,7 +70,7 @@ func findLocalJava() (string, error) {
 	// Check for java executable
 	javaExe := "java"
 	if runtime.GOOS == "windows" {
-		javaExe += ".exe"
+		javaExe = "javaw.exe"
 	}
 	javaPath := filepath.Join(javaDir, latestJDK, "bin", javaExe)
 
@@ -285,8 +285,8 @@ func findJava() (string, error) {
 	javaHome := os.Getenv("JAVA_HOME")
 	if javaHome != "" {
 		javaExecutable := filepath.Join(javaHome, "bin", "java")
-		if runtime.GOOS == "windows" {
-			javaExecutable += ".exe" // Add .exe extension on Windows
+		if runtime.GOOS == "windows" && !isWSL() {
+			javaExecutable = filepath.Join(javaHome, "bin", "javaw.exe")
 		}
 		if _, err := os.Stat(javaExecutable); err == nil {
 			return javaExecutable, nil
