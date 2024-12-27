@@ -117,6 +117,12 @@ func ExtractZip(src, dest string) error {
 			return fmt.Errorf("failed to copy file data from zip: %w", err)
 		}
 	}
+
+	// Remove the downloaded ZIP file
+	if err := os.Remove(src); err != nil {
+		return fmt.Errorf("failed to remove downloaded file %s: %w", src, err)
+	}
+
 	return nil
 }
 
@@ -164,5 +170,11 @@ func ExtractTarGz(tarGzPath, dest string) error {
 			outFile.Close()
 		}
 	}
+
+	// Remove the downloaded tar.gz file
+	if err := os.Remove(tarGzPath); err != nil {
+		return fmt.Errorf("failed to remove downloaded file %s: %w", tarGzPath, err)
+	}
+
 	return nil
 }
