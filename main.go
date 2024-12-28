@@ -220,10 +220,18 @@ func main() {
 	releaseMessage.Hide()
 	releaseDropdown.Hide() // Hide the dropdown initially
 
+	// Create checkbox for showing prereleases
+	prereleaseCheckbox := widget.NewCheck("Show Prereleases", func(checked bool) {
+		showPrereleases = checked
+		populateReleaseDropdown(releaseDropdown) // Repopulate the dropdown when the checkbox is changed
+	})
+	prereleaseCheckbox.Hide() // Hide the checkbox initially
+
 	downloadGroup.Objects = []fyne.CanvasObject{
 		releaseTitle,
 		releaseMessage,
 		releaseDropdown,
+		prereleaseCheckbox,
 	}
 
 	mainContent := container.NewVBox(
@@ -256,10 +264,12 @@ func main() {
 	go func() {
 		select {
 		case releases := <-releasesChan:
-			releaseDropdown.Options = releases // Set the available releases in dropdown
+			allReleases = releases                   // Store all releases
+			populateReleaseDropdown(releaseDropdown) // Populate the dropdown with the releases
 			releaseTitle.Show()
 			releaseMessage.Show()
-			releaseDropdown.Show()                                                       // Show the dropdown once releases are fetched
+			releaseDropdown.Show()
+			prereleaseCheckbox.Show()                                                    // Show the checkbox once releases are fetched
 			downloadGroup.Objects = downloadGroup.Objects[:len(downloadGroup.Objects)-1] // Remove retrieving label
 			w.Canvas().Refresh(mainContent)
 		case err := <-errChan:

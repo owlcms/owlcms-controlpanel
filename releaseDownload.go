@@ -5,54 +5,95 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
+	"strings"
+
 	"owlcms-launcher/downloadUtils"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
+	"github.com/Masterminds/semver/v3"
 )
 
 type Release struct {
 	Name string `json:"name"`
 }
 
+var (
+	showPrereleases bool = false
+	allReleases     []string
+)
+
 func fetchReleases() ([]string, error) {
-	url := "https://api.github.com/repos/owlcms/owlcms4-prerelease/releases"
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, fmt.Errorf("network error: %w", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
+	urls := []string{
+		"https://api.github.com/repos/owlcms/owlcms4-prerelease/releases",
+		"https://api.github.com/repos/owlcms/owlcms4/releases",
 	}
 
-	var releases []Release
-	if err := json.Unmarshal(body, &releases); err != nil {
-		return nil, fmt.Errorf("invalid response format: %w", err)
+	var allReleases []Release
+	for _, url := range urls {
+		resp, err := http.Get(url)
+		if err != nil {
+			return nil, fmt.Errorf("network error: %w", err)
+		}
+		defer resp.Body.Close()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response: %w", err)
+		}
+
+		var releases []Release
+		if err := json.Unmarshal(body, &releases); err != nil {
+			return nil, fmt.Errorf("invalid response format: %w", err)
+		}
+
+		allReleases = append(allReleases, releases...)
 	}
 
-	if len(releases) == 0 {
+	if len(allReleases) == 0 {
 		return nil, fmt.Errorf("no releases found")
 	}
 
-	releaseNames := make([]string, 0, 10)
-	for i, release := range releases {
-		if i >= 10 {
-			break
-		}
+	releaseNames := make([]string, 0, len(allReleases))
+	for _, release := range allReleases {
 		releaseNames = append(releaseNames, release.Name)
 	}
+
+	// Sort the release names in semver order, most recent at the top
+	sort.Slice(releaseNames, func(i, j int) bool {
+		v1, err1 := semver.NewVersion(releaseNames[i])
+		v2, err2 := semver.NewVersion(releaseNames[j])
+		if err1 != nil || err2 != nil {
+			return releaseNames[i] > releaseNames[j]
+		}
+		return v1.GreaterThan(v2)
+	})
 
 	return releaseNames, nil
 }
 
+func populateReleaseDropdown(releaseDropdown *widget.Select) {
+	filteredReleases := []string{}
+	for _, release := range allReleases {
+		if showPrereleases || !containsPreReleaseTag(release) {
+			filteredReleases = append(filteredReleases, release)
+		}
+	}
+	releaseDropdown.Options = filteredReleases
+	releaseDropdown.Refresh()
+}
+
 func createReleaseDropdown(w fyne.Window, downloadGroup *fyne.Container) *widget.Select {
 	releaseDropdown := widget.NewSelect([]string{}, func(selected string) {
-		urlPrefix := "https://github.com/owlcms/owlcms4-prerelease/releases/download"
+		var urlPrefix string
+		if containsPreReleaseTag(selected) {
+			urlPrefix = "https://github.com/owlcms/owlcms4-prerelease/releases/download"
+		} else {
+			urlPrefix = "https://github.com/owlcms/owlcms4/releases/download"
+		}
 		fileName := fmt.Sprintf("owlcms_%s.zip", selected)
 		zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, selected, fileName)
 		zipPath := fileName
@@ -137,5 +178,11 @@ func createReleaseDropdown(w fyne.Window, downloadGroup *fyne.Container) *widget
 		releaseDropdown,
 	}
 
+	populateReleaseDropdown(releaseDropdown)
+
 	return releaseDropdown
+}
+
+func containsPreReleaseTag(version string) bool {
+	return strings.Contains(version, "-rc") || strings.Contains(version, "-alpha") || strings.Contains(version, "-beta")
 }
