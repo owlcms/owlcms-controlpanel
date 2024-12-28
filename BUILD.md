@@ -5,6 +5,9 @@
 - Standard `golang` program
   - install the go environment for your platform
   - `go mod download` to get the dependencies
+- VS Code works fine
+  - Standard Go extensions
+  - GitHub Free CoPilot works fine
 - Use fyne-cross to generate the pi and Windows binary.
   ```
   fyne-cross windows --app-id app.owlcms.owlcms-launcher -name owlcms-windows
