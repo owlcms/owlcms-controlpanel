@@ -7,15 +7,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"owlcms-launcher/downloadUtils"
 	"owlcms-launcher/javacheck"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -158,15 +157,21 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button, downl
 	return nil
 }
 
+func fetchReleasesInBackground(releasesChan chan<- []string, errChan chan<- error) {
+	time.Sleep(1 * time.Second) // Wait for 1 second before attempting to retrieve the releases
+	releases, err := fetchReleases()
+	if err != nil {
+		errChan <- err
+		return
+	}
+	releasesChan <- releases
+}
+
 func main() {
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
 	a.Settings().SetTheme(newMyTheme())
 	w := a.NewWindow("OWLCMS Launcher")
 	w.Resize(fyne.NewSize(600, 300)) // Larger initial window size
-
-	progress := widget.NewProgressBarInfinite()
-	loadingText := canvas.NewText("Fetching releases...", color.Black)
-	loadingContainer := container.NewVBox(loadingText, progress)
 
 	// Create stop button and status label
 	stopButton = widget.NewButton("Stop", nil)
@@ -208,7 +213,18 @@ func main() {
 	}
 
 	// Create release dropdown for downloads
+	releaseTitle := widget.NewLabelWithStyle("Download New Version", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+	releaseMessage := widget.NewLabel("Download and install a new version of OWLCMS from GitHub:")
 	releaseDropdown := createReleaseDropdown(w, downloadGroup)
+	releaseTitle.Hide()
+	releaseMessage.Hide()
+	releaseDropdown.Hide() // Hide the dropdown initially
+
+	downloadGroup.Objects = []fyne.CanvasObject{
+		releaseTitle,
+		releaseMessage,
+		releaseDropdown,
+	}
 
 	mainContent := container.NewVBox(
 		widget.NewLabelWithStyle("OWLCMS Launcher", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
@@ -220,18 +236,46 @@ func main() {
 		),
 	)
 
-	w.SetContent(loadingContainer)
+	w.SetContent(mainContent)
 	w.Resize(fyne.NewSize(800, 600))
 
+	// Show installed versions first
+	w.SetContent(mainContent)
+	w.Canvas().Refresh(mainContent)
+
+	releasesChan := make(chan []string)
+	errChan := make(chan error)
+
+	// Show retrieving releases label
+	retrievingLabel := widget.NewLabel("Retrieving releases from GitHub...")
+	downloadGroup.Objects = append(downloadGroup.Objects, retrievingLabel)
+	w.Canvas().Refresh(mainContent)
+
+	go fetchReleasesInBackground(releasesChan, errChan)
+
 	go func() {
-		releases, err := fetchReleases()
-		if err != nil {
-			dialog.ShowError(err, w)
-			return
+		select {
+		case releases := <-releasesChan:
+			releaseDropdown.Options = releases // Set the available releases in dropdown
+			releaseTitle.Show()
+			releaseMessage.Show()
+			releaseDropdown.Show()                                                       // Show the dropdown once releases are fetched
+			downloadGroup.Objects = downloadGroup.Objects[:len(downloadGroup.Objects)-1] // Remove retrieving label
+			w.Canvas().Refresh(mainContent)
+		case err := <-errChan:
+			fmt.Printf("Error fetching releases: %v\n", err)
+			downloadGroup.Objects = []fyne.CanvasObject{
+				widget.NewLabelWithStyle("Internet access not available, cannot show the available versions", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			}
+			w.Canvas().Refresh(mainContent)
+		case <-time.After(10 * time.Second):
+			downloadGroup.Objects = []fyne.CanvasObject{
+				widget.NewLabelWithStyle("Internet access not available, cannot show the available versions", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+			}
+			w.Canvas().Refresh(mainContent)
 		}
-		releaseDropdown.Options = releases // Set the available releases in dropdown
-		// Show the main content with the populated version list
-		w.SetContent(mainContent)
+		// Ensure the retrieving label is hidden in all cases
+		retrievingLabel.Hide()
 		w.Canvas().Refresh(mainContent)
 	}()
 
