@@ -1,14 +1,14 @@
-Portable launcher for owlcms server
+## Portable launcher and updater for owlcms server
 
 This is meant to provide a small compiled binary to launch owlcms.
-Eventually this would download a release and launch java to run it.
-Stopping the server would be provided.
-Selection of which release to use would be an option.
+- allows downloading one or more versions of owlcms
+- select which one to run
+- if Java is not present, it is downloaded correctly for the current platform.
+
+Currently supported: Windows, Raspberry Pi (Linux ARM64), Linux on Intel (AMD64)
+In theory this would work on a Mac, looking for benevolent person to cross-compile and sign.
 
 
 Building Notes:
-- Easier to build on Linux
-- Getting all the prerequisites is a pain (a bunch of X11 libs)
-- once it compiles and runs on Linux, using fyne-cross to run cross-compiling on Docker is best
-  - When cross-compiling for Raspberry Pi, the build will fail unless you create the tmp directory
-    (the cleanup removes it, but does not create a new one under linux-arm64)
+- must be built on Linux (the fyne go-gl dependency on Windows is broken).
+- use fyne-cross to generate the pi and Windows binary.
