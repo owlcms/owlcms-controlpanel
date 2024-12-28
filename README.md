@@ -3,12 +3,18 @@
 This is meant to provide a small compiled binary to launch owlcms.
 - allows downloading one or more versions of owlcms
 - select which one to run
-- if Java is not present, it is downloaded correctly for the current platform.
+- if Java is not present, a local copy is downloaded correctly for the current platform.
 
 Currently supported: Windows, Raspberry Pi (Linux ARM64), Linux on Intel (AMD64)
 In theory this would work on a Mac, looking for benevolent person to cross-compile and sign.
 
-
-Building Notes:
+### Usage
+- create a directory where the progam will run
+- download the version for your kind of computer from the Releases page
+- run the program by double-clicking on it
+- Select the latest version of owlcms from the dropdown
+- Click Launch
+  
+### Building Notes:
 - must be built on Linux (the fyne go-gl dependency on Windows is broken).
 - use fyne-cross to generate the pi and Windows binary.
