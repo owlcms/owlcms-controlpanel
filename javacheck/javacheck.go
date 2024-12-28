@@ -136,10 +136,7 @@ func CheckJava() error {
 			return fmt.Errorf("extracting Temurin tar.gz: %w", err)
 		}
 	}
-
-	if err := os.Remove(archivePath); err != nil { // Clean up downloaded file
-		return fmt.Errorf("cleaning up downloaded file: %w", err)
-	}
+	// extract now removes the archive
 
 	fmt.Println("Java downloaded and installed to ./java17")
 	return nil

@@ -84,7 +84,6 @@ func ExtractZip(src, dest string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open zip file %s: %w", src, err)
 	}
-	defer r.Close()
 
 	for _, f := range r.File {
 		fpath := filepath.Join(dest, f.Name)
@@ -118,6 +117,8 @@ func ExtractZip(src, dest string) error {
 		}
 	}
 
+	r.Close() // Close the zip file after extracting
+
 	// Remove the downloaded ZIP file
 	if err := os.Remove(src); err != nil {
 		return fmt.Errorf("failed to remove downloaded file %s: %w", src, err)
@@ -132,13 +133,12 @@ func ExtractTarGz(tarGzPath, dest string) error {
 	if err != nil {
 		return err
 	}
-	defer r.Close()
 
 	gzr, err := gzip.NewReader(r)
 	if err != nil {
+		r.Close()
 		return err
 	}
-	defer gzr.Close()
 
 	tr := tar.NewReader(gzr)
 
@@ -148,6 +148,8 @@ func ExtractTarGz(tarGzPath, dest string) error {
 			break
 		}
 		if err != nil {
+			gzr.Close()
+			r.Close()
 			return err
 		}
 
@@ -156,20 +158,29 @@ func ExtractTarGz(tarGzPath, dest string) error {
 		switch header.Typeflag {
 		case tar.TypeDir:
 			if err := os.MkdirAll(target, 0755); err != nil {
+				gzr.Close()
+				r.Close()
 				return err
 			}
 		case tar.TypeReg:
 			outFile, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
 			if err != nil {
+				gzr.Close()
+				r.Close()
 				return err
 			}
 			if _, err := io.Copy(outFile, tr); err != nil {
 				outFile.Close()
+				gzr.Close()
+				r.Close()
 				return err
 			}
 			outFile.Close()
 		}
 	}
+
+	gzr.Close()
+	r.Close() // Close the archive after extracting
 
 	// Remove the downloaded tar.gz file
 	if err := os.Remove(tarGzPath); err != nil {
