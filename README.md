@@ -12,7 +12,7 @@ In theory this would work on a Mac, author does not own a Mac to perform the req
 
 ### Usage
 - create a directory where the progam will run
-- download the version for your kind of computer from the Releases page
+- go to the Releases page and download the owlcms launcher for your type of computer
 - run the program by double-clicking on it
 - Select the latest version of owlcms from the dropdown
 - Click Launch
