@@ -9,6 +9,8 @@ and providing the same user experience on all platforms.
 Currently supported: Windows, Raspberry Pi (Linux ARM64), Linux on Intel (AMD64)
 
 In theory this would work on a Mac, author does not own a Mac to perform the required code signing. Volunteers welcome.
+![image](https://github.com/user-attachments/assets/82525d52-aa5c-46b5-8a99-21fe29cc9e1f)
+
 
 ### Usage
 - create a directory where the progam will run
