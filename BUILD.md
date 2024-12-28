@@ -1,6 +1,6 @@
 ### Developer Notes
 - Do not attempt to build on Windows.  Use WSL2 where everything works.
-  - there is a broken go-gl dependency that the GUI library needs
+  - On Windows there is a broken go-gl dependency that the GUI library needs
 - You will need Docker (Docker-desktop on Windows is fine).
 - Standard `golang` program
   - install the go environment for your platform
