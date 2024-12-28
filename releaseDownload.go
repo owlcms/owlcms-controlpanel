@@ -77,10 +77,17 @@ func fetchReleases() ([]string, error) {
 
 func populateReleaseDropdown(releaseDropdown *widget.Select) {
 	filteredReleases := []string{}
+	stableReleases := []string{}
 	for _, release := range allReleases {
 		if showPrereleases || !containsPreReleaseTag(release) {
 			filteredReleases = append(filteredReleases, release)
 		}
+		if !containsPreReleaseTag(release) {
+			stableReleases = append(stableReleases, release)
+		}
+	}
+	if !showPrereleases && len(stableReleases) > 20 {
+		filteredReleases = stableReleases[:20]
 	}
 	releaseDropdown.Options = filteredReleases
 	releaseDropdown.Refresh()

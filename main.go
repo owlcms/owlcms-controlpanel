@@ -17,6 +17,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/Masterminds/semver/v3"
 )
 
 type myTheme struct {
@@ -214,7 +215,7 @@ func main() {
 
 	// Create release dropdown for downloads
 	releaseTitle := widget.NewLabelWithStyle("Download New Version", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	releaseMessage := widget.NewLabel("Download and install a new version of OWLCMS from GitHub:")
+	releaseMessage := widget.NewLabel("Download and install a new version")
 	releaseDropdown := createReleaseDropdown(w, downloadGroup)
 	releaseTitle.Hide()
 	releaseMessage.Hide()
@@ -255,7 +256,7 @@ func main() {
 	errChan := make(chan error)
 
 	// Show retrieving releases label
-	retrievingLabel := widget.NewLabel("Retrieving releases from GitHub...")
+	retrievingLabel := widget.NewLabel("Checking for updates...")
 	downloadGroup.Objects = append(downloadGroup.Objects, retrievingLabel)
 	w.Canvas().Refresh(mainContent)
 
@@ -271,6 +272,24 @@ func main() {
 			releaseDropdown.Show()
 			prereleaseCheckbox.Show()                                                    // Show the checkbox once releases are fetched
 			downloadGroup.Objects = downloadGroup.Objects[:len(downloadGroup.Objects)-1] // Remove retrieving label
+
+			// Check if a more recent version is available
+			latestInstalled := findLatestInstalled()
+			if latestInstalled != "" {
+				latestInstalledVersion, err := semver.NewVersion(latestInstalled)
+				if err == nil {
+					for _, release := range allReleases {
+						releaseVersion, err := semver.NewVersion(release)
+						// fmt.Printf("Comparing with release version: %s\n", releaseVersion)
+						if err == nil && releaseVersion.GreaterThan(latestInstalledVersion) {
+							fmt.Printf("A more recent stable version is available %s > %s\n", releaseVersion, latestInstalledVersion)
+							releaseTitle.SetText("A more recent stable version is available (" + release + ")")
+							break
+						}
+					}
+				}
+			}
+
 			w.Canvas().Refresh(mainContent)
 		case err := <-errChan:
 			fmt.Printf("Error fetching releases: %v\n", err)
