@@ -139,3 +139,12 @@ func createReleaseDropdown(w fyne.Window, downloadGroup *fyne.Container) *widget
 
 	return releaseDropdown
 }
+
+func fetchReleasesInBackground(releasesChan chan<- []string, errChan chan<- error) {
+	releases, err := fetchReleases()
+	if err != nil {
+		errChan <- err
+		return
+	}
+	releasesChan <- releases
+}
