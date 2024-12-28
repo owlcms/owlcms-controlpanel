@@ -98,7 +98,7 @@ func createVersionList(w fyne.Window, stopButton *widget.Button, downloadGroup, 
 				}
 
 				fmt.Printf("Launching version %s\n", version)
-				if err := checkJava(); err != nil {
+				if err := checkJava(statusLabel, downloadGroup); err != nil {
 					dialog.ShowError(fmt.Errorf("java check/installation failed: %w", err), w)
 					return
 				}

@@ -41,8 +41,21 @@ func (m myTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) colo
 	return m.Theme.Color(name, variant)
 }
 
-func checkJava() error {
-	return javacheck.CheckJava()
+func checkJava(statusLabel *widget.Label, downloadGroup *fyne.Container) error {
+	statusLabel.SetText("Checking for the Java language runtime.")
+	statusLabel.Refresh()
+	statusLabel.Show()
+	stopButton.Hide()
+	stopContainer.Show()
+	versionContainer.Hide()
+	downloadGroup.Hide()
+
+	err := javacheck.CheckJava(statusLabel)
+	if err != nil {
+		statusLabel.SetText("Could not install a Java runtime.")
+		statusLabel.Refresh()
+	}
+	return err
 }
 
 var (
@@ -59,6 +72,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button, downl
 
 	// Check if port 8080 is already in use
 	if err := checkPort(); err == nil {
+		statusLabel.Hide()
 		return fmt.Errorf("OWLCMS is already running on port 8080")
 	}
 

@@ -15,6 +15,8 @@ import (
 	"strings"
 
 	"owlcms-launcher/downloadUtils"
+
+	"fyne.io/fyne/v2/widget"
 )
 
 // compareVersions compares two jdk directory names and returns true if a is more recent than b
@@ -81,7 +83,7 @@ func findLocalJava() (string, error) {
 }
 
 // CheckJava checks for Java 17 or later and downloads/installs it if necessary.
-func CheckJava() error {
+func CheckJava(statusLabel *widget.Label) error {
 	// First check for local Java installation
 	javaPath, err := findLocalJava()
 	if err == nil {
@@ -103,6 +105,9 @@ func CheckJava() error {
 	// }
 
 	fmt.Println("Suitable Java not found. Downloading from Temurin...")
+	statusLabel.SetText("Downloading a local copy of the Java language runtime.")
+	statusLabel.Refresh()
+	statusLabel.Show()
 
 	javaDir := "java17"
 	if _, err := os.Stat(javaDir); os.IsNotExist(err) {
