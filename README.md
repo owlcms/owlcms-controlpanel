@@ -15,11 +15,5 @@ In theory this would work on a Mac, author does not own a Mac to perform the req
 - go to the Releases page and download the owlcms launcher for your type of computer
 - run the program by double-clicking on it
 - Select the latest version of owlcms from the dropdown
-- Click Launch
-  
-### Building Notes:
-- must be built on Linux (the fyne go-gl dependency on Windows is broken).
-- use fyne-cross to generate the pi and Windows binary.
-
-### To be explored
-- download and extract Federation-specific overrides
+- Click Launch to start the program
+- Then click Stop or exit the program with the corner X to stop owlcms
