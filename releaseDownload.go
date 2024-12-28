@@ -24,6 +24,7 @@ type Release struct {
 var (
 	showPrereleases bool = false
 	allReleases     []string
+	downloadTitle   *widget.Label
 )
 
 func fetchReleases() ([]string, error) {
@@ -173,6 +174,9 @@ func createReleaseDropdown(w fyne.Window, downloadGroup *fyne.Container) *widget
 					versionContainer.Add(versionScroll)
 
 					fmt.Println("Version list reinitialized")
+
+					// Recompute the downloadTitle
+					checkForNewerVersion()
 				}()
 			},
 			w)
@@ -180,7 +184,7 @@ func createReleaseDropdown(w fyne.Window, downloadGroup *fyne.Container) *widget
 	releaseDropdown.PlaceHolder = "Choose a release to download"
 
 	downloadGroup.Objects = []fyne.CanvasObject{
-		widget.NewLabelWithStyle("Download New Version", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+		downloadTitle,
 		widget.NewLabel("Download and install a new version of OWLCMS from GitHub:"),
 		releaseDropdown,
 	}

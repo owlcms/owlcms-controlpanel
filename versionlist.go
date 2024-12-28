@@ -10,6 +10,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
+	"github.com/Masterminds/semver/v3"
 )
 
 var versionList *widget.List
@@ -21,15 +22,24 @@ func getAllInstalledVersions() []string {
 	}
 
 	versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+(?:-(?:rc|alpha|beta)(?:\d+)?)?$`)
-	var versions []string
+	var versions []*semver.Version
 	for _, entry := range entries {
 		if entry.IsDir() && versionPattern.MatchString(entry.Name()) {
-			versions = append(versions, entry.Name())
+			v, err := semver.NewVersion(entry.Name())
+			if err == nil {
+				versions = append(versions, v)
+			}
 		}
 	}
 
-	sort.Sort(sort.Reverse(sort.StringSlice(versions)))
-	return versions
+	sort.Sort(sort.Reverse(semver.Collection(versions)))
+
+	var versionStrings []string
+	for _, v := range versions {
+		versionStrings = append(versionStrings, v.String())
+	}
+
+	return versionStrings
 }
 
 func findLatestInstalled() string {
@@ -39,10 +49,13 @@ func findLatestInstalled() string {
 	}
 
 	versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+(?:-(?:rc|alpha|beta)(?:\d+)?)?$`)
-	var versions []string
+	var versions []*semver.Version
 	for _, entry := range entries {
 		if entry.IsDir() && versionPattern.MatchString(entry.Name()) {
-			versions = append(versions, entry.Name())
+			v, err := semver.NewVersion(entry.Name())
+			if err == nil {
+				versions = append(versions, v)
+			}
 		}
 	}
 
@@ -50,8 +63,8 @@ func findLatestInstalled() string {
 		return ""
 	}
 
-	sort.Sort(sort.Reverse(sort.StringSlice(versions)))
-	return versions[0]
+	sort.Sort(sort.Reverse(semver.Collection(versions)))
+	return versions[0].String()
 }
 
 func createVersionList(w fyne.Window, stopButton *widget.Button, downloadGroup, versionContainer *fyne.Container) *widget.List {
@@ -114,6 +127,9 @@ func createVersionList(w fyne.Window, stopButton *widget.Button, downloadGroup, 
 						versions = getAllInstalledVersions()
 						versionList.Length = func() int { return len(versions) }
 						versionList.Refresh()
+
+						// Check if a more recent version is available
+						checkForNewerVersion()
 					},
 					w)
 			}

@@ -168,6 +168,41 @@ func fetchReleasesInBackground(releasesChan chan<- []string, errChan chan<- erro
 	releasesChan <- releases
 }
 
+func checkForNewerVersion() {
+	latestInstalled := findLatestInstalled()
+	if latestInstalled != "" {
+		latestInstalledVersion, err := semver.NewVersion(latestInstalled)
+		if err == nil {
+			fmt.Printf("Latest installed version: %s\n", latestInstalledVersion)
+			for _, release := range allReleases {
+				releaseVersion, err := semver.NewVersion(release)
+				if err == nil {
+					if releaseVersion.GreaterThan(latestInstalledVersion) {
+						if containsPreReleaseTag(release) {
+							downloadTitle.SetText(fmt.Sprintf("A more recent version (%s) is available", releaseVersion))
+						} else {
+							downloadTitle.SetText(fmt.Sprintf("A more recent stable version (%s) is available", releaseVersion))
+						}
+						downloadTitle.TextStyle = fyne.TextStyle{Bold: true}
+						downloadTitle.Refresh()
+						downloadTitle.Show()
+						return
+					}
+				}
+			}
+			downloadTitle.SetText("The latest stable version is installed. You may install additional versions if you wish.")
+			downloadTitle.TextStyle = fyne.TextStyle{Bold: false}
+			downloadTitle.Refresh()
+			downloadTitle.Show()
+		}
+	} else {
+		downloadTitle.SetText("No version installed. Select a version to download below.")
+		downloadTitle.TextStyle = fyne.TextStyle{Bold: true}
+		downloadTitle.Refresh()
+		downloadTitle.Show()
+	}
+}
+
 func main() {
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
 	a.Settings().SetTheme(newMyTheme())
@@ -183,6 +218,9 @@ func main() {
 	downloadGroup := container.NewVBox()
 	versionContainer = container.NewVBox()
 	stopContainer = container.NewVBox(stopButton, statusLabel)
+
+	// Initialize download title
+	downloadTitle = widget.NewLabel("")
 
 	// Configure stop button behavior
 	stopButton.OnTapped = func() {
@@ -214,11 +252,8 @@ func main() {
 	}
 
 	// Create release dropdown for downloads
-	releaseTitle := widget.NewLabelWithStyle("Download New Version", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-	releaseMessage := widget.NewLabel("Download and install a new version")
 	releaseDropdown := createReleaseDropdown(w, downloadGroup)
-	releaseTitle.Hide()
-	releaseMessage.Hide()
+	downloadTitle.Hide()
 	releaseDropdown.Hide() // Hide the dropdown initially
 
 	// Create checkbox for showing prereleases
@@ -229,8 +264,7 @@ func main() {
 	prereleaseCheckbox.Hide() // Hide the checkbox initially
 
 	downloadGroup.Objects = []fyne.CanvasObject{
-		releaseTitle,
-		releaseMessage,
+		downloadTitle,
 		releaseDropdown,
 		prereleaseCheckbox,
 	}
@@ -267,28 +301,13 @@ func main() {
 		case releases := <-releasesChan:
 			allReleases = releases                   // Store all releases
 			populateReleaseDropdown(releaseDropdown) // Populate the dropdown with the releases
-			releaseTitle.Show()
-			releaseMessage.Show()
+			downloadTitle.Show()
 			releaseDropdown.Show()
 			prereleaseCheckbox.Show()                                                    // Show the checkbox once releases are fetched
 			downloadGroup.Objects = downloadGroup.Objects[:len(downloadGroup.Objects)-1] // Remove retrieving label
 
 			// Check if a more recent version is available
-			latestInstalled := findLatestInstalled()
-			if latestInstalled != "" {
-				latestInstalledVersion, err := semver.NewVersion(latestInstalled)
-				if err == nil {
-					for _, release := range allReleases {
-						releaseVersion, err := semver.NewVersion(release)
-						// fmt.Printf("Comparing with release version: %s\n", releaseVersion)
-						if err == nil && releaseVersion.GreaterThan(latestInstalledVersion) {
-							fmt.Printf("A more recent stable version is available %s > %s\n", releaseVersion, latestInstalledVersion)
-							releaseTitle.SetText("A more recent stable version is available (" + release + ")")
-							break
-						}
-					}
-				}
-			}
+			checkForNewerVersion()
 
 			w.Canvas().Refresh(mainContent)
 		case err := <-errChan:
