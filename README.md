@@ -10,7 +10,7 @@ Currently supported: Windows, Raspberry Pi (Linux ARM64), Linux on Intel (AMD64)
 
 In theory this would work on a Mac, author does not own a Mac to perform the required code signing. Volunteers welcome.
 
-![image](https://github.com/user-attachments/assets/95d6b7f5-8ce5-4818-846d-67435df8d2e6)
+![image](https://github.com/user-attachments/assets/35ab61f3-c1d7-4397-8f9c-b85789c40092)
 
 ### Usage
 - create a directory where the progam will run
