@@ -166,3 +166,30 @@ func createVersionList(w fyne.Window, stopButton *widget.Button, downloadGroup, 
 
 	return versionList
 }
+
+func recomputeVersionList(w fyne.Window, downloadGroup *fyne.Container) {
+	// Reinitialize the version list
+	fmt.Println("Reinitializing version list")
+	versionContainer.Objects = nil // Clear the container
+	newVersionList := createVersionList(w, stopButton, downloadGroup, versionContainer)
+
+	// Update the scroll container's size
+	numVersions := len(getAllInstalledVersions())
+	versionScroll := container.NewVScroll(newVersionList)
+	versionScroll.SetMinSize(fyne.NewSize(400, computeVersionScrollHeight(numVersions)))
+
+	versionLabel := widget.NewLabel("Installed Versions:")
+	if numVersions == 0 {
+		versionLabel.Hide()
+		versionScroll.Hide()
+		versionContainer.Hide()
+	} else {
+		versionLabel.Show()
+		versionScroll.Show()
+		versionContainer.Show()
+	}
+	versionContainer.Add(versionLabel)
+	versionContainer.Add(versionScroll)
+
+	fmt.Println("Version list reinitialized")
+}

@@ -224,18 +224,7 @@ func main() {
 	stopContainer.Hide()
 
 	// Initialize version list
-	versionList := createVersionList(w, stopButton, downloadGroup, versionContainer)
-
-	// Create scroll container for version list with dynamic size
-	versionScroll := container.NewVScroll(versionList)
-	numVersions := len(getAllInstalledVersions())
-	versionScroll.SetMinSize(fyne.NewSize(400, computeVersionScrollHeight(numVersions)))
-
-	// Create more compact layout without padding
-	versionContainer.Objects = []fyne.CanvasObject{
-		widget.NewLabel("Installed Versions:"),
-		versionScroll,
-	}
+	recomputeVersionList(w, downloadGroup)
 
 	// Create release dropdown for downloads
 	releaseDropdown := createReleaseDropdown(w, downloadGroup)
@@ -406,19 +395,8 @@ func downloadAndInstallVersion(version string, w fyne.Window, downloadGroup *fyn
 
 		dialog.ShowInformation("Installation Complete", message, w)
 
-		// Reinitialize the version list
-		fmt.Println("Reinitializing version list")
-		versionContainer.Objects = nil // Clear the container
-		newVersionList := createVersionList(w, stopButton, downloadGroup, versionContainer)
-
-		// Update the scroll container's size
-		numVersions := len(getAllInstalledVersions())
-		versionScroll := container.NewVScroll(newVersionList)
-		versionScroll.SetMinSize(fyne.NewSize(400, computeVersionScrollHeight(numVersions)))
-		versionContainer.Add(widget.NewLabel("Installed Versions:"))
-		versionContainer.Add(versionScroll)
-
-		fmt.Println("Version list reinitialized")
+		// Recompute the version list
+		recomputeVersionList(w, downloadGroup)
 
 		// Recompute the downloadTitle
 		checkForNewerVersion()
