@@ -17,7 +17,6 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
-	"github.com/Masterminds/semver/v3"
 )
 
 type myTheme struct {
@@ -180,41 +179,6 @@ func fetchReleasesInBackground(releasesChan chan<- []string, errChan chan<- erro
 		return
 	}
 	releasesChan <- releases
-}
-
-func checkForNewerVersion() {
-	latestInstalled := findLatestInstalled()
-	if latestInstalled != "" {
-		latestInstalledVersion, err := semver.NewVersion(latestInstalled)
-		if err == nil {
-			fmt.Printf("Latest installed version: %s\n", latestInstalledVersion)
-			for _, release := range allReleases {
-				releaseVersion, err := semver.NewVersion(release)
-				if err == nil {
-					if releaseVersion.GreaterThan(latestInstalledVersion) {
-						if containsPreReleaseTag(release) {
-							downloadTitle.SetText(fmt.Sprintf("A more recent version (%s) is available", releaseVersion))
-						} else {
-							downloadTitle.SetText(fmt.Sprintf("A more recent stable version (%s) is available", releaseVersion))
-						}
-						downloadTitle.TextStyle = fyne.TextStyle{Bold: true}
-						downloadTitle.Refresh()
-						downloadTitle.Show()
-						return
-					}
-				}
-			}
-			downloadTitle.SetText("The latest stable version is installed. You may install additional versions if you wish.")
-			downloadTitle.TextStyle = fyne.TextStyle{Bold: false}
-			downloadTitle.Refresh()
-			downloadTitle.Show()
-		}
-	} else {
-		downloadTitle.SetText("No version installed. Select a version to download below.")
-		downloadTitle.TextStyle = fyne.TextStyle{Bold: true}
-		downloadTitle.Refresh()
-		downloadTitle.Show()
-	}
 }
 
 func main() {

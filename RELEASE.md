@@ -1,0 +1,1 @@
+- Only show a that a newer prerelease is available if a prerelease is the most recent version installed
