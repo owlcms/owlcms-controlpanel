@@ -19,6 +19,8 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+var owlcmsInstallDir = "owlcms"
+
 // compareVersions compares two jdk directory names and returns true if a is more recent than b
 func compareVersions(a, b string) bool {
 	// Extract version numbers from directory names (e.g., "jdk-17.0.9+9" -> "17.0.9")
@@ -41,7 +43,7 @@ func compareVersions(a, b string) bool {
 }
 
 func findLocalJava() (string, error) {
-	javaDir := "java17"
+	javaDir := filepath.Join(owlcmsInstallDir, "java17")
 	if _, err := os.Stat(javaDir); err != nil {
 		return "", fmt.Errorf("java17 directory not found")
 	}
@@ -109,7 +111,19 @@ func CheckJava(statusLabel *widget.Label) error {
 	statusLabel.Refresh()
 	statusLabel.Show()
 
-	javaDir := "java17"
+	// Ensure the owlcms directory exists
+	originalDir, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("getting current directory: %w", err)
+	}
+	owlcmsDir := filepath.Join(originalDir, owlcmsInstallDir)
+	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
+		if err := os.Mkdir(owlcmsDir, 0755); err != nil {
+			return fmt.Errorf("creating owlcms directory: %w", err)
+		}
+	}
+
+	javaDir := filepath.Join(owlcmsDir, "java17")
 	if _, err := os.Stat(javaDir); os.IsNotExist(err) {
 		if err := os.Mkdir(javaDir, 0755); err != nil {
 			return fmt.Errorf("creating java directory: %w", err)
@@ -143,7 +157,7 @@ func CheckJava(statusLabel *widget.Label) error {
 	}
 	// extract now removes the archive
 
-	fmt.Println("Java downloaded and installed to ./java17")
+	fmt.Println("Java downloaded and installed to ./owlcms/java17")
 	return nil
 }
 

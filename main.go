@@ -19,6 +19,16 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+var (
+	owlcmsInstallDir = "owlcms"
+	currentProcess   *exec.Cmd
+	currentVersion   string // Add to track current version
+	statusLabel      *widget.Label
+	stopButton       *widget.Button
+	versionContainer *fyne.Container
+	stopContainer    *fyne.Container
+)
+
 type myTheme struct {
 	fyne.Theme
 }
@@ -57,15 +67,6 @@ func checkJava(statusLabel *widget.Label, downloadGroup *fyne.Container) error {
 	return err
 }
 
-var (
-	currentProcess   *exec.Cmd
-	currentVersion   string // Add to track current version
-	statusLabel      *widget.Label
-	stopButton       *widget.Button
-	versionContainer *fyne.Container
-	stopContainer    *fyne.Container
-)
-
 func launchOwlcms(version string, launchButton, stopButton *widget.Button, downloadGroup, versionContainer *fyne.Container) error {
 	currentVersion = version // Store current version
 
@@ -82,24 +83,32 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button, downl
 		return fmt.Errorf("getting current directory: %w", err)
 	}
 
+	// Ensure the owlcms directory exists
+	owlcmsDir := filepath.Join(originalDir, owlcmsInstallDir)
+	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
+		if err := os.Mkdir(owlcmsDir, 0755); err != nil {
+			return fmt.Errorf("creating owlcms directory: %w", err)
+		}
+	}
+
 	// Look for owlcms.jar in the version directory
-	jarPath := filepath.Join(version, "owlcms.jar")
+	jarPath := filepath.Join(owlcmsDir, version, "owlcms.jar")
 	if _, err := os.Stat(jarPath); os.IsNotExist(err) {
 		launchButton.Show() // Show launch button again if start fails
-		return fmt.Errorf("owlcms.jar not found in %s directory", version)
+		return fmt.Errorf("owlcms.jar not found in %s directory", jarPath)
 	}
 
 	// Change to version directory
-	if err := os.Chdir(version); err != nil {
+	if err := os.Chdir(filepath.Join(owlcmsDir, version)); err != nil {
 		launchButton.Show() // Show launch button again if start fails
 		return fmt.Errorf("changing to version directory: %w", err)
 	}
 	defer os.Chdir(originalDir)
 
 	javaCmd := "java"
-	localJava := filepath.Join(originalDir, "java17", "bin", "java")
+	localJava := filepath.Join(originalDir, owlcmsInstallDir, "java17", "bin", "java")
 	if runtime.GOOS == "windows" && !downloadUtils.IsWSL() {
-		localJava = filepath.Join(originalDir, "java17", "bin", "javaw.exe")
+		localJava = filepath.Join(originalDir, owlcmsInstallDir, "java17", "bin", "javaw.exe")
 		javaCmd = "javaw"
 	}
 	if _, err := os.Stat(localJava); err == nil {

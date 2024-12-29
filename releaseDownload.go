@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -104,8 +106,23 @@ func createReleaseDropdown(w fyne.Window, downloadGroup *fyne.Container) *widget
 		}
 		fileName := fmt.Sprintf("owlcms_%s.zip", selected)
 		zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, selected, fileName)
-		zipPath := fileName
-		extractPath := selected
+
+		// Ensure the owlcms directory exists
+		originalDir, err := os.Getwd()
+		if err != nil {
+			dialog.ShowError(fmt.Errorf("getting current directory: %w", err), w)
+			return
+		}
+		owlcmsDir := filepath.Join(originalDir, owlcmsInstallDir)
+		if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
+			if err := os.Mkdir(owlcmsDir, 0755); err != nil {
+				dialog.ShowError(fmt.Errorf("creating owlcms directory: %w", err), w)
+				return
+			}
+		}
+
+		zipPath := filepath.Join(owlcmsDir, fileName)
+		extractPath := filepath.Join(owlcmsDir, selected)
 
 		dialog.ShowConfirm("Confirm Download",
 			fmt.Sprintf("Do you want to download and install OWLCMS version %s?", selected),

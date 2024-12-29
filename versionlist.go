@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 
@@ -16,7 +17,8 @@ import (
 var versionList *widget.List
 
 func getAllInstalledVersions() []string {
-	entries, err := os.ReadDir(".")
+	owlcmsDir := filepath.Join(".", owlcmsInstallDir)
+	entries, err := os.ReadDir(owlcmsDir)
 	if err != nil {
 		return nil
 	}
@@ -43,7 +45,8 @@ func getAllInstalledVersions() []string {
 }
 
 func findLatestInstalled() string {
-	entries, err := os.ReadDir(".")
+	owlcmsDir := filepath.Join(".", owlcmsInstallDir)
+	entries, err := os.ReadDir(owlcmsDir)
 	if err != nil {
 		return ""
 	}
@@ -118,7 +121,7 @@ func createVersionList(w fyne.Window, stopButton *widget.Button, downloadGroup, 
 							return
 						}
 
-						err := os.RemoveAll(version)
+						err := os.RemoveAll(filepath.Join(owlcmsInstallDir, version))
 						if err != nil {
 							dialog.ShowError(fmt.Errorf("failed to remove OWLCMS %s: %w", version, err), w)
 							return
