@@ -191,6 +191,12 @@ func fetchReleasesInBackground(releasesChan chan<- []string, errChan chan<- erro
 	releasesChan <- releases
 }
 
+func computeVersionScrollHeight(numVersions int) float32 {
+	minHeight := 50 // minimum height
+	rowHeight := 40 // approximate height per row
+	return float32(minHeight + (rowHeight * min(numVersions, 4)))
+}
+
 func main() {
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
 	a.Settings().SetTheme(newMyTheme())
@@ -222,16 +228,8 @@ func main() {
 
 	// Create scroll container for version list with dynamic size
 	versionScroll := container.NewVScroll(versionList)
-	minHeight := 50 // minimum height
-	rowHeight := 40 // approximate height per row
 	numVersions := len(getAllInstalledVersions())
-	if numVersions > 0 {
-		// Set height based on number of versions, but cap at 4 rows
-		height := minHeight + (rowHeight * min(numVersions, 4))
-		versionScroll.SetMinSize(fyne.NewSize(400, float32(height)))
-	} else {
-		versionScroll.SetMinSize(fyne.NewSize(400, float32(minHeight)))
-	}
+	versionScroll.SetMinSize(fyne.NewSize(400, computeVersionScrollHeight(numVersions)))
 
 	// Create more compact layout without padding
 	versionContainer.Objects = []fyne.CanvasObject{
@@ -415,11 +413,9 @@ func downloadAndInstallVersion(version string, w fyne.Window, downloadGroup *fyn
 
 		// Update the scroll container's size
 		numVersions := len(getAllInstalledVersions())
-		minHeight := 50 // minimum height
-		rowHeight := 40 // approximate height per row
-		height := minHeight + (rowHeight * min(numVersions, 4))
 		versionScroll := container.NewVScroll(newVersionList)
-		versionScroll.SetMinSize(fyne.NewSize(400, float32(height)))
+		versionScroll.SetMinSize(fyne.NewSize(400, computeVersionScrollHeight(numVersions)))
+		versionContainer.Add(widget.NewLabel("Installed Versions:"))
 		versionContainer.Add(versionScroll)
 
 		fmt.Println("Version list reinitialized")
