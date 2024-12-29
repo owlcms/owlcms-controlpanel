@@ -15,6 +15,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -296,6 +297,17 @@ func main() {
 			// Check if a more recent version is available
 			checkForNewerVersion()
 
+			// If no version is installed, get the latest stable version
+			if len(getAllInstalledVersions()) == 0 {
+				for _, release := range allReleases {
+					if !containsPreReleaseTag(release) {
+						// Automatically download and install the latest stable version
+						downloadAndInstallVersion(release, w, downloadGroup)
+						break
+					}
+				}
+			}
+
 			w.Canvas().Refresh(mainContent)
 		case err := <-errChan:
 			fmt.Printf("Error fetching releases: %v\n", err)
@@ -322,6 +334,99 @@ func main() {
 	})
 
 	w.ShowAndRun()
+}
+
+func downloadAndInstallVersion(version string, w fyne.Window, downloadGroup *fyne.Container) {
+	var urlPrefix string
+	if containsPreReleaseTag(version) {
+		urlPrefix = "https://github.com/owlcms/owlcms4-prerelease/releases/download"
+	} else {
+		urlPrefix = "https://github.com/owlcms/owlcms4/releases/download"
+	}
+	fileName := fmt.Sprintf("owlcms_%s.zip", version)
+	zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, version, fileName)
+
+	// Ensure the owlcms directory exists
+	originalDir, err := os.Getwd()
+	if err != nil {
+		dialog.ShowError(fmt.Errorf("getting current directory: %w", err), w)
+		return
+	}
+	owlcmsDir := filepath.Join(originalDir, owlcmsInstallDir)
+	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
+		if err := os.Mkdir(owlcmsDir, 0755); err != nil {
+			dialog.ShowError(fmt.Errorf("creating owlcms directory: %w", err), w)
+			return
+		}
+	}
+
+	zipPath := filepath.Join(owlcmsDir, fileName)
+	extractPath := filepath.Join(owlcmsDir, version)
+
+	// Show progress dialog
+	progressDialog := dialog.NewCustom(
+		"Installing OWLCMS",
+		"Please wait...",
+		widget.NewTextGridFromString("Downloading and extracting files..."),
+		w)
+	progressDialog.Show()
+
+	go func() {
+		// Download the ZIP file using downloadUtils
+		fmt.Printf("Starting download from URL: %s\n", zipURL)
+		err := downloadUtils.DownloadZip(zipURL, zipPath)
+		if err != nil {
+			progressDialog.Hide()
+			dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
+			return
+		}
+
+		// Extract the ZIP file to version-specific subdirectory
+		fmt.Printf("Extracting ZIP file to: %s\n", extractPath)
+		err = downloadUtils.ExtractZip(zipPath, extractPath)
+		if err != nil {
+			progressDialog.Hide()
+			dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
+			return
+		}
+
+		// Log when extraction is done
+		fmt.Println("Extraction completed")
+
+		// Log before closing the dialog
+		fmt.Println("Closing progress dialog")
+
+		// Hide progress dialog
+		progressDialog.Hide()
+
+		// Show success panel with installation details
+		message := fmt.Sprintf(
+			"Successfully installed OWLCMS version %s\n\n"+
+				"Location: %s\n\n"+
+				"The program files have been extracted to the above directory.",
+			version, extractPath)
+
+		dialog.ShowInformation("Installation Complete", message, w)
+
+		// Reinitialize the version list
+		fmt.Println("Reinitializing version list")
+		versionContainer.Objects = nil // Clear the container
+		newVersionList := createVersionList(w, stopButton, downloadGroup, versionContainer)
+
+		// Update the scroll container's size
+		numVersions := len(getAllInstalledVersions())
+		minHeight := 50 // minimum height
+		rowHeight := 40 // approximate height per row
+		height := minHeight + (rowHeight * min(numVersions, 4))
+		versionScroll := container.NewVScroll(newVersionList)
+		versionScroll.SetMinSize(fyne.NewSize(400, float32(height)))
+		versionContainer.Add(versionScroll)
+
+		fmt.Println("Version list reinitialized")
+
+		// Recompute the downloadTitle
+		checkForNewerVersion()
+	}()
 }
 
 func min(a, b int) int {
