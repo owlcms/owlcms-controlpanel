@@ -1,1 +1,2 @@
-- Only show a that a newer prerelease is available if a prerelease is the most recent version installed
+- hide the version list when there are no versions
+- on initial startup, if there are no versions installed download the latest stable version
