@@ -13,7 +13,6 @@ import (
 	"owlcms-launcher/downloadUtils"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 	"github.com/Masterminds/semver/v3"
@@ -176,21 +175,8 @@ func createReleaseDropdown(w fyne.Window, downloadGroup *fyne.Container) *widget
 
 					dialog.ShowInformation("Installation Complete", message, w)
 
-					// Reinitialize the version list
-					fmt.Println("Reinitializing version list")
-					versionContainer.Objects = nil // Clear the container
-					newVersionList := createVersionList(w, stopButton, downloadGroup, versionContainer)
-
-					// Update the scroll container's size
-					numVersions := len(getAllInstalledVersions())
-					minHeight := 50 // minimum height
-					rowHeight := 40 // approximate height per row
-					height := minHeight + (rowHeight * min(numVersions, 4))
-					versionScroll := container.NewVScroll(newVersionList)
-					versionScroll.SetMinSize(fyne.NewSize(400, float32(height)))
-					versionContainer.Add(versionScroll)
-
-					fmt.Println("Version list reinitialized")
+					// Recompute the version list
+					recomputeVersionList(w, downloadGroup)
 
 					// Recompute the downloadTitle
 					checkForNewerVersion()
