@@ -127,9 +127,8 @@ func createVersionList(w fyne.Window, stopButton *widget.Button, downloadGroup, 
 							return
 						}
 
-						versions = getAllInstalledVersions()
-						versionList.Length = func() int { return len(versions) }
-						versionList.Refresh()
+						// Recompute the version list
+						recomputeVersionList(w, downloadGroup)
 
 						// Check if a more recent version is available
 						checkForNewerVersion()
