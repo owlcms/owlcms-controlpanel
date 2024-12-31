@@ -19,7 +19,11 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-var owlcmsInstallDir = "owlcms"
+var owlcmsInstallDir string
+
+func InitJavaCheck(installDir string) {
+	owlcmsInstallDir = installDir
+}
 
 // compareVersions compares two jdk directory names and returns true if a is more recent than b
 func compareVersions(a, b string) bool {
@@ -112,18 +116,13 @@ func CheckJava(statusLabel *widget.Label) error {
 	statusLabel.Show()
 
 	// Ensure the owlcms directory exists
-	originalDir, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("getting current directory: %w", err)
-	}
-	owlcmsDir := filepath.Join(originalDir, owlcmsInstallDir)
-	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
-		if err := os.Mkdir(owlcmsDir, 0755); err != nil {
+	if _, err := os.Stat(owlcmsInstallDir); os.IsNotExist(err) {
+		if err := os.Mkdir(owlcmsInstallDir, 0755); err != nil {
 			return fmt.Errorf("creating owlcms directory: %w", err)
 		}
 	}
 
-	javaDir := filepath.Join(owlcmsDir, "java17")
+	javaDir := filepath.Join(owlcmsInstallDir, "java17")
 	if _, err := os.Stat(javaDir); os.IsNotExist(err) {
 		if err := os.Mkdir(javaDir, 0755); err != nil {
 			return fmt.Errorf("creating java directory: %w", err)

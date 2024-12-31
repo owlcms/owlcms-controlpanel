@@ -131,12 +131,7 @@ func createReleaseDropdown(w fyne.Window, downloadGroup *fyne.Container) *widget
 		zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, selected, fileName)
 
 		// Ensure the owlcms directory exists
-		originalDir, err := os.Getwd()
-		if err != nil {
-			dialog.ShowError(fmt.Errorf("getting current directory: %w", err), w)
-			return
-		}
-		owlcmsDir := filepath.Join(originalDir, owlcmsInstallDir)
+		owlcmsDir := owlcmsInstallDir
 		if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
 			if err := os.Mkdir(owlcmsDir, 0755); err != nil {
 				dialog.ShowError(fmt.Errorf("creating owlcms directory: %w", err), w)

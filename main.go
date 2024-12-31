@@ -30,6 +30,10 @@ var (
 	stopContainer    *fyne.Container
 )
 
+func init() {
+	javacheck.InitJavaCheck(owlcmsInstallDir)
+}
+
 type myTheme struct {
 	fyne.Theme
 }
@@ -334,6 +338,7 @@ func main() {
 	})
 
 	w.ShowAndRun()
+
 }
 
 func downloadAndInstallVersion(version string, w fyne.Window, downloadGroup *fyne.Container) {
