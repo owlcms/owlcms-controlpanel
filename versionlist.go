@@ -78,18 +78,21 @@ func createVersionList(w fyne.Window, stopButton *widget.Button, downloadGroup, 
 		func() fyne.CanvasObject {
 			label := widget.NewLabel("Template")
 			launchButton := widget.NewButton("Launch", nil)
+			filesButton := widget.NewButton("Files", nil)
 			removeButton := widget.NewButton("Remove", nil)
 			launchButton.Resize(fyne.NewSize(80, 25))
 			removeButton.Resize(fyne.NewSize(80, 25))
+			filesButton.Resize(fyne.NewSize(80, 25))
 			launchButton.Importance = widget.HighImportance // Make the launch button important
-			return container.NewBorder(nil, nil, nil, container.NewHBox(launchButton, removeButton), label)
+			return container.NewBorder(nil, nil, nil, container.NewHBox(launchButton, filesButton, removeButton), label)
 		},
 		func(index widget.ListItemID, item fyne.CanvasObject) {
 			cont := item.(*fyne.Container)
 			label := cont.Objects[0].(*widget.Label)
 			buttons := cont.Objects[1].(*fyne.Container)
 			launchButton := buttons.Objects[0].(*widget.Button)
-			removeButton := buttons.Objects[1].(*widget.Button)
+			removeButton := buttons.Objects[2].(*widget.Button)
+			filesButton := buttons.Objects[1].(*widget.Button)
 
 			version := versions[index]
 			label.SetText(version)
@@ -134,6 +137,14 @@ func createVersionList(w fyne.Window, stopButton *widget.Button, downloadGroup, 
 						checkForNewerVersion()
 					},
 					w)
+			}
+
+			filesButton.SetText("Files")
+			filesButton.OnTapped = func() {
+				versionDir := filepath.Join(owlcmsInstallDir, version)
+				if err := openFileExplorer(versionDir); err != nil {
+					dialog.ShowError(fmt.Errorf("failed to open file explorer for %s: %w", versionDir, err), w)
+				}
 			}
 		},
 	)
