@@ -3,7 +3,10 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
+	"runtime"
+	"syscall"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -72,12 +75,24 @@ func stopProcess(currentProcess *exec.Cmd, currentVersion string, stopButton *wi
 		}
 		pid := currentProcess.Process.Pid
 		killedByUs = true
-		err := currentProcess.Process.Kill()
-		if err != nil {
-			killedByUs = false
-			dialog.ShowError(fmt.Errorf("failed to stop OWLCMS %s (PID: %d): %w", currentVersion, pid, err), w)
-			return
+
+		var err error
+		if runtime.GOOS == "windows" {
+			err = currentProcess.Process.Signal(os.Interrupt)
+		} else {
+			err = currentProcess.Process.Signal(syscall.SIGINT)
 		}
+
+		if err != nil {
+			fmt.Printf("Failed to send interrupt signal to OWLCMS %s (PID: %d): %v\n", currentVersion, pid, err)
+			err = currentProcess.Process.Kill()
+			if err != nil {
+				killedByUs = false
+				dialog.ShowError(fmt.Errorf("failed to stop OWLCMS %s (PID: %d): %w", currentVersion, pid, err), w)
+				return
+			}
+		}
+
 		fmt.Printf("OWLCMS %s (PID: %d) has been stopped\n", currentVersion, pid)
 		statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) has been stopped", currentVersion, pid))
 		currentProcess = nil

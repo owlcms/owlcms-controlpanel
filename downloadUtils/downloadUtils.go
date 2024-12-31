@@ -86,6 +86,10 @@ func ExtractZip(src, dest string) error {
 	}
 
 	for _, f := range r.File {
+		if f.Name == "Procfile" || f.Name == "system.properties" {
+			continue
+		}
+
 		fpath := filepath.Join(dest, f.Name)
 
 		if f.FileInfo().IsDir() {
@@ -151,6 +155,10 @@ func ExtractTarGz(tarGzPath, dest string) error {
 			gzr.Close()
 			r.Close()
 			return err
+		}
+
+		if header.Name == "Procfile" || header.Name == "system.properties" {
+			continue
 		}
 
 		target := filepath.Join(dest, header.Name)
