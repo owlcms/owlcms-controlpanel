@@ -211,7 +211,7 @@ func computeVersionScrollHeight(numVersions int) float32 {
 }
 
 func main() {
-	openFileExplorer("/usr/local/bin")
+	openFileExplorer(owlcmsInstallDir)
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
 	a.Settings().SetTheme(newMyTheme())
 	w := a.NewWindow("OWLCMS Launcher")
