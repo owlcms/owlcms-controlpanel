@@ -6,7 +6,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 
@@ -75,6 +77,28 @@ func fetchReleases() ([]string, error) {
 	})
 
 	return releaseNames, nil
+}
+
+func openFileExplorer(path string) error {
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("explorer", path)
+	case "darwin": // macOS
+		cmd = exec.Command("open", path)
+	case "linux":
+		cmd = exec.Command("xdg-open", path)
+	default:
+		return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
+	}
+
+	if err := cmd.Start(); err != nil {
+		fmt.Printf("Failed to open file explorer: %v\n", err)
+		return fmt.Errorf("failed to open file explorer: %w", err)
+	}
+
+	return nil
 }
 
 func populateReleaseDropdown(releaseDropdown *widget.Select) {

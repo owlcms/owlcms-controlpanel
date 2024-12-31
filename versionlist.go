@@ -17,7 +17,7 @@ import (
 var versionList *widget.List
 
 func getAllInstalledVersions() []string {
-	owlcmsDir := filepath.Join(".", owlcmsInstallDir)
+	owlcmsDir := owlcmsInstallDir
 	entries, err := os.ReadDir(owlcmsDir)
 	if err != nil {
 		return nil
@@ -45,7 +45,7 @@ func getAllInstalledVersions() []string {
 }
 
 func findLatestInstalled() string {
-	owlcmsDir := filepath.Join(".", owlcmsInstallDir)
+	owlcmsDir := owlcmsInstallDir
 	entries, err := os.ReadDir(owlcmsDir)
 	if err != nil {
 		return ""
