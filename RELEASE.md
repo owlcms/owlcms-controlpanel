@@ -1,2 +1,4 @@
-- hide the version list when there are no versions
-- on initial startup, if there are no versions installed download the latest stable version
+- Moved the installation files to a directory appropriate for each platform
+  - Windows : `%APPDATA%\owlcms`
+  - Linux/Pi: `$HOME/.local/share/owlcms`
+  - MacOS: `$HOME/Library/Application Support/owlcms` (MacOS not published yet)

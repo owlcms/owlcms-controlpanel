@@ -1,5 +1,6 @@
 #!/bin/bash
-export TAG=1.0.2
+export TAG=1.1.0
+git pull
 
 fyne-cross windows -arch amd64 -app-id app.owlcms.owlcms-launcher -icon Icon.png -name owlcms-windows
 fyne-cross linux -arch amd64 -app-id app.owlcms.owlcms-launcher -icon Icon.png -name owlcms-linux
