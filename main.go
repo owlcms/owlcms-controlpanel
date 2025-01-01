@@ -338,6 +338,7 @@ func main() {
 	})
 
 	w.ShowAndRun()
+
 }
 
 func downloadAndInstallVersion(version string, w fyne.Window, downloadGroup *fyne.Container) {
