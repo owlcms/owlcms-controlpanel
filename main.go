@@ -21,7 +21,7 @@ import (
 )
 
 var (
-	owlcmsInstallDir = "owlcms"
+	owlcmsInstallDir = getInstallDir()
 	currentProcess   *exec.Cmd
 	currentVersion   string // Add to track current version
 	statusLabel      *widget.Label
@@ -29,6 +29,10 @@ var (
 	versionContainer *fyne.Container
 	stopContainer    *fyne.Container
 )
+
+func init() {
+	javacheck.InitJavaCheck(owlcmsInstallDir)
+}
 
 type myTheme struct {
 	fyne.Theme
@@ -49,6 +53,19 @@ func (m myTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) colo
 		return color.NRGBA{R: 0, G: 0, B: 0, A: 40}
 	}
 	return m.Theme.Color(name, variant)
+}
+
+func getInstallDir() string {
+	switch runtime.GOOS {
+	case "windows":
+		return filepath.Join(os.Getenv("APPDATA"), "owlcms")
+	case "darwin":
+		return filepath.Join(os.Getenv("HOME"), "Library", "Application Support", "owlcms")
+	case "linux":
+		return filepath.Join(os.Getenv("HOME"), ".local", "share", "owlcms")
+	default:
+		return "./owlcms"
+	}
 }
 
 func checkJava(statusLabel *widget.Label, downloadGroup *fyne.Container) error {
@@ -85,7 +102,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button, downl
 	}
 
 	// Ensure the owlcms directory exists
-	owlcmsDir := filepath.Join(originalDir, owlcmsInstallDir)
+	owlcmsDir := owlcmsInstallDir
 	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
 		if err := os.Mkdir(owlcmsDir, 0755); err != nil {
 			return fmt.Errorf("creating owlcms directory: %w", err)
@@ -107,9 +124,9 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button, downl
 	defer os.Chdir(originalDir)
 
 	javaCmd := "java"
-	localJava := filepath.Join(originalDir, owlcmsInstallDir, "java17", "bin", "java")
+	localJava := filepath.Join(owlcmsInstallDir, "java17", "bin", "java")
 	if runtime.GOOS == "windows" && !downloadUtils.IsWSL() {
-		localJava = filepath.Join(originalDir, owlcmsInstallDir, "java17", "bin", "javaw.exe")
+		localJava = filepath.Join(owlcmsInstallDir, "java17", "bin", "javaw.exe")
 		javaCmd = "javaw"
 	}
 	if _, err := os.Stat(localJava); err == nil {
@@ -334,12 +351,7 @@ func downloadAndInstallVersion(version string, w fyne.Window, downloadGroup *fyn
 	zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, version, fileName)
 
 	// Ensure the owlcms directory exists
-	originalDir, err := os.Getwd()
-	if err != nil {
-		dialog.ShowError(fmt.Errorf("getting current directory: %w", err), w)
-		return
-	}
-	owlcmsDir := filepath.Join(originalDir, owlcmsInstallDir)
+	owlcmsDir := owlcmsInstallDir
 	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
 		if err := os.Mkdir(owlcmsDir, 0755); err != nil {
 			dialog.ShowError(fmt.Errorf("creating owlcms directory: %w", err), w)
