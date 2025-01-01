@@ -84,15 +84,20 @@ func createVersionList(w fyne.Window, stopButton *widget.Button, downloadGroup, 
 			removeButton.Resize(fyne.NewSize(80, 25))
 			filesButton.Resize(fyne.NewSize(80, 25))
 			launchButton.Importance = widget.HighImportance // Make the launch button important
-			return container.NewBorder(nil, nil, nil, container.NewHBox(launchButton, filesButton, removeButton), label)
+			buttonContainer := container.NewHBox(
+				container.NewPadded(launchButton),
+				container.NewPadded(filesButton),
+				container.NewPadded(removeButton),
+			)
+			return container.NewBorder(nil, nil, nil, buttonContainer, label)
 		},
 		func(index widget.ListItemID, item fyne.CanvasObject) {
 			cont := item.(*fyne.Container)
 			label := cont.Objects[0].(*widget.Label)
-			buttons := cont.Objects[1].(*fyne.Container)
-			launchButton := buttons.Objects[0].(*widget.Button)
-			removeButton := buttons.Objects[2].(*widget.Button)
-			filesButton := buttons.Objects[1].(*widget.Button)
+			buttonContainer := cont.Objects[1].(*fyne.Container)
+			launchButton := buttonContainer.Objects[0].(*fyne.Container).Objects[0].(*widget.Button)
+			filesButton := buttonContainer.Objects[1].(*fyne.Container).Objects[0].(*widget.Button)
+			removeButton := buttonContainer.Objects[2].(*fyne.Container).Objects[0].(*widget.Button)
 
 			version := versions[index]
 			label.SetText(version)
