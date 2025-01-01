@@ -1,4 +1,5 @@
-- Moved the installation files to a directory appropriate for each platform
+- Cosmetic: padding of icons in version list
+- Installation files are in a directory appropriate for each platform
   - Windows : `%APPDATA%\owlcms`
   - Linux/Pi: `$HOME/.local/share/owlcms`
   - MacOS: `$HOME/Library/Application Support/owlcms` (MacOS not published yet)
