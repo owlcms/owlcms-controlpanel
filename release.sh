@@ -9,7 +9,7 @@ git pull
 #cp fyne-cross/bin/linux-arm64/owlcms-launcher fyne-cross/bin/linux-arm64/owlcms-pi
 #cp fyne-cross/bin/linux-amd64/owlcms-launcher fyne-cross/bin/linux-amd64/owlcms-linux
 
-fpm -s tar -t deb -n owlcms-launcher -v $TAG -a arm64 --prefix / --after-install ./dist/create_desktop.sh ./fyne-cross/dist/linux-arm64/owlcms.tar.xz 
+fpm -s tar -t deb -n owlcms-launcher -v $TAG -a arm64 --prefix / --after-install ./dist/after_install.sh --after-remove ./dist/after_remove.sh ./fyne-cross/dist/linux-arm64/owlcms.tar.xz 
 
 #fpm -s tar -t deb -n owlcms-amd64 -v $TAG -a amd64 --prefix / --chdir ./fyne-cross/dist/linux-amd64 --after-install ./create_desktop.sh owlcms.tar.xz 
 
