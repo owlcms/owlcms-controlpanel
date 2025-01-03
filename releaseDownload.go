@@ -25,9 +25,12 @@ type Release struct {
 }
 
 var (
-	showPrereleases bool = false
-	allReleases     []string
-	downloadTitle   *widget.Label
+	showPrereleases    bool = false
+	allReleases        []string
+	downloadTitle      *widget.Label
+	downloadButton     *widget.Button
+	releaseDropdown    *widget.Select
+	prereleaseCheckbox *widget.Check
 )
 
 func fetchReleases() ([]string, error) {
@@ -120,7 +123,7 @@ func populateReleaseDropdown(releaseDropdown *widget.Select) {
 }
 
 func createReleaseDropdown(w fyne.Window, downloadGroup *fyne.Container) *widget.Select {
-	releaseDropdown := widget.NewSelect([]string{}, func(selected string) {
+	releaseDropdown = widget.NewSelect([]string{}, func(selected string) {
 		var urlPrefix string
 		if containsPreReleaseTag(selected) {
 			urlPrefix = "https://github.com/owlcms/owlcms4-prerelease/releases/download"
@@ -204,7 +207,7 @@ func createReleaseDropdown(w fyne.Window, downloadGroup *fyne.Container) *widget
 			w)
 	})
 	releaseDropdown.PlaceHolder = "Choose a release to download"
-
+	releaseDropdown.Hide() // Hide the dropdown initially
 	downloadGroup.Objects = []fyne.CanvasObject{
 		downloadTitle,
 		widget.NewLabel("Download and install a new version of OWLCMS from GitHub:"),
@@ -212,6 +215,9 @@ func createReleaseDropdown(w fyne.Window, downloadGroup *fyne.Container) *widget
 	}
 
 	populateReleaseDropdown(releaseDropdown)
+	if prereleaseCheckbox != nil {
+		prereleaseCheckbox.Hide()
+	}
 
 	return releaseDropdown
 }
@@ -251,6 +257,13 @@ func checkForNewerVersion() {
 			downloadTitle.SetText("The latest stable version is installed. You may install additional versions if you wish.")
 			downloadTitle.TextStyle = fyne.TextStyle{Bold: false}
 			downloadTitle.Refresh()
+			downloadButton.Show()
+			if releaseDropdown != nil {
+				releaseDropdown.Hide()
+			}
+			if prereleaseCheckbox != nil {
+				prereleaseCheckbox.Hide()
+			}
 			downloadTitle.Show()
 		}
 	} else {

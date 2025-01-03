@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"image/color"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -210,7 +211,7 @@ func fetchReleasesInBackground(releasesChan chan<- []string, errChan chan<- erro
 
 func computeVersionScrollHeight(numVersions int) float32 {
 	minHeight := 50 // minimum height
-	rowHeight := 40 // approximate height per row
+	rowHeight := 45 // approximate height per row
 	return float32(minHeight + (rowHeight * min(numVersions, 4)))
 }
 
@@ -249,16 +250,27 @@ func main() {
 	releaseDropdown.Hide() // Hide the dropdown initially
 
 	// Create checkbox for showing prereleases
-	prereleaseCheckbox := widget.NewCheck("Show Prereleases", func(checked bool) {
+	prereleaseCheckbox = widget.NewCheck("Show Prereleases", func(checked bool) {
 		showPrereleases = checked
 		populateReleaseDropdown(releaseDropdown) // Repopulate the dropdown when the checkbox is changed
 	})
 	prereleaseCheckbox.Hide() // Hide the checkbox initially
 
+	// Create button to show downloadable versions
+	downloadButton = widget.NewButton("Show Downloadable Versions", nil)
+	downloadButton.Hide()
+	downloadButton.OnTapped = func() {
+		downloadTitle.Show()
+		releaseDropdown.Show()
+		prereleaseCheckbox.Show()
+		downloadButton.Hide()
+	}
+
 	downloadGroup.Objects = []fyne.CanvasObject{
 		downloadTitle,
 		releaseDropdown,
 		prereleaseCheckbox,
+		downloadButton,
 	}
 
 	mainContent := container.NewVBox(
@@ -281,10 +293,10 @@ func main() {
 	releasesChan := make(chan []string)
 	errChan := make(chan error)
 
-	// Show retrieving releases label
-	retrievingLabel := widget.NewLabel("Checking for updates...")
-	downloadGroup.Objects = append(downloadGroup.Objects, retrievingLabel)
-	w.Canvas().Refresh(mainContent)
+	// // Show retrieving releases label
+	// retrievingLabel := widget.NewLabel("Checking for updates...")
+	// downloadGroup.Objects = append(downloadGroup.Objects, retrievingLabel)
+	// w.Canvas().Refresh(mainContent)
 
 	go fetchReleasesInBackground(releasesChan, errChan)
 
@@ -294,9 +306,10 @@ func main() {
 			allReleases = releases                   // Store all releases
 			populateReleaseDropdown(releaseDropdown) // Populate the dropdown with the releases
 			downloadTitle.Show()
-			releaseDropdown.Show()
-			prereleaseCheckbox.Show()                                                    // Show the checkbox once releases are fetched
-			downloadGroup.Objects = downloadGroup.Objects[:len(downloadGroup.Objects)-1] // Remove retrieving label
+			releaseDropdown.Hide()
+			prereleaseCheckbox.Hide() // Show the checkbox once releases are fetched
+			log.Printf("Fetched %d releases\n", len(releases))
+			downloadButton.Show()
 
 			// Check if a more recent version is available
 			checkForNewerVersion()
@@ -325,8 +338,7 @@ func main() {
 			}
 			w.Canvas().Refresh(mainContent)
 		}
-		// Ensure the retrieving label is hidden in all cases
-		retrievingLabel.Hide()
+
 		w.Canvas().Refresh(mainContent)
 	}()
 
