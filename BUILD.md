@@ -15,7 +15,10 @@
   fyne-cross linux -arch amd64 --app-id app.owlcms.owlcms-launcher -name owlcms-linux
   ```
   
-  
+### Releasing
+- update the version number in release.sh
+- update RELEASE.md
+- run ./release.sh
 
 ### To be explored
   -  download and extract Federation-specific overrides
