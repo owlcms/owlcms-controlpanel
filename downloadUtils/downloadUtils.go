@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -119,6 +120,11 @@ func ExtractZip(src, dest string) error {
 		if err != nil {
 			return fmt.Errorf("failed to copy file data from zip: %w", err)
 		}
+
+		// Restore file modification and creation times
+		if err := os.Chtimes(fpath, f.Modified, f.Modified); err != nil {
+			return fmt.Errorf("failed to change file times: %w", err)
+		}
 	}
 
 	r.Close() // Close the zip file after extracting
@@ -170,6 +176,11 @@ func ExtractTarGz(tarGzPath, dest string) error {
 				r.Close()
 				return err
 			}
+			if err := os.Chtimes(target, header.AccessTime, header.ModTime); err != nil {
+				gzr.Close()
+				r.Close()
+				return err
+			}
 		case tar.TypeReg:
 			outFile, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
 			if err != nil {
@@ -179,6 +190,13 @@ func ExtractTarGz(tarGzPath, dest string) error {
 			}
 			if _, err := io.Copy(outFile, tr); err != nil {
 				outFile.Close()
+				gzr.Close()
+				r.Close()
+				return err
+			}
+			log.Printf("attempting to change file times: %s %s", header.AccessTime, header.ModTime)
+			if err := os.Chtimes(target, header.AccessTime, header.ModTime); err != nil {
+				log.Printf("failed to change file times: %v  %s %s", err, header.AccessTime, header.ModTime)
 				gzr.Close()
 				r.Close()
 				return err
