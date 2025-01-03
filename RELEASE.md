@@ -2,15 +2,15 @@ Owlcms-launcher is a "control center" for owlcms.  It will automatically downloa
 
 When using owlcms-launcher on Windows or Linux you don't have to use the "old-style" installation methods explained in the documentation.  It is expected that owlcms-launcher will replace them.
 
-### Changes
+### Change Log for version 1.2.1
 
-- Installers for Raspberry Pi and Linux on Intel/AMD
+- modification times are preserved when downloading
 
 ### Installing the Launcher
 
 - For Windows, download `owlcms.exe`  and copy it to your desktop
 - For Raspberry Pi, there are two options
-  1. **Download the file that ends with `_pi.deb` . Right-click on the downloaded file and select `Package Install`**.  You will be prompted for the password of your pi user. This will create a desktop icon, and an entry in the "Other" section of the menu.
+  1. **Download the file that ends with `_pi.deb` . Go to your Downloads directory, right-click on the downloaded file and select `Package Install`**.  You will be prompted for the password of your pi user. This will create a desktop icon, and an entry in the "Other" section of the menu.
   2. If you prefer, you can simply download and copy `owlcms-pi` to your desktop -- the only difference is that there will be no pretty icon.
 - For Linux on Intel or AMD computers, there are two options
   1. Use a package manager
@@ -23,7 +23,7 @@ When using owlcms-launcher on Windows or Linux you don't have to use the "old-st
 
 - Double-click on the icon on your desktop
   - this will download the latest version of OWLCMS
-  - when you launch it for the first time, it will fetch an appropriate version of the Java programming language
+  - when launching for the first time, the launcher will fetch an appropriate version of the Java programming language
   - starting the program takes 20 to 30 seconds, and a browser window should open
   - a Stop button will be shown so you can politely stop the program.
   - If you stop the program, all the browsers will stay open and wait for a restart, so they must be stopped individually.
