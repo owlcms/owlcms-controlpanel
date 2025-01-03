@@ -1,5 +1,5 @@
 #!/bin/bash
-export TAG=1.2.1
+export TAG=1.2.2
 git pull
 rm -f owlcms-launcher*
 
@@ -14,14 +14,14 @@ fpm -s tar -t deb -n owlcms-launcher -v $TAG -a arm64 --prefix / --after-install
 fpm -s tar -t deb -n owlcms-launcher -v $TAG -a amd64 --prefix / --after-install ./dist/after_install.sh --after-remove ./dist/after_remove.sh ./fyne-cross/dist/linux-amd64/owlcms.tar.xz
 mv owlcms-launcher_${TAG}_arm64.deb owlcms-launcher_${TAG}_pi.deb
 
-sed -i "s/_TAG_/${TAG}/g" RELEASE.md
+sed "s/_TAG_/${TAG}/g" RELEASE.md > /tmp/RELEASE$$.md
 
 git add --all
 git commit -m "$TAG"
 git push
 
 gh release delete $TAG -y
-gh release create $TAG --notes-file RELEASE.md -t "owlcms-launcher ${TAG}"
+gh release create $TAG --notes-file /tmp/RELEASE$$.md -t "owlcms-launcher ${TAG}"
 gh release upload $TAG owlcms-launcher_${TAG}_pi.deb
 gh release upload $TAG owlcms-launcher_${TAG}_amd64.deb
 gh release upload $TAG fyne-cross/bin/linux-arm64/owlcms-pi
