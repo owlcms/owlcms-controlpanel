@@ -15,9 +15,9 @@ rm -f owlcms-launcher*
 # mv owlcms-launcher_${TAG}_arm64.deb owlcms-launcher_${TAG}_pi.deb
 
 rm -f /tmp/RELEASE.md
-sed "s/_TAG_/${TAG}/g" < ./RELEASE.md > /tmp/RELEASE.md
-chmod 644 /tmp/RELEASE.md
-cat /tmp/RELEASE.md
+cp
+sed -i "s/_TAG_/${TAG}/g" ./RELEASE.md
+cp /tmp/RELEASE.md .
 gh release list
 
 git add --all
@@ -25,7 +25,7 @@ git commit -m "${TAG}"
 git push
 
 gh release delete ${TAG} -y
-gh release create ${TAG} --notes-file /tmp/RELEASE.md -t "owlcms-launcher ${TAG}"
+gh release create ${TAG} --notes-file ./RELEASE.md -t "owlcms-launcher ${TAG}"
 gh release upload ${TAG} owlcms-launcher_${TAG}_pi.deb
 gh release upload ${TAG} owlcms-launcher_${TAG}_amd64.deb
 gh release upload ${TAG} fyne-cross/bin/linux-arm64/owlcms-pi
