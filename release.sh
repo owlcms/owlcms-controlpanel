@@ -24,6 +24,6 @@ gh release upload $TAG owlcms-launcher_${TAG}_pi.deb
 gh release upload $TAG owlcms-launcher_${TAG}_amd64.deb
 gh release upload $TAG fyne-cross/bin/linux-arm64/owlcms-pi
 gh release upload $TAG fyne-cross/bin/linux-amd64/owlcms-linux
-gh release upload $TAG fyne-cross/bin/windows-amd64/owlcms-windows.exe
+gh release upload $TAG fyne-cross/bin/windows-amd64/owlcms.exe
 
 git fetch --tags

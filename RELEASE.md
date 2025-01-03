@@ -8,7 +8,7 @@ When using owlcms-launcher you don't have to use the "old-style" installation me
 
 ### Installing the Launcher
 
-- For Windows, download `owlcms-launcher.exe`  and copy it to your desktop
+- For Windows, download `owlcms.exe`  and copy it to your desktop
 - For Raspberry Pi, there are two options
   - **Download the file that ends with `_pi.deb` . Right-click on the downloaded file and select `Package Install`**.  This will create a desktop icon, and an entry in the "Other" section of the menu.
   - If you prefer, you can simply download and copy `owlcms-pi` to your desktop -- the only difference is that there will be no icon.
