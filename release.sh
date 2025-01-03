@@ -1,5 +1,5 @@
 #!/bin/bash
-export TAG=1.2.2
+export TAG=1.3.0
 git pull
 rm -f owlcms-launcher*
 
