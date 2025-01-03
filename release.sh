@@ -16,6 +16,7 @@ rm -f owlcms-launcher*
 
 rm -f /tmp/RELEASE.md
 sed "s/_TAG_/${TAG}/g" < ./RELEASE.md > /tmp/RELEASE.md
+chmod 644 /tmp/RELEASE.md
 cat /tmp/RELEASE.md
 gh release list
 
