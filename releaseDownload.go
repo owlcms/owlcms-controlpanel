@@ -30,7 +30,6 @@ var (
 	downloadButton      *widget.Button
 	releaseDropdown     *widget.Select
 	prereleaseCheckbox  *widget.Check
-	updateButton        *widget.Button // New update button
 	updateTitle         *widget.Label
 	downloadButtonTitle *widget.Label // New title for download button
 )
@@ -222,74 +221,40 @@ func containsPreReleaseTag(version string) bool {
 	return strings.Contains(version, "-rc") || strings.Contains(version, "-alpha") || strings.Contains(version, "-beta")
 }
 
-func checkForNewerVersion() {
-	latestInstalled := findLatestInstalled()
-	downloadButtonTitle.SetText("You may install additional versions if you wish.")
-	if latestInstalled != "" {
-		latestStable, _ := semver.NewVersion("0.0.0")
-		latestInstalledVersion, err := semver.NewVersion(latestInstalled)
-		if err == nil {
-			fmt.Printf("Latest installed version: %s\n", latestInstalledVersion)
-			for _, release := range allReleases {
-				releaseVersion, err := semver.NewVersion(release)
-				if err == nil {
-					if releaseVersion.GreaterThan(latestInstalledVersion) {
-						fmt.Printf("Found newer version: %s\n", releaseVersion)
-						if containsPreReleaseTag(release) {
-							fmt.Printf("Newer version is a pre-release: %s\n", release)
-							if containsPreReleaseTag(latestInstalled) {
-								updateTitle.SetText(fmt.Sprintf("A more recent prerelease version (%s) is available", releaseVersion))
-								updateTitle.TextStyle = fyne.TextStyle{Bold: true}
-								updateTitle.Refresh()
-								updateTitle.Show()
-								return
-							} else {
-								fmt.Printf("Skipping pre-release version: %s\n", release)
-							}
-						} else {
-							updateTitle.SetText(fmt.Sprintf("A more recent stable version (%s) is available", releaseVersion))
-							updateTitle.TextStyle = fyne.TextStyle{Bold: true}
-							updateTitle.Refresh()
-							updateTitle.Show()
-							return
-						}
-					}
-					if (releaseVersion.GreaterThan(latestStable)) && !containsPreReleaseTag(release) {
-						latestStable = releaseVersion
-					}
-				}
-			}
-			updateTitle.Show()
-			updateButton.Show()
-			downloadButtonTitle.Show()
-			downloadButton.Show()
-
-			if containsPreReleaseTag(latestInstalled) {
-				updateTitle.SetText(fmt.Sprintf("The latest installed version is a pre-release; the latest stable version is %s", latestStable))
-			} else {
-				updateTitle.SetText("The latest stable version is installed.")
-				updateButton.Hide()
-			}
-			updateTitle.TextStyle = fyne.TextStyle{Bold: false}
-			updateTitle.Refresh()
-
-			downloadButtonTitle.Refresh()
-			if releaseDropdown != nil {
-				releaseDropdown.Hide()
-			}
-			if prereleaseCheckbox != nil {
-				prereleaseCheckbox.Hide()
-			}
-			updateTitle.Show()
-			downloadButtonTitle.Show()
-			if downloadContainer != nil {
-				downloadContainer.Refresh()
+func getMostRecentStableRelease() (string, error) {
+	var mostRecentStable *semver.Version
+	for _, release := range allReleases {
+		releaseVersion, err := semver.NewVersion(release)
+		if err != nil {
+			continue
+		}
+		if !containsPreReleaseTag(release) {
+			if mostRecentStable == nil || releaseVersion.GreaterThan(mostRecentStable) {
+				mostRecentStable = releaseVersion
 			}
 		}
-	} else {
-		updateTitle.SetText("No version installed. Select a version to download below.")
-		updateTitle.TextStyle = fyne.TextStyle{Bold: true}
-		updateTitle.Refresh()
-		updateTitle.Show()
 	}
+	if mostRecentStable == nil {
+		return "", fmt.Errorf("no stable release found")
+	}
+	return mostRecentStable.String(), nil
+}
+
+func getMostRecentPrerelease() (string, error) {
+	var mostRecentPrerelease *semver.Version
+	for _, release := range allReleases {
+		releaseVersion, err := semver.NewVersion(release)
+		if err != nil {
+			continue
+		}
+		if containsPreReleaseTag(release) {
+			if mostRecentPrerelease == nil || releaseVersion.GreaterThan(mostRecentPrerelease) {
+				mostRecentPrerelease = releaseVersion
+			}
+		}
+	}
+	if mostRecentPrerelease == nil {
+		return "", fmt.Errorf("no prerelease found")
+	}
+	return mostRecentPrerelease.String(), nil
 }

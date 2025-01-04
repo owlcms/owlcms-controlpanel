@@ -163,15 +163,38 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 			}
 
 			updateButton.SetText("Update") // Set text for new button
+			var mostRecent string
+			var err error
+
+			// Check if the current version is stable or a prerelease
+			if !containsPreReleaseTag(version) {
+				mostRecent, err = getMostRecentStableRelease()
+				if err == nil {
+					updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
+					updateButton.Refresh()
+				} else {
+					dialog.ShowError(fmt.Errorf("failed to get most recent stable release: %w", err), w)
+				}
+			} else {
+				mostRecent, err = getMostRecentPrerelease()
+				if err == nil {
+					updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
+					updateButton.Refresh()
+				} else {
+					dialog.ShowError(fmt.Errorf("failed to get most recent prerelease: %w", err), w)
+				}
+			}
 			updateButton.OnTapped = func() {
-				updateVersion(version, w)
+				updateVersion(mostRecent, w)
 			}
 
 			importButton.SetText("Import Data and Config") // Set text for new button
 			if len(versions) <= 1 {
 				importButton.Hide() // Hide import button if there is only one installed version
+				updateButton.Show()
 			} else {
 				importButton.Show()
+				updateButton.Hide()
 				importButton.OnTapped = func() {
 					// Open a dialog to select the source version
 					sourceVersions := filterVersions(versions, version) // Filter out the current version

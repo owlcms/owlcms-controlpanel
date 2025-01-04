@@ -19,17 +19,19 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/Masterminds/semver/v3"
 )
 
 var (
-	owlcmsInstallDir  = getInstallDir()
-	currentProcess    *exec.Cmd
-	currentVersion    string // Add to track current version
-	statusLabel       *widget.Label
-	stopButton        *widget.Button
-	versionContainer  *fyne.Container
-	stopContainer     *fyne.Container
-	downloadContainer *fyne.Container
+	owlcmsInstallDir          = getInstallDir()
+	currentProcess            *exec.Cmd
+	currentVersion            string // Add to track current version
+	statusLabel               *widget.Label
+	stopButton                *widget.Button
+	versionContainer          *fyne.Container
+	stopContainer             *fyne.Container
+	downloadContainer         *fyne.Container
+	singleOrMultiVersionLabel *widget.Label // New label for single or multi version update
 )
 
 func init() {
@@ -217,6 +219,7 @@ func computeVersionScrollHeight(numVersions int) float32 {
 }
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
 	a.Settings().SetTheme(newMyTheme())
 	w := a.NewWindow("OWLCMS Launcher")
@@ -234,7 +237,8 @@ func main() {
 
 	// Initialize download titles
 	updateTitle = widget.NewLabel("")
-	downloadButtonTitle = widget.NewLabel("") // New title for download button
+	downloadButtonTitle = widget.NewLabel("")       // New title for download button
+	singleOrMultiVersionLabel = widget.NewLabel("") // New label for single or multi version update
 
 	// Configure stop button behavior
 	stopButton.OnTapped = func() {
@@ -267,15 +271,9 @@ func main() {
 		downloadButton.Hide()
 	}
 
-	// Create update button
-	updateButton = widget.NewButton("Update", func() {
-		checkForNewerVersion()
-	})
-	updateButton.Hide()
-
 	downloadGroup.Objects = []fyne.CanvasObject{
 		updateTitle,
-		updateButton,
+		singleOrMultiVersionLabel,
 		downloadButtonTitle,
 		downloadButton,
 		releaseDropdown,
@@ -312,7 +310,6 @@ func main() {
 			allReleases = releases                   // Store all releases
 			populateReleaseDropdown(releaseDropdown) // Populate the dropdown with the releases
 			updateTitle.Show()
-			updateButton.Show()
 			releaseDropdown.Hide()
 			prereleaseCheckbox.Hide() // Show the checkbox once releases are fetched
 			log.Printf("Fetched %d releases\n", len(releases))
@@ -440,4 +437,91 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func checkForNewerVersion() {
+	latestInstalled := findLatestInstalled()
+	downloadButtonTitle.SetText("Use the button below if you wish to do a clean install of another version. If the version you select is already installed, it will be removed and reinstalled with a new database and the original configuration.")
+	downloadButtonTitle.Wrapping = fyne.TextWrapWord
+	downloadButtonTitle.Refresh()
+
+	// Set the single or multi version label
+	updateExplanation()
+
+	if latestInstalled != "" {
+		latestStable, _ := semver.NewVersion("0.0.0")
+		latestInstalledVersion, err := semver.NewVersion(latestInstalled)
+		if err == nil {
+			fmt.Printf("Latest installed version: %s\n", latestInstalledVersion)
+			for _, release := range allReleases {
+				releaseVersion, err := semver.NewVersion(release)
+				if err == nil {
+					if releaseVersion.GreaterThan(latestInstalledVersion) {
+						fmt.Printf("Found newer version: %s\n", releaseVersion)
+						if containsPreReleaseTag(release) {
+							fmt.Printf("Newer version is a pre-release: %s\n", release)
+							if containsPreReleaseTag(latestInstalled) {
+								updateTitle.SetText(fmt.Sprintf("A more recent prerelease version (%s) is available", releaseVersion))
+								updateTitle.TextStyle = fyne.TextStyle{Bold: true}
+								updateTitle.Refresh()
+								updateTitle.Show()
+								return
+							} else {
+								fmt.Printf("Skipping pre-release version: %s\n", release)
+							}
+						} else {
+							updateTitle.SetText(fmt.Sprintf("A more recent stable version (%s) is available", releaseVersion))
+							updateTitle.TextStyle = fyne.TextStyle{Bold: true}
+							updateTitle.Refresh()
+							updateTitle.Show()
+							return
+						}
+					}
+					if (releaseVersion.GreaterThan(latestStable)) && !containsPreReleaseTag(release) {
+						latestStable = releaseVersion
+					}
+				}
+			}
+			updateTitle.Show()
+			downloadButtonTitle.Show()
+			downloadButton.Show()
+
+			if containsPreReleaseTag(latestInstalled) {
+				updateTitle.SetText(fmt.Sprintf("The latest installed version is a pre-release; the latest stable version is %s", latestStable))
+			} else {
+				updateTitle.SetText("The latest stable version is installed.")
+			}
+			updateTitle.TextStyle = fyne.TextStyle{Bold: true}
+			updateTitle.Refresh()
+
+			downloadButtonTitle.Refresh()
+			if releaseDropdown != nil {
+				releaseDropdown.Hide()
+			}
+			if prereleaseCheckbox != nil {
+				prereleaseCheckbox.Hide()
+			}
+			updateTitle.Show()
+			downloadButtonTitle.Show()
+			if downloadContainer != nil {
+				downloadContainer.Refresh()
+			}
+		}
+	} else {
+		updateTitle.SetText("No version installed. Select a version to download below.")
+		updateTitle.TextStyle = fyne.TextStyle{Bold: true}
+		updateTitle.Refresh()
+		updateTitle.Show()
+	}
+}
+
+func updateExplanation() {
+	if len(getAllInstalledVersions()) == 1 {
+		singleOrMultiVersionLabel.SetText("Use the Update button above to install the latest version.  The current database will be copied to the new version, as well as local changes made to the configuration since the previous installation.")
+	} else {
+		singleOrMultiVersionLabel.SetText("You have several versions installed.  Use the Import button if you wish to copy the database and local configuration changes from a previous version.")
+	}
+	singleOrMultiVersionLabel.Wrapping = fyne.TextWrapWord
+	singleOrMultiVersionLabel.Show()
+	singleOrMultiVersionLabel.Refresh()
 }
