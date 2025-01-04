@@ -15,7 +15,7 @@ fpm -s tar -t deb -n owlcms-launcher -v ${TAG} -a amd64 --prefix / --after-insta
 mv owlcms-launcher_${TAG}_arm64.deb owlcms-launcher_${TAG}_pi.deb
 
 
-# inexplicable behavior on wsl2, gh cannot stat tmp file for RELEASE.md
+# gh requires data from the current repo
 cp RELEASE.md /tmp
 sed -i "s/_TAG_/${TAG}/g" ./RELEASE.md
 cp /tmp/RELEASE.md .
