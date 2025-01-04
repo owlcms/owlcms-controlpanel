@@ -25,12 +25,14 @@ type Release struct {
 }
 
 var (
-	showPrereleases    bool = false
-	allReleases        []string
-	downloadTitle      *widget.Label
-	downloadButton     *widget.Button
-	releaseDropdown    *widget.Select
-	prereleaseCheckbox *widget.Check
+	showPrereleases     bool = false
+	allReleases         []string
+	downloadButton      *widget.Button
+	releaseDropdown     *widget.Select
+	prereleaseCheckbox  *widget.Check
+	updateButton        *widget.Button // New update button
+	updateTitle         *widget.Label
+	downloadButtonTitle *widget.Label // New title for download button
 )
 
 func fetchReleases() ([]string, error) {
@@ -209,7 +211,7 @@ func createReleaseDropdown(w fyne.Window, downloadGroup *fyne.Container) *widget
 	releaseDropdown.PlaceHolder = "Choose a release to download"
 	releaseDropdown.Hide() // Hide the dropdown initially
 	downloadGroup.Objects = []fyne.CanvasObject{
-		downloadTitle,
+		updateTitle,
 		widget.NewLabel("Download and install a new version of OWLCMS from GitHub:"),
 		releaseDropdown,
 	}
@@ -229,7 +231,7 @@ func containsPreReleaseTag(version string) bool {
 func checkForNewerVersion() {
 	latestInstalled := findLatestInstalled()
 	if latestInstalled != "" {
-		latestStable, err := semver.NewVersion("0.0.0")
+		latestStable, _ := semver.NewVersion("0.0.0")
 		latestInstalledVersion, err := semver.NewVersion(latestInstalled)
 		if err == nil {
 			fmt.Printf("Latest installed version: %s\n", latestInstalledVersion)
@@ -241,19 +243,19 @@ func checkForNewerVersion() {
 						if containsPreReleaseTag(release) {
 							fmt.Printf("Newer version is a pre-release: %s\n", release)
 							if containsPreReleaseTag(latestInstalled) {
-								downloadTitle.SetText(fmt.Sprintf("A more recent version (%s) is available", releaseVersion))
-								downloadTitle.TextStyle = fyne.TextStyle{Bold: true}
-								downloadTitle.Refresh()
-								downloadTitle.Show()
+								updateTitle.SetText(fmt.Sprintf("A more recent prerelease version (%s) is available", releaseVersion))
+								updateTitle.TextStyle = fyne.TextStyle{Bold: true}
+								updateTitle.Refresh()
+								updateTitle.Show()
 								return
 							} else {
 								fmt.Printf("Skipping pre-release version: %s\n", release)
 							}
 						} else {
-							downloadTitle.SetText(fmt.Sprintf("A more recent stable version (%s) is available", releaseVersion))
-							downloadTitle.TextStyle = fyne.TextStyle{Bold: true}
-							downloadTitle.Refresh()
-							downloadTitle.Show()
+							updateTitle.SetText(fmt.Sprintf("A more recent stable version (%s) is available", releaseVersion))
+							updateTitle.TextStyle = fyne.TextStyle{Bold: true}
+							updateTitle.Refresh()
+							updateTitle.Show()
 							return
 						}
 					}
@@ -262,26 +264,31 @@ func checkForNewerVersion() {
 					}
 				}
 			}
-			if containsPreReleaseTag(latestInstalled) {
-				downloadTitle.SetText(fmt.Sprintf("The latest installed version is a pre-release; the latest stable version is %s", latestStable))
-			} else {
-				downloadTitle.SetText("The latest stable version is installed. You may install additional versions if you wish.")
-			}
-			downloadTitle.TextStyle = fyne.TextStyle{Bold: false}
-			downloadTitle.Refresh()
 			downloadButton.Show()
+			updateButton.Show()
+			if containsPreReleaseTag(latestInstalled) {
+				updateTitle.SetText(fmt.Sprintf("The latest installed version is a pre-release; the latest stable version is %s", latestStable))
+			} else {
+				updateTitle.SetText("The latest stable version is installed.")
+				updateButton.Hide()
+				downloadButtonTitle.SetText("You may install additional versions if you wish.")
+			}
+			updateTitle.TextStyle = fyne.TextStyle{Bold: false}
+			updateTitle.Refresh()
+			downloadButtonTitle.Refresh()
 			if releaseDropdown != nil {
 				releaseDropdown.Hide()
 			}
 			if prereleaseCheckbox != nil {
 				prereleaseCheckbox.Hide()
 			}
-			downloadTitle.Show()
+			updateTitle.Show()
+			downloadButtonTitle.Show()
 		}
 	} else {
-		downloadTitle.SetText("No version installed. Select a version to download below.")
-		downloadTitle.TextStyle = fyne.TextStyle{Bold: true}
-		downloadTitle.Refresh()
-		downloadTitle.Show()
+		updateTitle.SetText("No version installed. Select a version to download below.")
+		updateTitle.TextStyle = fyne.TextStyle{Bold: true}
+		updateTitle.Refresh()
+		updateTitle.Show()
 	}
 }

@@ -231,8 +231,9 @@ func main() {
 	versionContainer = container.NewVBox()
 	stopContainer = container.NewVBox(stopButton, statusLabel)
 
-	// Initialize download title
-	downloadTitle = widget.NewLabel("")
+	// Initialize download titles
+	updateTitle = widget.NewLabel("")
+	downloadButtonTitle = widget.NewLabel("") // New title for download button
 
 	// Configure stop button behavior
 	stopButton.OnTapped = func() {
@@ -246,7 +247,7 @@ func main() {
 
 	// Create release dropdown for downloads
 	releaseDropdown := createReleaseDropdown(w, downloadGroup)
-	downloadTitle.Hide()
+	updateTitle.Hide()
 	releaseDropdown.Hide() // Hide the dropdown initially
 
 	// Create checkbox for showing prereleases
@@ -260,16 +261,25 @@ func main() {
 	downloadButton = widget.NewButton("Show Downloadable Versions", nil)
 	downloadButton.Hide()
 	downloadButton.OnTapped = func() {
-		downloadTitle.Show()
+		updateTitle.Show()
 		releaseDropdown.Show()
 		prereleaseCheckbox.Show()
 		downloadButton.Hide()
+		updateButton.Hide()
 	}
 
+	// Create update button
+	updateButton = widget.NewButton("Update", func() {
+		checkForNewerVersion()
+	})
+	updateButton.Hide()
+
 	downloadGroup.Objects = []fyne.CanvasObject{
-		downloadTitle,
+		updateTitle,
+		updateButton,
 		releaseDropdown,
 		prereleaseCheckbox,
+		downloadButtonTitle, // Add new title for download button
 		downloadButton,
 	}
 
@@ -305,7 +315,8 @@ func main() {
 		case releases := <-releasesChan:
 			allReleases = releases                   // Store all releases
 			populateReleaseDropdown(releaseDropdown) // Populate the dropdown with the releases
-			downloadTitle.Show()
+			updateTitle.Show()
+			updateButton.Show()
 			releaseDropdown.Hide()
 			prereleaseCheckbox.Hide() // Show the checkbox once releases are fetched
 			log.Printf("Fetched %d releases\n", len(releases))
