@@ -229,6 +229,7 @@ func containsPreReleaseTag(version string) bool {
 func checkForNewerVersion() {
 	latestInstalled := findLatestInstalled()
 	if latestInstalled != "" {
+		latestStable, err := semver.NewVersion("0.0.0")
 		latestInstalledVersion, err := semver.NewVersion(latestInstalled)
 		if err == nil {
 			fmt.Printf("Latest installed version: %s\n", latestInstalledVersion)
@@ -236,13 +237,17 @@ func checkForNewerVersion() {
 				releaseVersion, err := semver.NewVersion(release)
 				if err == nil {
 					if releaseVersion.GreaterThan(latestInstalledVersion) {
+						fmt.Printf("Found newer version: %s\n", releaseVersion)
 						if containsPreReleaseTag(release) {
+							fmt.Printf("Newer version is a pre-release: %s\n", release)
 							if containsPreReleaseTag(latestInstalled) {
 								downloadTitle.SetText(fmt.Sprintf("A more recent version (%s) is available", releaseVersion))
 								downloadTitle.TextStyle = fyne.TextStyle{Bold: true}
 								downloadTitle.Refresh()
 								downloadTitle.Show()
 								return
+							} else {
+								fmt.Printf("Skipping pre-release version: %s\n", release)
 							}
 						} else {
 							downloadTitle.SetText(fmt.Sprintf("A more recent stable version (%s) is available", releaseVersion))
@@ -252,9 +257,16 @@ func checkForNewerVersion() {
 							return
 						}
 					}
+					if (releaseVersion.GreaterThan(latestStable)) && !containsPreReleaseTag(release) {
+						latestStable = releaseVersion
+					}
 				}
 			}
-			downloadTitle.SetText("The latest stable version is installed. You may install additional versions if you wish.")
+			if containsPreReleaseTag(latestInstalled) {
+				downloadTitle.SetText(fmt.Sprintf("The latest installed version is a pre-release; the latest stable version is %s", latestStable))
+			} else {
+				downloadTitle.SetText("The latest stable version is installed. You may install additional versions if you wish.")
+			}
 			downloadTitle.TextStyle = fyne.TextStyle{Bold: false}
 			downloadTitle.Refresh()
 			downloadButton.Show()
