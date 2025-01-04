@@ -12,15 +12,16 @@ When using owlcms-launcher on Windows or Linux you don't have to use the "old-st
 ### Installing the Launcher
 
 - For Windows, download `owlcms.exe`  and copy it to your desktop
-- For Raspberry Pi, there are two options
-  1. **Download the file that ends with `_pi.deb` . Go to your Downloads directory, right-click on the downloaded file and select `Package Install`**.  You will be prompted for the password of your pi user. This will create a desktop icon, and an entry in the "Other" section of the menu.
-  2. If you prefer, you can simply download and copy `owlcms-pi` to your desktop -- the only difference is that there will be no pretty icon.
-- For Linux on Intel or AMD computers, there are two options
-  1. Use a package manager
-     1. Download the file that ends with `_amd64.deb` .
-     2. Start a terminal window and go to that location
-     3. Use `sudo apt install ./name.deb` (replacing name with the actual name of the .deb file)
-  2. If you prefer, you can download and copy `owlcms-linux` to your desktop -- the only difference is that there will be no pretty icon.
+- For Raspberry Pi
+  1. Download the file that ends with `_pi.deb` .
+  2. Go to your Downloads directory, right-click on the downloaded file and select `Package Install`.  
+     You will be prompted for the password of your pi user. This will create a desktop icon, and an entry in the "Other" section of the system menu.
+- For Linux on Intel or AMD computers
+  1. Download the file that ends with `_amd64.deb` .
+  2. Start a terminal window and go to `~/Downloads`
+  3. Use `sudo apt install ./name.deb` (replacing name with the actual name of the .deb file)
+
+You may also copy the owlcms-pi or owlcms-linux binary file directly to your machine, but then there will be no icons.
 
 ### Running OWLCMS using the Launcher
 
