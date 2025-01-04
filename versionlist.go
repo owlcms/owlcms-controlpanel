@@ -81,16 +81,19 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 			label := widget.NewLabel("Template")
 			launchButton := widget.NewButton("Launch", nil)
 			filesButton := widget.NewButton("Files", nil)
+			updateButton := widget.NewButton("Update", nil) // New update button
 			removeButton := widget.NewButton("Remove", nil)
 			importButton := widget.NewButton("Import Data and Config", nil) // New button
 			launchButton.Resize(fyne.NewSize(80, 25))
 			removeButton.Resize(fyne.NewSize(80, 25))
 			filesButton.Resize(fyne.NewSize(80, 25))
+			updateButton.Resize(fyne.NewSize(80, 25))       // Resize new button
 			importButton.Resize(fyne.NewSize(150, 25))      // Resize new button
 			launchButton.Importance = widget.HighImportance // Make the launch button important
 			buttonContainer := container.NewHBox(
 				container.NewPadded(launchButton),
 				container.NewPadded(filesButton),
+				container.NewPadded(updateButton), // Add new button to container
 				container.NewPadded(removeButton),
 				container.NewPadded(importButton), // Add new button to container
 			)
@@ -102,8 +105,9 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 			buttonContainer := cont.Objects[1].(*fyne.Container)
 			launchButton := buttonContainer.Objects[0].(*fyne.Container).Objects[0].(*widget.Button)
 			filesButton := buttonContainer.Objects[1].(*fyne.Container).Objects[0].(*widget.Button)
-			removeButton := buttonContainer.Objects[2].(*fyne.Container).Objects[0].(*widget.Button)
-			importButton := buttonContainer.Objects[3].(*fyne.Container).Objects[0].(*widget.Button) // New button
+			updateButton := buttonContainer.Objects[2].(*fyne.Container).Objects[0].(*widget.Button) // New button
+			removeButton := buttonContainer.Objects[3].(*fyne.Container).Objects[0].(*widget.Button)
+			importButton := buttonContainer.Objects[4].(*fyne.Container).Objects[0].(*widget.Button) // New button
 
 			version := versions[index]
 			label.SetText(version)
@@ -156,6 +160,11 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 				if err := openFileExplorer(versionDir); err != nil {
 					dialog.ShowError(fmt.Errorf("failed to open file explorer for %s: %w", versionDir, err), w)
 				}
+			}
+
+			updateButton.SetText("Update") // Set text for new button
+			updateButton.OnTapped = func() {
+				updateVersion(version, w)
 			}
 
 			importButton.SetText("Import Data and Config") // Set text for new button
@@ -237,6 +246,11 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 	}
 
 	return versionList
+}
+
+func updateVersion(version string, w fyne.Window) {
+	// Implement the update logic here
+	dialog.ShowInformation("Update", fmt.Sprintf("Updating version %s", version), w)
 }
 
 func filterVersions(versions []string, currentVersion string) []string {
