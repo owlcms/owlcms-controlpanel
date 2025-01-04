@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 
 	"owlcms-launcher/downloadUtils"
 
@@ -41,8 +42,12 @@ func fetchReleases() ([]string, error) {
 	}
 
 	var allReleases []Release
+	client := &http.Client{
+		Timeout: 5 * time.Second, // Set a timeout for the HTTP request
+	}
+
 	for _, url := range urls {
-		resp, err := http.Get(url)
+		resp, err := client.Get(url)
 		if err != nil {
 			return nil, fmt.Errorf("network error: %w", err)
 		}

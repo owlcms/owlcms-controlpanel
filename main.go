@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"time"
 
 	"owlcms-launcher/downloadUtils"
 	"owlcms-launcher/javacheck"
@@ -202,15 +201,15 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 	return nil
 }
 
-func fetchReleasesInBackground(releasesChan chan<- []string, errChan chan<- error) {
-	time.Sleep(1 * time.Second) // Wait for 1 second before attempting to retrieve the releases
-	releases, err := fetchReleases()
-	if err != nil {
-		errChan <- err
-		return
-	}
-	releasesChan <- releases
-}
+// func fetchReleasesInBackground(releasesChan chan<- []string, errChan chan<- error) {
+// 	time.Sleep(1 * time.Second) // Wait for 1 second before attempting to retrieve the releases
+// 	releases, err := fetchReleases()
+// 	if err != nil {
+// 		errChan <- err
+// 		return
+// 	}
+// 	releasesChan <- releases
+// }
 
 func computeVersionScrollHeight(numVersions int) float32 {
 	minHeight := 50 // minimum height
@@ -246,6 +245,9 @@ func main() {
 	}
 	stopButton.Hide()
 	stopContainer.Hide()
+
+	releases, _ := fetchReleases()
+	allReleases = releases
 
 	// Initialize version list
 	recomputeVersionList(w)
@@ -294,57 +296,52 @@ func main() {
 	w.SetContent(mainContent)
 	w.Canvas().Refresh(mainContent)
 
-	releasesChan := make(chan []string)
-	errChan := make(chan error)
-
 	// // Show retrieving releases label
 	// retrievingLabel := widget.NewLabel("Checking for updates...")
 	// downloadGroup.Objects = append(downloadGroup.Objects, retrievingLabel)
 	// w.Canvas().Refresh(mainContent)
 
-	go fetchReleasesInBackground(releasesChan, errChan)
+	// go func() {
+	// 	select {
+	// 	case releases := <-releasesChan:
+	allReleases = releases                   // Store all releases
+	populateReleaseDropdown(releaseDropdown) // Populate the dropdown with the releases
+	updateTitle.Show()
+	releaseDropdown.Hide()
+	prereleaseCheckbox.Hide() // Show the checkbox once releases are fetched
+	log.Printf("Fetched %d releases\n", len(releases))
+	downloadButton.Show()
 
-	go func() {
-		select {
-		case releases := <-releasesChan:
-			allReleases = releases                   // Store all releases
-			populateReleaseDropdown(releaseDropdown) // Populate the dropdown with the releases
-			updateTitle.Show()
-			releaseDropdown.Hide()
-			prereleaseCheckbox.Hide() // Show the checkbox once releases are fetched
-			log.Printf("Fetched %d releases\n", len(releases))
-			downloadButton.Show()
+	// Check if a more recent version is available
+	checkForNewerVersion()
 
-			// Check if a more recent version is available
-			checkForNewerVersion()
-
-			// If no version is installed, get the latest stable version
-			if len(getAllInstalledVersions()) == 0 {
-				for _, release := range allReleases {
-					if !containsPreReleaseTag(release) {
-						// Automatically download and install the latest stable version
-						downloadAndInstallVersion(release, w)
-						break
-					}
-				}
+	// If no version is installed, get the latest stable version
+	if len(getAllInstalledVersions()) == 0 {
+		for _, release := range allReleases {
+			if !containsPreReleaseTag(release) {
+				// Automatically download and install the latest stable version
+				downloadAndInstallVersion(release, w)
+				break
 			}
-
-			w.Canvas().Refresh(mainContent)
-		case err := <-errChan:
-			fmt.Printf("Error fetching releases: %v\n", err)
-			downloadGroup.Objects = []fyne.CanvasObject{
-				widget.NewLabelWithStyle("Internet access not available, cannot show the available versions", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-			}
-			w.Canvas().Refresh(mainContent)
-		case <-time.After(10 * time.Second):
-			downloadGroup.Objects = []fyne.CanvasObject{
-				widget.NewLabelWithStyle("Internet access not available, cannot show the available versions", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-			}
-			w.Canvas().Refresh(mainContent)
 		}
+	}
 
-		w.Canvas().Refresh(mainContent)
-	}()
+	w.Canvas().Refresh(mainContent)
+	// case err := <-errChan:
+	// 	fmt.Printf("Error fetching releases: %v\n", err)
+	// 	downloadGroup.Objects = []fyne.CanvasObject{
+	// 		widget.NewLabelWithStyle("Internet access not available, cannot show the available versions", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+	// 	}
+	// 	w.Canvas().Refresh(mainContent)
+	// case <-time.After(10 * time.Second):
+	// 	downloadGroup.Objects = []fyne.CanvasObject{
+	// 		widget.NewLabelWithStyle("Internet access not available, cannot show the available versions", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
+	// 	}
+	// 	w.Canvas().Refresh(mainContent)
+	// }
+
+	w.Canvas().Refresh(mainContent)
+	// }()
 
 	w.SetCloseIntercept(func() {
 		if currentProcess != nil {
