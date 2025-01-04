@@ -16,10 +16,8 @@ mv owlcms-launcher_${TAG}_arm64.deb owlcms-launcher_${TAG}_pi.deb
 
 
 # gh requires data from the current repo
-cp RELEASE.md /tmp
+cp dist/RELEASE.md .
 sed -i "s/_TAG_/${TAG}/g" ./RELEASE.md
-cp /tmp/RELEASE.md .
-
 
 git add --all
 git commit -m "${TAG}"
@@ -33,4 +31,4 @@ gh release upload ${TAG} fyne-cross/bin/linux-arm64/owlcms-pi
 gh release upload ${TAG} fyne-cross/bin/linux-amd64/owlcms-linux
 gh release upload ${TAG} fyne-cross/bin/windows-amd64/owlcms.exe
 
-# git fetch --tags
+git fetch --tags

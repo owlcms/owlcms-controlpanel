@@ -3,7 +3,7 @@ Owlcms-launcher is a "control center" for owlcms.  It will automatically downloa
 
 When using owlcms-launcher on Windows or Linux you don't have to use the "old-style" installation methods explained in the documentation.  It is expected that owlcms-launcher will replace them.
 
-### Change Log for version 1.3.1
+### Change Log for version _TAG_
 
 - show a correct message when the latest version installed is newer than the latest stable release
 - added an import button to get database and local changes from a previous install 

@@ -11,4 +11,4 @@ tmp-pkg/Makefile
 tmp-pkg/usr/local/share/applications/owlcms-launcher.desktop
 tmp-pkg/usr/local/share/pixmaps/owlcms-launcher.png
 *.deb
-
+./RELEASE.md
