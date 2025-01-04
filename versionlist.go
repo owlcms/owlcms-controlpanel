@@ -72,7 +72,7 @@ func findLatestInstalled() string {
 	return versions[0].String()
 }
 
-func createVersionList(w fyne.Window, stopButton *widget.Button, downloadGroup, versionContainer *fyne.Container) *widget.List {
+func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 	versions := getAllInstalledVersions()
 
 	versionList = widget.NewList(
@@ -115,12 +115,12 @@ func createVersionList(w fyne.Window, stopButton *widget.Button, downloadGroup, 
 				}
 
 				fmt.Printf("Launching version %s\n", version)
-				if err := checkJava(statusLabel, downloadGroup); err != nil {
+				if err := checkJava(statusLabel); err != nil {
 					dialog.ShowError(fmt.Errorf("java check/installation failed: %w", err), w)
 					return
 				}
 
-				if err := launchOwlcms(version, launchButton, stopButton, downloadGroup, versionContainer); err != nil {
+				if err := launchOwlcms(version, launchButton, stopButton); err != nil {
 					dialog.ShowError(err, w)
 					return
 				}
@@ -142,7 +142,7 @@ func createVersionList(w fyne.Window, stopButton *widget.Button, downloadGroup, 
 						}
 
 						// Recompute the version list
-						recomputeVersionList(w, downloadGroup)
+						recomputeVersionList(w)
 
 						// Check if a more recent version is available
 						checkForNewerVersion()
@@ -302,11 +302,11 @@ func copyFiles(srcDir, destDir string, alwaysCopy bool) error {
 	})
 }
 
-func recomputeVersionList(w fyne.Window, downloadGroup *fyne.Container) {
+func recomputeVersionList(w fyne.Window) {
 	// Reinitialize the version list
 	fmt.Println("Reinitializing version list")
 	versionContainer.Objects = nil // Clear the container
-	newVersionList := createVersionList(w, stopButton, downloadGroup, versionContainer)
+	newVersionList := createVersionList(w, stopButton)
 
 	// Update the scroll container's size
 	numVersions := len(getAllInstalledVersions())

@@ -22,13 +22,14 @@ import (
 )
 
 var (
-	owlcmsInstallDir = getInstallDir()
-	currentProcess   *exec.Cmd
-	currentVersion   string // Add to track current version
-	statusLabel      *widget.Label
-	stopButton       *widget.Button
-	versionContainer *fyne.Container
-	stopContainer    *fyne.Container
+	owlcmsInstallDir  = getInstallDir()
+	currentProcess    *exec.Cmd
+	currentVersion    string // Add to track current version
+	statusLabel       *widget.Label
+	stopButton        *widget.Button
+	versionContainer  *fyne.Container
+	stopContainer     *fyne.Container
+	downloadContainer *fyne.Container
 )
 
 func init() {
@@ -69,14 +70,14 @@ func getInstallDir() string {
 	}
 }
 
-func checkJava(statusLabel *widget.Label, downloadGroup *fyne.Container) error {
+func checkJava(statusLabel *widget.Label) error {
 	statusLabel.SetText("Checking for the Java language runtime.")
 	statusLabel.Refresh()
 	statusLabel.Show()
 	stopButton.Hide()
 	stopContainer.Show()
 	versionContainer.Hide()
-	downloadGroup.Hide()
+	downloadContainer.Hide()
 
 	err := javacheck.CheckJava(statusLabel)
 	if err != nil {
@@ -86,7 +87,7 @@ func checkJava(statusLabel *widget.Label, downloadGroup *fyne.Container) error {
 	return err
 }
 
-func launchOwlcms(version string, launchButton, stopButton *widget.Button, downloadGroup, versionContainer *fyne.Container) error {
+func launchOwlcms(version string, launchButton, stopButton *widget.Button) error {
 	currentVersion = version // Store current version
 
 	// Check if port 8080 is already in use
@@ -147,7 +148,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button, downl
 	stopButton.SetText(fmt.Sprintf("Stop OWLCMS %s", version))
 	stopButton.Show()
 	stopContainer.Show()
-	downloadGroup.Hide()
+	downloadContainer.Hide()
 	versionContainer.Hide()
 
 	// Monitor the process in background
@@ -162,7 +163,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button, downl
 			stopContainer.Hide()
 			launchButton.Show()
 			currentProcess = nil
-			downloadGroup.Show()
+			downloadContainer.Show()
 			versionContainer.Show()
 			return
 		}
@@ -192,7 +193,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button, downl
 		stopButton.Hide()
 		stopContainer.Hide()
 		launchButton.Show()
-		downloadGroup.Show()
+		downloadContainer.Show()
 		versionContainer.Show()
 	}()
 
@@ -243,10 +244,10 @@ func main() {
 	stopContainer.Hide()
 
 	// Initialize version list
-	recomputeVersionList(w, downloadGroup)
+	recomputeVersionList(w)
 
 	// Create release dropdown for downloads
-	releaseDropdown := createReleaseDropdown(w, downloadGroup)
+	releaseDropdown := createReleaseDropdown(w)
 	updateTitle.Hide()
 	releaseDropdown.Hide() // Hide the dropdown initially
 
@@ -261,11 +262,9 @@ func main() {
 	downloadButton = widget.NewButton("Show Downloadable Versions", nil)
 	downloadButton.Hide()
 	downloadButton.OnTapped = func() {
-		updateTitle.Show()
 		releaseDropdown.Show()
 		prereleaseCheckbox.Show()
 		downloadButton.Hide()
-		updateButton.Hide()
 	}
 
 	// Create update button
@@ -277,20 +276,17 @@ func main() {
 	downloadGroup.Objects = []fyne.CanvasObject{
 		updateTitle,
 		updateButton,
+		downloadButtonTitle,
+		downloadButton,
 		releaseDropdown,
 		prereleaseCheckbox,
-		downloadButtonTitle, // Add new title for download button
-		downloadButton,
 	}
 
 	mainContent := container.NewVBox(
 		widget.NewLabelWithStyle("OWLCMS Launcher", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 		stopContainer,
 		versionContainer,
-		container.NewHBox(
-			downloadGroup,
-			widget.NewLabel(""),
-		),
+		downloadGroup,
 	)
 
 	w.SetContent(mainContent)
@@ -330,7 +326,7 @@ func main() {
 				for _, release := range allReleases {
 					if !containsPreReleaseTag(release) {
 						// Automatically download and install the latest stable version
-						downloadAndInstallVersion(release, w, downloadGroup)
+						downloadAndInstallVersion(release, w)
 						break
 					}
 				}
@@ -364,7 +360,7 @@ func main() {
 
 }
 
-func downloadAndInstallVersion(version string, w fyne.Window, downloadGroup *fyne.Container) {
+func downloadAndInstallVersion(version string, w fyne.Window) {
 	var urlPrefix string
 	if containsPreReleaseTag(version) {
 		urlPrefix = "https://github.com/owlcms/owlcms4-prerelease/releases/download"
@@ -432,7 +428,7 @@ func downloadAndInstallVersion(version string, w fyne.Window, downloadGroup *fyn
 		dialog.ShowInformation("Installation Complete", message, w)
 
 		// Recompute the version list
-		recomputeVersionList(w, downloadGroup)
+		recomputeVersionList(w)
 
 		// Recompute the downloadTitle
 		checkForNewerVersion()
