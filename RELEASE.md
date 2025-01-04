@@ -4,7 +4,8 @@ When using owlcms-launcher on Windows or Linux you don't have to use the "old-st
 
 ### Change Log for version _TAG_
 
-- added an import button to get data and local changes from a previous install 
+- show a correct message when the latest version installed is newer than the latest stable release
+- added an import button to get database and local changes from a previous install 
 - modification times are preserved when downloading
 
 ### Installing the Launcher
