@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -105,7 +106,7 @@ func openFileExplorer(path string) error {
 	}
 
 	if err := cmd.Start(); err != nil {
-		fmt.Printf("Failed to open file explorer: %v\n", err)
+		log.Printf("Failed to open file explorer: %v\n", err)
 		return fmt.Errorf("failed to open file explorer: %w", err)
 	}
 
@@ -170,7 +171,7 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 
 				go func() {
 					// Download the ZIP file using downloadUtils
-					fmt.Printf("Starting download from URL: %s\n", zipURL)
+					log.Printf("Starting download from URL: %s\n", zipURL)
 					err := downloadUtils.DownloadZip(zipURL, zipPath)
 					if err != nil {
 						progressDialog.Hide()
@@ -179,7 +180,7 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 					}
 
 					// Extract the ZIP file to version-specific subdirectory
-					fmt.Printf("Extracting ZIP file to: %s\n", extractPath)
+					log.Printf("Extracting ZIP file to: %s\n", extractPath)
 					err = downloadUtils.ExtractZip(zipPath, extractPath)
 					if err != nil {
 						progressDialog.Hide()
@@ -188,10 +189,10 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 					}
 
 					// Log when extraction is done
-					fmt.Println("Extraction completed")
+					log.Println("Extraction completed")
 
 					// Log before closing the dialog
-					fmt.Println("Closing progress dialog")
+					log.Println("Closing progress dialog")
 
 					// Hide progress dialog
 					progressDialog.Hide()

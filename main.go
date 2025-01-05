@@ -144,7 +144,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 		return fmt.Errorf("failed to start OWLCMS %s: %w", version, err)
 	}
 
-	fmt.Printf("Launching OWLCMS %s (PID: %d), waiting for port 8080...\n", version, cmd.Process.Pid)
+	log.Printf("Launching OWLCMS %s (PID: %d), waiting for port 8080...\n", version, cmd.Process.Pid)
 	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s (PID: %d), please wait...", version, cmd.Process.Pid))
 	currentProcess = cmd
 	stopButton.SetText(fmt.Sprintf("Stop OWLCMS %s", version))
@@ -159,7 +159,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 	// Wait for monitoring result in background
 	go func() {
 		if err := <-monitorChan; err != nil {
-			fmt.Printf("OWLCMS process %d failed to start properly: %v\n", cmd.Process.Pid, err)
+			log.Printf("OWLCMS process %d failed to start properly: %v\n", cmd.Process.Pid, err)
 			statusLabel.SetText(fmt.Sprintf("OWLCMS process %d failed to start properly", cmd.Process.Pid))
 			stopButton.Hide()
 			stopContainer.Hide()
@@ -170,7 +170,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 			return
 		}
 
-		fmt.Printf("OWLCMS process %d is ready (port 8080 responding)\n", cmd.Process.Pid)
+		log.Printf("OWLCMS process %d is ready (port 8080 responding)\n", cmd.Process.Pid)
 		statusLabel.SetText(fmt.Sprintf("OWLCMS running (PID: %d)", cmd.Process.Pid))
 
 		// Process is stable, wait for it to end
@@ -179,14 +179,14 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 
 		if killedByUs {
 			// If we killed it, just report normal termination
-			fmt.Printf("OWLCMS %s (PID: %d) was stopped by user\n", version, pid)
+			log.Printf("OWLCMS %s (PID: %d) was stopped by user\n", version, pid)
 			statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) was stopped by user", version, pid))
 		} else if err != nil {
 			// Only report error if it wasn't killed by us
-			fmt.Printf("OWLCMS %s (PID: %d) terminated with error: %v\n", version, pid, err)
+			log.Printf("OWLCMS %s (PID: %d) terminated with error: %v\n", version, pid, err)
 			statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) terminated with error", version, pid))
 		} else {
-			fmt.Printf("OWLCMS %s (PID: %d) exited normally\n", version, pid)
+			log.Printf("OWLCMS %s (PID: %d) exited normally\n", version, pid)
 			statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) exited normally", version, pid))
 		}
 
@@ -329,7 +329,7 @@ func main() {
 
 	w.Canvas().Refresh(mainContent)
 	// case err := <-errChan:
-	// 	fmt.Printf("Error fetching releases: %v\n", err)
+	// 	log.Printf("Error fetching releases: %v\n", err)
 	// 	downloadGroup.Objects = []fyne.CanvasObject{
 	// 		widget.NewLabelWithStyle("Internet access not available, cannot show the available versions", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
 	// 	}
@@ -351,6 +351,7 @@ func main() {
 		w.Close()
 	})
 
+	log.Println("Starting OWLCMS Launcher")
 	w.ShowAndRun()
 
 }
@@ -387,7 +388,7 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 
 	go func() {
 		// Download the ZIP file using downloadUtils
-		fmt.Printf("Starting download from URL: %s\n", zipURL)
+		log.Printf("Starting download from URL: %s\n", zipURL)
 		err := downloadUtils.DownloadZip(zipURL, zipPath)
 		if err != nil {
 			progressDialog.Hide()
@@ -396,7 +397,7 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 		}
 
 		// Extract the ZIP file to version-specific subdirectory
-		fmt.Printf("Extracting ZIP file to: %s\n", extractPath)
+		log.Printf("Extracting ZIP file to: %s\n", extractPath)
 		err = downloadUtils.ExtractZip(zipPath, extractPath)
 		if err != nil {
 			progressDialog.Hide()
@@ -405,10 +406,10 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 		}
 
 		// Log when extraction is done
-		fmt.Println("Extraction completed")
+		log.Println("Extraction completed")
 
 		// Log before closing the dialog
-		fmt.Println("Closing progress dialog")
+		log.Println("Closing progress dialog")
 
 		// Hide progress dialog
 		progressDialog.Hide()
@@ -450,14 +451,14 @@ func checkForNewerVersion() {
 		latestStable, _ := semver.NewVersion("0.0.0")
 		latestInstalledVersion, err := semver.NewVersion(latestInstalled)
 		if err == nil {
-			fmt.Printf("Latest installed version: %s\n", latestInstalledVersion)
+			log.Printf("Latest installed version: %s\n", latestInstalledVersion)
 			for _, release := range allReleases {
 				releaseVersion, err := semver.NewVersion(release)
 				if err == nil {
 					if releaseVersion.GreaterThan(latestInstalledVersion) {
-						fmt.Printf("Found newer version: %s\n", releaseVersion)
+						log.Printf("Found newer version: %s\n", releaseVersion)
 						if containsPreReleaseTag(release) {
-							fmt.Printf("Newer version is a pre-release: %s\n", release)
+							log.Printf("Newer version is a pre-release: %s\n", release)
 							if containsPreReleaseTag(latestInstalled) {
 								updateTitle.SetText(fmt.Sprintf("A more recent prerelease version (%s) is available", releaseVersion))
 								updateTitle.TextStyle = fyne.TextStyle{Bold: true}
@@ -465,7 +466,7 @@ func checkForNewerVersion() {
 								updateTitle.Show()
 								return
 							} else {
-								fmt.Printf("Skipping pre-release version: %s\n", release)
+								log.Printf("Skipping pre-release version: %s\n", release)
 							}
 						} else {
 							updateTitle.SetText(fmt.Sprintf("A more recent stable version (%s) is available", releaseVersion))

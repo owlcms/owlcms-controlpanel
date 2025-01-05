@@ -122,7 +122,7 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 					return
 				}
 
-				fmt.Printf("Launching version %s\n", version)
+				log.Printf("Launching version %s\n", version)
 				if err := checkJava(statusLabel); err != nil {
 					dialog.ShowError(fmt.Errorf("java check/installation failed: %w", err), w)
 					return
@@ -227,11 +227,11 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 
 							// Copy database files
 							if err := copyFiles(filepath.Join(sourceDir, "database"), filepath.Join(destDir, "database"), true); err != nil {
-								fmt.Printf("No database files to copy from %s\n", sourceDir)
+								log.Printf("No database files to copy from %s\n", sourceDir)
 							}
 							// Copy local files if they are newer
 							if err := copyFiles(filepath.Join(sourceDir, "local"), filepath.Join(destDir, "local"), false); err != nil {
-								fmt.Printf("No local files to copy from %s\n", sourceDir)
+								log.Printf("No local files to copy from %s\n", sourceDir)
 								dialog.ShowError(fmt.Errorf("failed to copy local files: %w", err), w)
 								return
 							}
@@ -246,7 +246,7 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 
 	versionList.OnSelected = func(id widget.ListItemID) {
 		if id < len(versions) {
-			fmt.Printf("Selected version: %s\n", versions[id])
+			log.Printf("Selected version: %s\n", versions[id])
 		}
 	}
 
@@ -264,9 +264,9 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 	}
 
 	// Log the versions being added
-	fmt.Println("Versions being added to the version list:")
+	log.Println("Versions being added to the version list:")
 	for _, version := range versions {
-		fmt.Println(version)
+		log.Println(version)
 	}
 
 	return versionList
@@ -340,7 +340,7 @@ func copyFiles(srcDir, destDir string, alwaysCopy bool) error {
 			}
 		}
 
-		fmt.Printf("Copying file: %s to %s\n", path, destPath) // Log file names being copied
+		log.Printf("Copying file: %s to %s\n", path, destPath) // Log file names being copied
 
 		srcFile, err := os.Open(path)
 		if err != nil {
@@ -361,7 +361,7 @@ func copyFiles(srcDir, destDir string, alwaysCopy bool) error {
 
 func recomputeVersionList(w fyne.Window) {
 	// Reinitialize the version list
-	fmt.Println("Reinitializing version list")
+	log.Println("Reinitializing version list")
 	versionContainer.Objects = nil // Clear the container
 	newVersionList := createVersionList(w, stopButton)
 
@@ -383,5 +383,5 @@ func recomputeVersionList(w fyne.Window) {
 	versionContainer.Add(versionLabel)
 	versionContainer.Add(versionScroll)
 
-	fmt.Println("Version list reinitialized")
+	log.Println("Version list reinitialized")
 }
