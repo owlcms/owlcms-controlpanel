@@ -91,19 +91,22 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 			updateButton.Resize(fyne.NewSize(150, 25))      // Resize new button
 			importButton.Resize(fyne.NewSize(150, 25))      // Resize new button
 			launchButton.Importance = widget.HighImportance // Make the launch button important
-			buttonContainer := container.NewHBox(
-				container.NewPadded(launchButton),
-				container.NewPadded(filesButton),
-				container.NewPadded(updateButton), // Add new button to container
-				container.NewPadded(removeButton),
-				container.NewPadded(importButton), // Add new button to container
+			buttonContainer := container.NewGridWithColumns(2,
+				label,
+				container.NewHBox(
+					container.NewPadded(launchButton),
+					container.NewPadded(filesButton),
+					container.NewPadded(updateButton), // Add new button to container
+					container.NewPadded(removeButton),
+					container.NewPadded(importButton),
+				),
 			)
-			return container.NewBorder(nil, nil, nil, buttonContainer, label)
+			return buttonContainer
 		},
 		func(index widget.ListItemID, item fyne.CanvasObject) {
-			cont := item.(*fyne.Container)
-			label := cont.Objects[0].(*widget.Label)
-			buttonContainer := cont.Objects[1].(*fyne.Container)
+			grid := item.(*fyne.Container)
+			label := grid.Objects[0].(*widget.Label)
+			buttonContainer := grid.Objects[1].(*fyne.Container)
 			launchButton := buttonContainer.Objects[0].(*fyne.Container).Objects[0].(*widget.Button)
 			filesButton := buttonContainer.Objects[1].(*fyne.Container).Objects[0].(*widget.Button)
 			updateButton := buttonContainer.Objects[2].(*fyne.Container).Objects[0].(*widget.Button) // New button
