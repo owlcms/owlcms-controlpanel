@@ -31,6 +31,7 @@ var (
 	stopContainer             *fyne.Container
 	downloadContainer         *fyne.Container
 	singleOrMultiVersionLabel *widget.Label // New label for single or multi version update
+	// noInternet                error
 )
 
 func init() {
@@ -253,14 +254,14 @@ func main() {
 	recomputeVersionList(w)
 
 	// Create release dropdown for downloads
-	releaseDropdown := createReleaseDropdown(w)
+	releaseSelect, releaseDropdown := createReleaseDropdown(w)
 	updateTitle.Hide()
 	releaseDropdown.Hide() // Hide the dropdown initially
 
 	// Create checkbox for showing prereleases
 	prereleaseCheckbox = widget.NewCheck("Show Prereleases", func(checked bool) {
 		showPrereleases = checked
-		populateReleaseDropdown(releaseDropdown) // Repopulate the dropdown when the checkbox is changed
+		populateReleaseSelect(releaseSelect) // Repopulate the dropdown when the checkbox is changed
 	})
 	prereleaseCheckbox.Hide() // Hide the checkbox initially
 
@@ -304,8 +305,8 @@ func main() {
 	// go func() {
 	// 	select {
 	// 	case releases := <-releasesChan:
-	allReleases = releases                   // Store all releases
-	populateReleaseDropdown(releaseDropdown) // Populate the dropdown with the releases
+	allReleases = releases               // Store all releases
+	populateReleaseSelect(releaseSelect) // Populate the dropdown with the releases
 	updateTitle.Show()
 	releaseDropdown.Hide()
 	prereleaseCheckbox.Hide() // Show the checkbox once releases are fetched

@@ -16,7 +16,9 @@ import (
 	"owlcms-launcher/downloadUtils"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 	"github.com/Masterminds/semver/v3"
 )
@@ -29,7 +31,7 @@ var (
 	showPrereleases     bool = false
 	allReleases         []string
 	downloadButton      *widget.Button
-	releaseDropdown     *widget.Select
+	releaseDropdown     *fyne.Container
 	prereleaseCheckbox  *widget.Check
 	updateTitle         *widget.Label
 	downloadButtonTitle *widget.Label // New title for download button
@@ -110,7 +112,7 @@ func openFileExplorer(path string) error {
 	return nil
 }
 
-func populateReleaseDropdown(releaseDropdown *widget.Select) {
+func populateReleaseSelect(selectWidget *widget.Select) {
 	filteredReleases := []string{}
 	stableReleases := []string{}
 	for _, release := range allReleases {
@@ -124,12 +126,12 @@ func populateReleaseDropdown(releaseDropdown *widget.Select) {
 	if !showPrereleases && len(stableReleases) > 20 {
 		filteredReleases = stableReleases[:20]
 	}
-	releaseDropdown.Options = filteredReleases
-	releaseDropdown.Refresh()
+	selectWidget.Options = filteredReleases
+	selectWidget.Refresh()
 }
 
-func createReleaseDropdown(w fyne.Window) *widget.Select {
-	releaseDropdown = widget.NewSelect([]string{}, func(selected string) {
+func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
+	selectWidget := widget.NewSelect([]string{}, func(selected string) {
 		var urlPrefix string
 		if containsPreReleaseTag(selected) {
 			urlPrefix = "https://github.com/owlcms/owlcms4-prerelease/releases/download"
@@ -212,14 +214,15 @@ func createReleaseDropdown(w fyne.Window) *widget.Select {
 			},
 			w)
 	})
-	releaseDropdown.PlaceHolder = "Choose a release to download"
-	releaseDropdown.Hide() // Hide the dropdown initially
-	populateReleaseDropdown(releaseDropdown)
+	selectWidget.PlaceHolder = "Choose a release to download"
+	populateReleaseSelect(selectWidget)
 	if prereleaseCheckbox != nil {
 		prereleaseCheckbox.Hide()
 	}
+	releaseDropdown = container.New(layout.NewHBoxLayout(), selectWidget)
+	releaseDropdown.Resize(fyne.NewSize(200, 200))
 
-	return releaseDropdown
+	return selectWidget, releaseDropdown
 }
 
 func containsPreReleaseTag(version string) bool {

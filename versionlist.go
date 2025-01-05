@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -87,7 +88,7 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 			launchButton.Resize(fyne.NewSize(80, 25))
 			removeButton.Resize(fyne.NewSize(80, 25))
 			filesButton.Resize(fyne.NewSize(80, 25))
-			updateButton.Resize(fyne.NewSize(80, 25))       // Resize new button
+			updateButton.Resize(fyne.NewSize(150, 25))      // Resize new button
 			importButton.Resize(fyne.NewSize(150, 25))      // Resize new button
 			launchButton.Importance = widget.HighImportance // Make the launch button important
 			buttonContainer := container.NewHBox(
@@ -162,39 +163,36 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 				}
 			}
 
-			updateButton.SetText("Update") // Set text for new button
-			var mostRecent string
-			var err error
-
-			// Check if the current version is stable or a prerelease
-			if !containsPreReleaseTag(version) {
-				mostRecent, err = getMostRecentStableRelease()
-				if err == nil {
-					updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
-					updateButton.Refresh()
-				} else {
-					dialog.ShowError(fmt.Errorf("failed to get most recent stable release: %w", err), w)
-				}
+			if len(allReleases) == 0 {
+				updateButton.Hide() // Hide update button if allReleases is empty
 			} else {
-				mostRecent, err = getMostRecentPrerelease()
-				if err == nil {
-					updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
-					updateButton.Refresh()
+				updateButton.SetText("Update") // Set text for new button
+				var mostRecent string
+				var err error
+
+				// Check if the current version is stable or a prerelease
+				if !containsPreReleaseTag(version) {
+					mostRecent, err = getMostRecentStableRelease()
+					if err == nil {
+						prepareButton(mostRecent, version, updateButton, w)
+					} else {
+						log.Printf("failed to get most recent stable release: %v", err)
+					}
 				} else {
-					dialog.ShowError(fmt.Errorf("failed to get most recent prerelease: %w", err), w)
+					mostRecent, err = getMostRecentPrerelease()
+					if err == nil {
+						prepareButton(mostRecent, version, updateButton, w)
+					} else {
+						log.Printf("failed to get most recent prerelease: %v", err)
+					}
 				}
-			}
-			updateButton.OnTapped = func() {
-				updateVersion(mostRecent, w)
 			}
 
 			importButton.SetText("Import Data and Config") // Set text for new button
 			if len(versions) <= 1 {
 				importButton.Hide() // Hide import button if there is only one installed version
-				updateButton.Show()
 			} else {
 				importButton.Show()
-				updateButton.Hide()
 				importButton.OnTapped = func() {
 					// Open a dialog to select the source version
 					sourceVersions := filterVersions(versions, version) // Filter out the current version
@@ -269,6 +267,17 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 	}
 
 	return versionList
+}
+
+func prepareButton(mostRecent string, version string, updateButton *widget.Button, w fyne.Window) {
+	compare, err := semver.NewVersion(mostRecent)
+	if err == nil && compare.GreaterThan(semver.MustParse(version)) {
+		updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
+		updateButton.OnTapped = func() {
+			updateVersion(mostRecent, w)
+		}
+		updateButton.Refresh()
+	}
 }
 
 func updateVersion(version string, w fyne.Window) {
