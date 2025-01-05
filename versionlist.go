@@ -270,13 +270,21 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 }
 
 func prepareButton(mostRecent string, version string, updateButton *widget.Button, w fyne.Window) {
+	go log.Printf("mostRecent: %s, version: %s", mostRecent, version)
 	compare, err := semver.NewVersion(mostRecent)
-	if err == nil && compare.GreaterThan(semver.MustParse(version)) {
-		updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
-		updateButton.OnTapped = func() {
-			updateVersion(mostRecent, w)
+	x, err2 := semver.NewVersion(version)
+	if err == nil && err2 == nil {
+		if compare.GreaterThan(x) {
+			updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
+			updateButton.OnTapped = func() {
+				updateVersion(mostRecent, w)
+			}
+			updateButton.Refresh()
+		} else {
+			updateButton.Hide()
 		}
-		updateButton.Refresh()
+	} else {
+		log.Printf("failed to compare versions: %v %v", err, err2)
 	}
 }
 
