@@ -74,6 +74,58 @@ func findLatestInstalled() string {
 	return versions[0].String()
 }
 
+func findLatestStableInstalled() string {
+	owlcmsDir := owlcmsInstallDir
+	entries, err := os.ReadDir(owlcmsDir)
+	if err != nil {
+		return ""
+	}
+
+	versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+$`)
+	var versions []*semver.Version
+	for _, entry := range entries {
+		if entry.IsDir() && versionPattern.MatchString(entry.Name()) {
+			v, err := semver.NewVersion(entry.Name())
+			if err == nil {
+				versions = append(versions, v)
+			}
+		}
+	}
+
+	if len(versions) == 0 {
+		return ""
+	}
+
+	sort.Sort(sort.Reverse(semver.Collection(versions)))
+	return versions[0].String()
+}
+
+func findLatestPrereleaseInstalled() string {
+	owlcmsDir := owlcmsInstallDir
+	entries, err := os.ReadDir(owlcmsDir)
+	if err != nil {
+		return ""
+	}
+
+	versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+-(?:rc|alpha|beta)(?:\d+)?$`)
+	var versions []*semver.Version
+	for _, entry := range entries {
+		if entry.IsDir() && versionPattern.MatchString(entry.Name()) {
+			v, err := semver.NewVersion(entry.Name())
+			if err == nil {
+				versions = append(versions, v)
+			}
+		}
+	}
+
+	if len(versions) == 0 {
+		return ""
+	}
+
+	sort.Sort(sort.Reverse(semver.Collection(versions)))
+	return versions[0].String()
+}
+
 func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 	versions := getAllInstalledVersions()
 
@@ -273,7 +325,18 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 }
 
 func prepareButton(mostRecent string, version string, updateButton *widget.Button, buttonContainer *fyne.Container, w fyne.Window) {
-	go log.Printf("mostRecent: %s, version: %s", mostRecent, version)
+	latestStable, stableErr := getMostRecentStableRelease()
+	latestPrerelease, preErr := getMostRecentPrerelease()
+	latestStableInstalled := findLatestStableInstalled()
+	latestPrereleaseInstalled := findLatestPrereleaseInstalled()
+
+	// Check if the latest installed version is the latest stable or prerelease version
+	if (!containsPreReleaseTag(latestStableInstalled) && stableErr == nil && latestStableInstalled == latestStable) ||
+		(containsPreReleaseTag(latestPrereleaseInstalled) && preErr == nil && latestPrereleaseInstalled == latestPrerelease) {
+		buttonContainer.Remove(buttonContainer.Objects[2])
+		return
+	}
+
 	compare, err := semver.NewVersion(mostRecent)
 	x, err2 := semver.NewVersion(version)
 	if err == nil && err2 == nil {

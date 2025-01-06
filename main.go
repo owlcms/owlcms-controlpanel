@@ -30,8 +30,8 @@ var (
 	stopButton                *widget.Button
 	versionContainer          *fyne.Container
 	stopContainer             *fyne.Container
-	downloadContainer         *fyne.Container
-	singleOrMultiVersionLabel *widget.Label // New label for single or multi version update
+	singleOrMultiVersionLabel *widget.Label   // New label for single or multi version update
+	downloadContainer         *fyne.Container // New global to track the same container
 	// noInternet                error
 )
 
@@ -232,7 +232,7 @@ func main() {
 	statusLabel.Wrapping = fyne.TextWrapWord // Allow status messages to wrap
 
 	// Create containers
-	downloadGroup := container.NewVBox()
+	downloadContainer = container.NewVBox()
 	versionContainer = container.NewVBox()
 	stopContainer = container.NewVBox(stopButton, statusLabel)
 
@@ -243,7 +243,7 @@ func main() {
 
 	// Configure stop button behavior
 	stopButton.OnTapped = func() {
-		stopProcess(currentProcess, currentVersion, stopButton, downloadGroup, versionContainer, statusLabel, w)
+		stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
 	}
 	stopButton.Hide()
 	stopContainer.Hide()
@@ -276,7 +276,7 @@ func main() {
 	}
 	downloadButtonContainer := container.New(layout.NewGridWrapLayout(fyne.NewSize(300, 50)), downloadButton)
 
-	downloadGroup.Objects = []fyne.CanvasObject{
+	downloadContainer.Objects = []fyne.CanvasObject{
 		updateTitle,
 		singleOrMultiVersionLabel,
 		downloadButtonTitle,
@@ -289,7 +289,7 @@ func main() {
 		widget.NewLabelWithStyle("OWLCMS Launcher", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 		stopContainer,
 		versionContainer,
-		downloadGroup,
+		downloadContainer, // Use downloadGroup here
 	)
 
 	w.SetContent(mainContent)
@@ -348,7 +348,7 @@ func main() {
 
 	w.SetCloseIntercept(func() {
 		if currentProcess != nil {
-			stopProcess(currentProcess, currentVersion, stopButton, downloadGroup, versionContainer, statusLabel, w)
+			stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
 		}
 		w.Close()
 	})
@@ -527,16 +527,22 @@ func updateExplanation() {
 		latestStable, stableErr := getMostRecentStableRelease()
 		latestPrerelease, preErr := getMostRecentPrerelease()
 
+		// Remove the label from the container first
+		downloadContainer.Remove(singleOrMultiVersionLabel)
+
 		if containsPreReleaseTag(x[0]) {
 			if preErr == nil && x[0] == latestPrerelease {
-				singleOrMultiVersionLabel.Hide()
+				// It's the latest prerelease; do not re-insert the label
 			} else {
+				// Not the latest; re-insert singleOrMultiVersionLabel as second item
+				downloadContainer.Objects = append(downloadContainer.Objects[:1], append([]fyne.CanvasObject{singleOrMultiVersionLabel}, downloadContainer.Objects[1:]...)...)
 				singleOrMultiVersionLabel.SetText("Use the Update button above to install the latest version. The current database will be copied to the new version, as well as local changes made to the configuration since the previous installation.")
 			}
 		} else {
 			if stableErr == nil && x[0] == latestStable {
-				singleOrMultiVersionLabel.Hide()
+				// It's the latest stable; do not re-insert the label
 			} else {
+				downloadContainer.Objects = append(downloadContainer.Objects[:1], append([]fyne.CanvasObject{singleOrMultiVersionLabel}, downloadContainer.Objects[1:]...)...)
 				singleOrMultiVersionLabel.SetText("Use the Update button above to install the latest version. The current database will be copied to the new version, as well as local changes made to the configuration since the previous installation.")
 			}
 		}
