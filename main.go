@@ -441,7 +441,7 @@ func min(a, b int) int {
 
 func checkForNewerVersion() {
 	latestInstalled := findLatestInstalled()
-	downloadButtonTitle.SetText("Use the button below if you wish to do a clean install of another version. If the version you select is already installed, it will be removed and reinstalled with a new database and the original configuration.")
+	downloadButtonTitle.SetText("Use the button below if you wish to do a clean install of a version.")
 	downloadButtonTitle.Wrapping = fyne.TextWrapWord
 	downloadButtonTitle.Refresh()
 
