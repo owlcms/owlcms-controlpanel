@@ -32,6 +32,7 @@ var (
 	stopContainer             *fyne.Container
 	singleOrMultiVersionLabel *widget.Label   // New label for single or multi version update
 	downloadContainer         *fyne.Container // New global to track the same container
+	downloadButtonContainer   *fyne.Container // New global container for download button
 	// noInternet                error
 )
 
@@ -267,14 +268,14 @@ func main() {
 	prereleaseCheckbox.Hide() // Hide the checkbox initially
 
 	// Create button to show downloadable versions
+	downloadButtonContainer = container.New(layout.NewGridWrapLayout(fyne.NewSize(300, 50)))
 	downloadButton = widget.NewButton("Show Downloadable Versions", nil)
-	downloadButton.Hide()
 	downloadButton.OnTapped = func() {
 		releaseDropdown.Show()
 		prereleaseCheckbox.Show()
-		downloadButton.Hide()
+		downloadButtonContainer.Hide()
 	}
-	downloadButtonContainer := container.New(layout.NewGridWrapLayout(fyne.NewSize(300, 50)), downloadButton)
+	downloadButtonContainer.Add(downloadButton)
 
 	downloadContainer.Objects = []fyne.CanvasObject{
 		updateTitle,
@@ -313,7 +314,7 @@ func main() {
 	releaseDropdown.Hide()
 	prereleaseCheckbox.Hide() // Show the checkbox once releases are fetched
 	log.Printf("Fetched %d releases\n", len(releases))
-	downloadButton.Show()
+	downloadButtonContainer.Show()
 
 	// Check if a more recent version is available
 	checkForNewerVersion()
@@ -483,7 +484,7 @@ func checkForNewerVersion() {
 			}
 			updateTitle.Show()
 			downloadButtonTitle.Show()
-			downloadButton.Show()
+			downloadButtonContainer.Show()
 
 			if containsPreReleaseTag(latestInstalled) {
 				updateTitle.SetText(fmt.Sprintf("The latest installed version is a pre-release; the latest stable version is %s", latestStable))
