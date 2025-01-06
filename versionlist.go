@@ -206,6 +206,7 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 
 						// Check if a more recent version is available
 						checkForNewerVersion()
+						downloadContainer.Refresh()
 					},
 					w)
 			}
