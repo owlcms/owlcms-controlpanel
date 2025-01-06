@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"owlcms-launcher/downloadUtils"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -344,7 +345,7 @@ func prepareButton(mostRecent string, version string, updateButton *widget.Butto
 		if compare.GreaterThan(x) {
 			updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
 			updateButton.OnTapped = func() {
-				updateVersion(mostRecent, w)
+				updateVersion(version, mostRecent, w)
 			}
 			updateButton.Refresh()
 		} else {
@@ -356,9 +357,91 @@ func prepareButton(mostRecent string, version string, updateButton *widget.Butto
 	}
 }
 
-func updateVersion(version string, w fyne.Window) {
-	// Implement the update logic here
-	dialog.ShowInformation("Update", fmt.Sprintf("Updating version %s", version), w)
+func updateVersion(existingVersion string, targetVersion string, w fyne.Window) {
+	// Note the timestamp of the current version's top-level directory
+	currentVersionDir := filepath.Join(owlcmsInstallDir, existingVersion)
+	modTime, err := os.Stat(currentVersionDir)
+	if err != nil {
+		dialog.ShowError(fmt.Errorf("failed to get info for current version directory: %w", err), w)
+		return
+	}
+
+	// Move the current version to a temporary directory in the installation area
+	tempDir := filepath.Join(owlcmsInstallDir, "temp")
+	err = os.Rename(currentVersionDir, tempDir)
+	if err != nil {
+		dialog.ShowError(fmt.Errorf("failed to move current version to temporary directory: %w", err), w)
+		return
+	}
+	// set the modification time of the directory to modTime
+	err = os.Chtimes(tempDir, modTime.ModTime(), modTime.ModTime())
+	if err != nil {
+		dialog.ShowError(fmt.Errorf("failed to set modification time of temporary directory: %w", err), w)
+		return
+	}
+
+	// Download and extract the version given by string
+	var urlPrefix string
+	if containsPreReleaseTag(targetVersion) {
+		urlPrefix = "https://github.com/owlcms/owlcms4-prerelease/releases/download"
+	} else {
+		urlPrefix = "https://github.com/owlcms/owlcms4/releases/download"
+	}
+	fileName := fmt.Sprintf("owlcms_%s.zip", targetVersion)
+	zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, targetVersion, fileName)
+	zipPath := filepath.Join(owlcmsInstallDir, fileName)
+	extractPath := filepath.Join(owlcmsInstallDir, targetVersion)
+
+	progressDialog := dialog.NewCustom(
+		"Updating OWLCMS",
+		"Please wait...",
+		widget.NewTextGridFromString("Downloading and extracting files..."),
+		w)
+	progressDialog.Show()
+
+	defer progressDialog.Hide()
+
+	err = downloadUtils.DownloadZip(zipURL, zipPath)
+	if err != nil {
+		dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
+		return
+	}
+
+	err = downloadUtils.ExtractZip(zipPath, extractPath)
+	if err != nil {
+		dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
+		return
+	}
+
+	// Copy the database from the temporary directory to the new version
+	err = copyFiles(filepath.Join(tempDir, "database"), filepath.Join(extractPath, "database"), true)
+	if err != nil {
+		log.Printf("No database files to copy from %s\n", tempDir)
+	}
+
+	// Copy files newer than the memorized timestamp from the temporary directory to the new version
+	err = copyFiles(filepath.Join(tempDir, "local"), filepath.Join(extractPath, "local"), false)
+	if err != nil {
+		log.Printf("No local files to copy from %s\n", tempDir)
+		dialog.ShowError(fmt.Errorf("failed to copy local files: %w", err), w)
+		return
+	}
+
+	// Remove the temporary directory
+	err = os.RemoveAll(tempDir)
+	if err != nil {
+		dialog.ShowError(fmt.Errorf("failed to remove temporary directory: %w", err), w)
+		return
+	}
+
+	dialog.ShowInformation("Update Complete", fmt.Sprintf("Successfully updated to version %s", targetVersion), w)
+
+	// Recompute the version list
+	recomputeVersionList(w)
+
+	// Recompute the downloadTitle
+	checkForNewerVersion()
+
 }
 
 func filterVersions(versions []string, currentVersion string) []string {
