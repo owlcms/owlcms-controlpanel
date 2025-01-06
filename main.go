@@ -409,9 +409,7 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 
 		// Log when extraction is done
 		log.Println("Extraction completed")
-
-		// Log before closing the dialog
-		log.Println("Closing progress dialog")
+		updateExplanation()
 
 		// Hide progress dialog
 		progressDialog.Hide()
@@ -511,16 +509,39 @@ func checkForNewerVersion() {
 	} else {
 		updateTitle.SetText("No version installed. Select a version to download below.")
 		updateTitle.TextStyle = fyne.TextStyle{Bold: true}
+		updateExplanation()
 		updateTitle.Refresh()
 		updateTitle.Show()
+		if downloadContainer != nil {
+			downloadContainer.Refresh()
+		}
 	}
 }
 
 func updateExplanation() {
-	if len(getAllInstalledVersions()) == 1 {
-		singleOrMultiVersionLabel.SetText("Use the Update button above to install the latest version.  The current database will be copied to the new version, as well as local changes made to the configuration since the previous installation.")
+	x := getAllInstalledVersions()
+	log.Printf("Updating explanation %d\n", len(x))
+	if len(x) == 0 {
+		singleOrMultiVersionLabel.Hide()
+	} else if len(x) == 1 {
+		latestStable, stableErr := getMostRecentStableRelease()
+		latestPrerelease, preErr := getMostRecentPrerelease()
+
+		if containsPreReleaseTag(x[0]) {
+			if preErr == nil && x[0] == latestPrerelease {
+				singleOrMultiVersionLabel.Hide()
+			} else {
+				singleOrMultiVersionLabel.SetText("Use the Update button above to install the latest version. The current database will be copied to the new version, as well as local changes made to the configuration since the previous installation.")
+			}
+		} else {
+			if stableErr == nil && x[0] == latestStable {
+				singleOrMultiVersionLabel.Hide()
+			} else {
+				singleOrMultiVersionLabel.SetText("Use the Update button above to install the latest version. The current database will be copied to the new version, as well as local changes made to the configuration since the previous installation.")
+			}
+		}
 	} else {
-		singleOrMultiVersionLabel.SetText("You have several versions installed.  Use the Import button if you wish to copy the database and local configuration changes from a previous version.")
+		singleOrMultiVersionLabel.SetText("You have several versions installed. Use the Import button if you wish to copy the database and local configuration changes from a previous version.")
 	}
 	singleOrMultiVersionLabel.Wrapping = fyne.TextWrapWord
 	singleOrMultiVersionLabel.Show()
