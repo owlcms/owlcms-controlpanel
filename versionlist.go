@@ -167,7 +167,7 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 			}
 
 			if len(allReleases) == 0 {
-				updateButton.Hide() // Hide update button if allReleases is empty
+				buttonContainer.Remove(buttonContainer.Objects[2]) // Remove padded container if allReleases is empty
 			} else {
 				updateButton.SetText("Update") // Set text for new button
 				var mostRecent string
@@ -177,14 +177,14 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 				if !containsPreReleaseTag(version) {
 					mostRecent, err = getMostRecentStableRelease()
 					if err == nil {
-						prepareButton(mostRecent, version, updateButton, w)
+						prepareButton(mostRecent, version, updateButton, buttonContainer, w)
 					} else {
 						log.Printf("failed to get most recent stable release: %v", err)
 					}
 				} else {
 					mostRecent, err = getMostRecentPrerelease()
 					if err == nil {
-						prepareButton(mostRecent, version, updateButton, w)
+						prepareButton(mostRecent, version, updateButton, buttonContainer, w)
 					} else {
 						log.Printf("failed to get most recent prerelease: %v", err)
 					}
@@ -272,7 +272,7 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 	return versionList
 }
 
-func prepareButton(mostRecent string, version string, updateButton *widget.Button, w fyne.Window) {
+func prepareButton(mostRecent string, version string, updateButton *widget.Button, buttonContainer *fyne.Container, w fyne.Window) {
 	go log.Printf("mostRecent: %s, version: %s", mostRecent, version)
 	compare, err := semver.NewVersion(mostRecent)
 	x, err2 := semver.NewVersion(version)
@@ -284,7 +284,8 @@ func prepareButton(mostRecent string, version string, updateButton *widget.Butto
 			}
 			updateButton.Refresh()
 		} else {
-			updateButton.Hide()
+			buttonContainer.Remove(buttonContainer.Objects[2]) // Remove padded container if no update is available
+			buttonContainer.Refresh()
 		}
 	} else {
 		log.Printf("failed to compare versions: %v %v", err, err2)

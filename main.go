@@ -16,6 +16,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/Masterminds/semver/v3"
@@ -273,12 +274,13 @@ func main() {
 		prereleaseCheckbox.Show()
 		downloadButton.Hide()
 	}
+	downloadButtonContainer := container.New(layout.NewGridWrapLayout(fyne.NewSize(300, 50)), downloadButton)
 
 	downloadGroup.Objects = []fyne.CanvasObject{
 		updateTitle,
 		singleOrMultiVersionLabel,
 		downloadButtonTitle,
-		downloadButton,
+		downloadButtonContainer,
 		releaseDropdown,
 		prereleaseCheckbox,
 	}
