@@ -261,8 +261,12 @@ func main() {
 	stopButton.Hide()
 	stopContainer.Hide()
 
-	releases, _ := fetchReleases()
-	allReleases = releases
+	releases, err := fetchReleases()
+	if err == nil {
+		allReleases = releases
+	} else {
+		allReleases = []string{}
+	}
 
 	// Initialize version list
 	recomputeVersionList(w)
@@ -279,12 +283,18 @@ func main() {
 	})
 	prereleaseCheckbox.Hide() // Hide the checkbox initially
 
-	downloadContainer.Objects = []fyne.CanvasObject{
-		updateTitle,
-		singleOrMultiVersionLabel,
-		downloadButtonTitle,
-		releaseDropdown,
-		prereleaseCheckbox,
+	if len(allReleases) > 0 {
+		downloadContainer.Objects = []fyne.CanvasObject{
+			updateTitle,
+			singleOrMultiVersionLabel,
+			downloadButtonTitle,
+			releaseDropdown,
+			prereleaseCheckbox,
+		}
+	} else {
+		downloadContainer.Objects = []fyne.CanvasObject{
+			widget.NewLabel("You are not connected to the Internet. Available updates cannot be shown."),
+		}
 	}
 
 	mainContent := container.NewVBox(
@@ -301,13 +311,14 @@ func main() {
 	w.SetContent(mainContent)
 	w.Canvas().Refresh(mainContent)
 
-	allReleases = releases               // Store all releases
 	populateReleaseSelect(releaseSelect) // Populate the dropdown with the releases
 	updateTitle.Show()
 	releaseDropdown.Hide()
 	prereleaseCheckbox.Hide() // Show the checkbox once releases are fetched
 	log.Printf("Fetched %d releases\n", len(releases))
-	// downloadButtonContainer.Show()
+	if len(allReleases) > 0 {
+		// downloadButtonContainer.Show()
+	}
 
 	// Check if a more recent version is available
 	checkForNewerVersion()
@@ -494,6 +505,15 @@ func checkForNewerVersion() {
 }
 
 func updateExplanation() {
+	if len(allReleases) == 0 {
+		downloadContainer.Objects = []fyne.CanvasObject{
+			widget.NewLabel("You are not connected to the Internet. Available updates cannot be shown."),
+		}
+		downloadContainer.Show()
+		downloadContainer.Refresh()
+		return
+	}
+	log.Printf("len(allReleases) = %d\n", len(allReleases))
 	x := getAllInstalledVersions()
 	log.Printf("Updating explanation %d\n", len(x))
 	if len(x) == 0 {

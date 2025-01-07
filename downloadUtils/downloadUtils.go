@@ -17,7 +17,7 @@ import (
 
 // DownloadZip downloads a zip file from the given URL and saves it to the specified path.
 func DownloadZip(url, destPath string) error {
-	fmt.Printf("Attempting to download from URL: %s\n", url)
+	log.Printf("Attempting to download from URL: %s\n", url)
 
 	client := &http.Client{
 		Timeout: 60 * time.Second, // Set a timeout for the HTTP request
@@ -44,7 +44,7 @@ func DownloadZip(url, destPath string) error {
 		return fmt.Errorf("failed to copy zip data: %w", err)
 	}
 
-	fmt.Printf("Successfully downloaded file to: %s\n", destPath)
+	log.Printf("Successfully downloaded file to: %s\n", destPath)
 	return nil
 }
 

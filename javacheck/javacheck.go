@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -93,7 +94,7 @@ func CheckJava(statusLabel *widget.Label) error {
 	// First check for local Java installation
 	javaPath, err := findLocalJava()
 	if err == nil {
-		fmt.Printf("Found local Java at: %s\n", javaPath)
+		log.Printf("Found local Java at: %s\n", javaPath)
 		return nil
 	}
 
@@ -102,11 +103,11 @@ func CheckJava(statusLabel *widget.Label) error {
 	// if err == nil {
 	// 	version, err := getJavaVersion(javaPath)
 	// 	if err == nil && version >= 17 {
-	// 		fmt.Printf("System Java %d found at: %s\n", version, javaPath)
+	// 		log.Printf("System Java %d found at: %s\n", version, javaPath)
 	// 		return nil
 	// 	}
 	// 	if err == nil {
-	// 		fmt.Printf("System Java version %d is too old, need 17 or later\n", version)
+	// 		log.Printf("System Java version %d is too old, need 17 or later\n", version)
 	// 	}
 	// }
 
@@ -205,7 +206,7 @@ func findLatestTemurinRelease() (string, error) {
 		return "", fmt.Errorf("failed to parse release: %w", err)
 	}
 
-	fmt.Printf("Latest Temurin release: %s\n", release.TagName)
+	log.Printf("Latest Temurin release: %s\n", release.TagName)
 	return release.TagName, nil
 }
 
@@ -251,12 +252,12 @@ func getTemurinDownloadURL() (string, error) {
 	}
 
 	// Print environment info for debugging
-	fmt.Printf("\nRunning on: OS=%s, ARCH=%s, WSL=%v\n", runtime.GOOS, runtime.GOARCH, isWSL())
+	log.Printf("\nRunning on: OS=%s, ARCH=%s, WSL=%v\n", runtime.GOOS, runtime.GOARCH, isWSL())
 
 	// Print all available assets for debugging
 	// fmt.Println("\nAvailable assets:")
 	// for _, asset := range release.Assets {
-	// 	fmt.Printf("- %s\n", asset.Name)
+	// 	log.Printf("- %s\n", asset.Name)
 	// }
 
 	// Always use Linux pattern for WSL/Linux, but with correct version
@@ -283,12 +284,12 @@ func getTemurinDownloadURL() (string, error) {
 		}
 	}
 
-	fmt.Printf("\nLooking for asset: %s\n", pattern)
+	log.Printf("\nLooking for asset: %s\n", pattern)
 
 	// Look for exact matching JRE asset
 	for _, asset := range release.Assets {
 		if asset.Name == pattern {
-			fmt.Printf("Found matching JRE: %s\n", asset.Name)
+			log.Printf("Found matching JRE: %s\n", asset.Name)
 			return asset.BrowserDownloadURL, nil
 		}
 	}

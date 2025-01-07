@@ -133,7 +133,7 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 	versionList = widget.NewList(
 		func() int { return len(versions) },
 		func() fyne.CanvasObject {
-			label := widget.NewLabel("Template")
+			label := widget.NewLabelWithStyle("Template", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
 			launchButton := widget.NewButton("Launch", nil)
 			filesButton := widget.NewButton("Files", nil)
 			updateButton := widget.NewButton("Update", nil) // New update button
@@ -168,6 +168,8 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 
 			version := versions[index]
 			label.SetText(version)
+			label.TextStyle = fyne.TextStyle{Bold: true} // Make the version number bold
+			label.Refresh()
 			launchButton.SetText("Launch")
 			launchButton.OnTapped = func() {
 				if currentProcess != nil {
