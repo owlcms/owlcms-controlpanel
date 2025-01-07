@@ -1,14 +1,13 @@
-## Portable launcher and updater for owlcms server
+## Portable launcher and updater for OWLCMS server
 
-This is meant to provide a small compiled binary to launch owlcms, removing the need for an installer
-and providing the same user experience on all platforms.
-- allows downloading one or more versions of owlcms
-- select which one to run
-- if Java is not present, a local copy is downloaded correctly for the current platform.
+This provides a small compiled binary to launch OWLCMS, removing the need for an installer
+and providing the same user experience on all platforms. The program allows
+- easy updating from a version to the current one
+- launching the program (downloading Java if needed)
+- having several versions at once and copying configurations and data
 
-Currently supported: Windows, Raspberry Pi (Linux ARM64), Linux on Intel (AMD64)
-
-In theory this would work on a Mac, author does not own a Mac to perform the required code signing. Volunteers welcome.
+Currently supported: Windows, Raspberry Pi (Linux ARM64), Linux on Intel (AMD64)<br>
+Volunteers are welcome to compile and sign the program for the Mac (see [BUILD.md](./BUILD.md)).
 
 ![image](https://github.com/user-attachments/assets/6baca710-a65a-4491-a1e5-5ff678bf88f7)
 
