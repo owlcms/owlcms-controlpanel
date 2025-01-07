@@ -31,11 +31,10 @@ type Release struct {
 var (
 	showPrereleases     bool = false
 	allReleases         []string
-	downloadButton      *widget.Button
 	releaseDropdown     *fyne.Container
 	prereleaseCheckbox  *widget.Check
 	updateTitle         *widget.Label
-	downloadButtonTitle *widget.Label // New title for download button
+	downloadButtonTitle *widget.Hyperlink // New title for download button
 )
 
 func fetchReleases() ([]string, error) {
