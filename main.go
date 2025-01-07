@@ -287,7 +287,7 @@ func main() {
 	}
 
 	mainContent := container.NewVBox(
-		widget.NewLabelWithStyle("OWLCMS Launcher", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		// widget.NewLabelWithStyle("OWLCMS Launcher", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 		stopContainer,
 		versionContainer,
 		downloadContainer, // Use downloadGroup here
@@ -300,14 +300,6 @@ func main() {
 	w.SetContent(mainContent)
 	w.Canvas().Refresh(mainContent)
 
-	// // Show retrieving releases label
-	// retrievingLabel := widget.NewLabel("Checking for updates...")
-	// downloadGroup.Objects = append(downloadGroup.Objects, retrievingLabel)
-	// w.Canvas().Refresh(mainContent)
-
-	// go func() {
-	// 	select {
-	// 	case releases := <-releasesChan:
 	allReleases = releases               // Store all releases
 	populateReleaseSelect(releaseSelect) // Populate the dropdown with the releases
 	updateTitle.Show()
@@ -331,21 +323,6 @@ func main() {
 	}
 
 	w.Canvas().Refresh(mainContent)
-	// case err := <-errChan:
-	// 	log.Printf("Error fetching releases: %v\n", err)
-	// 	downloadGroup.Objects = []fyne.CanvasObject{
-	// 		widget.NewLabelWithStyle("Internet access not available, cannot show the available versions", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-	// 	}
-	// 	w.Canvas().Refresh(mainContent)
-	// case <-time.After(10 * time.Second):
-	// 	downloadGroup.Objects = []fyne.CanvasObject{
-	// 		widget.NewLabelWithStyle("Internet access not available, cannot show the available versions", fyne.TextAlignLeading, fyne.TextStyle{Bold: true}),
-	// 	}
-	// 	w.Canvas().Refresh(mainContent)
-	// }
-
-	w.Canvas().Refresh(mainContent)
-	// }()
 
 	w.SetCloseIntercept(func() {
 		if currentProcess != nil {
