@@ -13,7 +13,8 @@ Owlcms-launcher is a "control center" for owlcms.
 
 [comment]: <> (EDIT THIS FILE IN THE dist DIRECTORY ONLY)
 
-- Redesign of the update process -- the buttons on each version only show what makes sense.
+- If not connected to the internet, don't show the information about updates.
+- Cosmetic changes for the "install other versions" (link instead of buttons)
 
 ### Installing the Launcher
 
