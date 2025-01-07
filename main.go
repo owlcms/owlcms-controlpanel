@@ -138,7 +138,10 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 		javaCmd = localJava
 	}
 
+	env := os.Environ()
+	env = append(env, "OWLCMS_LAUNCHER=true")
 	cmd := exec.Command(javaCmd, "-jar", "owlcms.jar")
+	cmd.Env = env
 	if err := cmd.Start(); err != nil {
 		statusLabel.SetText(fmt.Sprintf("Failed to start OWLCMS %s", version))
 		launchButton.Show() // Show launch button again if start fails

@@ -16,15 +16,15 @@ mv owlcms-launcher_${TAG}_arm64.deb owlcms-launcher_${TAG}_pi.deb
 
 
 # gh requires data from the current repo
-cp dist/RELEASE.md .
-sed -i "s/_TAG_/${TAG}/g" ./RELEASE.md
+cp RELEASE.md ./dist/RELEASE.md
+sed -i "s/_TAG_/${TAG}/g" ./dist/RELEASE.md
 
 git add --all
 git commit -m "${TAG}"
 git push
 
 gh release delete ${TAG} -y
-gh release create ${TAG} --notes-file ./RELEASE.md -t "owlcms-launcher ${TAG}"
+gh release create ${TAG} --notes-file ./dist/RELEASE.md -t "owlcms-launcher ${TAG}"
 gh release upload ${TAG} owlcms-launcher_${TAG}_pi.deb
 gh release upload ${TAG} owlcms-launcher_${TAG}_amd64.deb
 gh release upload ${TAG} fyne-cross/bin/linux-arm64/owlcms-pi

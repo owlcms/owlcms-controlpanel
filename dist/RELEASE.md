@@ -9,12 +9,13 @@ Owlcms-launcher is a "control center" for owlcms.
 > When using owlcms-launcher on Windows or Linux you don't have to use the "old-style" installation methods explained in the documentation.  It is expected that owlcms-launcher will replace them.
 >
 
-### Change Log for version _TAG_
+### Change Log for version 1.5.0
 
 [comment]: <> (EDIT THIS FILE IN THE dist DIRECTORY ONLY)
 
 - If not connected to the internet, don't show the information about updates.
 - Cosmetic changes for the "install other versions" (link instead of buttons)
+- The environment variable OWLCMS_LAUNCHER is added and set to true when launching java
 
 ### Installing the Launcher
 
