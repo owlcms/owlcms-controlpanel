@@ -262,7 +262,7 @@ func getTemurinDownloadURL() (string, error) {
 
 	// Always use Linux pattern for WSL/Linux, but with correct version
 	var pattern string
-	if isWSL() || runtime.GOOS == "linux" {
+	if isWSL() || runtime.GOOS != "windows" {
 		switch runtime.GOARCH {
 		case "amd64":
 			pattern = fmt.Sprintf("OpenJDK17U-jre_x64_linux_hotspot_%s.tar.gz", version)
