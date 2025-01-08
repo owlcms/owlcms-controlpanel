@@ -21,6 +21,12 @@ jobs:
       with:
         go-version: '1.17'
 
+    - name: Install Docker
+      run: |
+        brew install --cask docker
+        open /Applications/Docker.app
+        while ! docker system info > /dev/null 2>&1; do sleep 1; done
+
     - name: Install fyne-cross
       run: |
         go install github.com/fyne-io/fyne-cross@latest
