@@ -29,8 +29,7 @@ jobs:
     - name: Prepare release notes
       run: |
         cp RELEASE.md ./dist/RELEASE.md
-        cat ./dist/RELEASE.md
-        echo sed -i "s/_TAG_/${TAG}/g" ./dist/RELEASE.md
+        sed -i "s/_TAG_/${TAG}/g" ./dist/RELEASE.md
 
     - name: Install fyne
       run: go install fyne.io/fyne/v2/cmd/fyne@latest
