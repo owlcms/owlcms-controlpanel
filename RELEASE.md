@@ -16,7 +16,7 @@ Owlcms-launcher is a "control center" for owlcms.  It replaces the prior install
   - Use the "More Information"  and "Run Anyway" options to allow execution (only needed once)
  
 - For Mac
-  1. For a recent Mac (M1/M2/,,,), download the file that ends with `_arm64.dmg`.   For an Intel mac, use the `_arm64.dmg` file
+  1. For a recent Mac (M1/M2/,,,), download the file that ends with `_arm64.dmg`.   For an Intel mac, use the `_amd.dmg` file
   2. Execute the ,dmg file.
   3. **Right-click on the application and use Open**.  This is needed once, to allow execution.
   
