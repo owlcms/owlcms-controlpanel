@@ -41,18 +41,21 @@ jobs:
         rm -rf dist/darwin-arm64
         mkdir -p dist/darwin-arm64
         mv owlcms.app dist/darwin-arm64/
+        ls -l dist/darwin-arm64
 
     - name: Zip macOS arm64 app
       run: |
         cd dist/darwin-arm64
         zip -r owlcms_${GITHUB_REF#refs/tags/}_mac_arm64.zip owlcms.app
         cd -
+        ls -l dist/darwin-arm64
 
     - name: Create DMG for macOS arm64
       run: |
         mkdir -p dist/darwin-arm64/dmg
         cp -R dist/darwin-arm64/owlcms.app dist/darwin-arm64/dmg/
         hdiutil create -volname "owlcms" -srcfolder dist/darwin-arm64/dmg -ov -format UDZO dist/darwin-arm64/owlcms_${GITHUB_REF#refs/tags/}_mac_arm64.dmg
+        ls -l dist/darwin-arm64
 
     - name: Build for macOS amd64
       run: |
@@ -74,18 +77,21 @@ jobs:
         rm -rf dist/darwin-amd64
         mkdir -p dist/darwin-amd64
         mv owlcms.app dist/darwin-amd64/
+        ls -l dist/darwin-amd64
 
     - name: Zip macOS amd64 app
       run: |
         cd dist/darwin-amd64
         zip -r owlcms_${GITHUB_REF#refs/tags/}_mac_amd64.zip owlcms.app
         cd -
+        ls -l dist/darwin-amd64
 
     - name: Create DMG for macOS amd64
       run: |
         mkdir -p dist/darwin-amd64/dmg
         cp -R dist/darwin-amd64/owlcms.app dist/darwin-amd64/dmg/
         hdiutil create -volname "owlcms" -srcfolder dist/darwin-amd64/dmg -ov -format UDZO dist/darwin-amd64/owlcms_${GITHUB_REF#refs/tags/}_mac_amd64.dmg
+        ls -l dist/darwin-amd64
 
     - name: Create GitHub Release
       id: create_release
