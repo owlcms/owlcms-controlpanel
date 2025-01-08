@@ -168,13 +168,6 @@ jobs:
       with:
         go-version: '1.23.4'
 
-    - name: Install Docker
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y docker.io
-        sudo systemctl start docker
-        sudo systemctl enable docker
-
     - name: Install fyne-cross
       run: |
         go install github.com/fyne-io/fyne-cross@latest
@@ -213,11 +206,6 @@ jobs:
         fpm -s tar -t deb -n owlcms-launcher -v ${DEB_TAG} -a arm64 --prefix / --after-install ./dist/after_install.sh --after-remove ./dist/after_remove.sh ./fyne-cross/dist/linux-arm64/owlcms.tar.xz
         fpm -s tar -t deb -n owlcms-launcher -v ${DEB_TAG} -a amd64 --prefix / --after-install ./dist/after_install.sh --after-remove ./dist/after_remove.sh ./fyne-cross/dist/linux-amd64/owlcms.tar.xz
         mv owlcms-launcher_${DEB_TAG}_arm64.deb owlcms-launcher_${DEB_TAG}_pi.deb
-
-    - name: Prepare release notes
-      run: |
-        cp RELEASE.md ./dist/RELEASE.md
-        sed -i "s/_TAG_/${TAG}/g" ./dist/RELEASE.md
 
     - name: Upload DEB packages
       uses: actions/upload-release-asset@v1
