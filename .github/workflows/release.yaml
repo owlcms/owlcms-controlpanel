@@ -24,35 +24,65 @@ jobs:
     - name: Install fyne
       run: go install fyne.io/fyne/v2/cmd/fyne@latest
 
-    - name: Build for macOS amd64
-      run: fyne package -os darwin -arch amd64 -icon Icon.png -name owlcms
-
     - name: Build for macOS arm64
-      run: fyne package -os darwin -arch arm64 -icon Icon.png -name owlcms
-
-    - name: Zip macOS amd64 app
       run: |
-        cd fyne-cross/dist/darwin-amd64
-        zip -r owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_amd64.zip owlcms-launcher.app
-        cd -
+        export GOOS=darwin
+        export GOARCH=arm64
+        export CGO_ENABLED=1
+        go build -o owlcms-darwin-arm64 .
+
+    - name: Package for macOS arm64
+      run: |
+        rm -rf owlcms.app
+        fyne package -os darwin -icon Icon.png -name owlcms -executable owlcms
+
+    - name: Move macOS arm64 app to dist directory
+      run: |
+        rm -rf dist/darwin-arm64
+        mkdir -p dist/darwin-arm64
+        mv owlcms.app dist/darwin-arm64/
 
     - name: Zip macOS arm64 app
       run: |
-        cd fyne-cross/dist/darwin-arm64
+        cd dist/darwin-arm64
         zip -r owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_arm64.zip owlcms-launcher.app
+        cd -
+
+    - name: Create DMG for macOS arm64
+      run: |
+        mkdir -p dist/darwin-arm64/dmg
+        cp -R dist/darwin-arm64/owlcms-launcher.app dist/darwin-arm64/dmg/
+        hdiutil create -volname "owlcms-launcher" -srcfolder dist/darwin-arm64/dmg -ov -format UDZO dist/darwin-arm64/owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_arm64.dmg
+
+    - name: Build for macOS amd64
+      run: |
+        export GOOS=darwin
+        export GOARCH=amd64
+        export CGO_ENABLED=1
+        go build -o owlcms-darwin-amd64 .
+
+    - name: Package for macOS amd64
+      run: |
+        rm -rf owlcms.app
+        fyne package -os darwin -icon Icon.png -name owlcms -executable owlcms
+
+    - name: Move macOS amd64 app to dist directory
+      run: |
+        rm -rf dist/darwin-amd64
+        mkdir -p dist/darwin-amd64
+        mv owlcms.app dist/darwin-amd64/
+
+    - name: Zip macOS amd64 app
+      run: |
+        cd dist/darwin-amd64
+        zip -r owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_amd64.zip dist/darwin-amd64/owlcms.app
         cd -
 
     - name: Create DMG for macOS amd64
       run: |
-        mkdir -p fyne-cross/dist/darwin-amd64/dmg
-        cp -R fyne-cross/dist/darwin-amd64/owlcms-launcher.app fyne-cross/dist/darwin-amd64/dmg/
-        hdiutil create -volname "owlcms-launcher" -srcfolder fyne-cross/dist/darwin-amd64/dmg -ov -format UDZO fyne-cross/dist/darwin-amd64/owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_amd64.dmg
-
-    - name: Create DMG for macOS arm64
-      run: |
-        mkdir -p fyne-cross/dist/darwin-arm64/dmg
-        cp -R fyne-cross/dist/darwin-arm64/owlcms-launcher.app fyne-cross/dist/darwin-arm64/dmg/
-        hdiutil create -volname "owlcms-launcher" -srcfolder fyne-cross/dist/darwin-arm64/dmg -ov -format UDZO fyne-cross/dist/darwin-arm64/owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_arm64.dmg
+        mkdir -p dist/darwin-amd64/dmg
+        cp -R dist/darwin-amd64/owlcms-launcher.app dist/darwin-amd64/dmg/
+        hdiutil create -volname "owlcms-launcher" -srcfolder dist/darwin-amd64/dmg -ov -format UDZO dist/darwin-amd64/owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_amd64.dmg
 
     - name: Create GitHub Release
       id: create_release
@@ -63,17 +93,7 @@ jobs:
         tag_name: ${{ github.ref }}
         release_name: "owlcms-launcher ${{ github.ref }}"
         draft: false
-        prerelease: falsego
-
-    - name: Upload macOS amd64 zip
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: fyne-cross/dist/darwin-amd64/owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_amd64.zip
-        asset_name: owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_amd64.zip
-        asset_content_type: application/zip
+        prerelease: false
 
     - name: Upload macOS arm64 zip
       uses: actions/upload-release-asset@v1
@@ -81,8 +101,28 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: fyne-cross/dist/darwin-arm64/owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_arm64.zip
+        asset_path: dist/darwin-arm64/owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_arm64.zip
         asset_name: owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_arm64.zip
+        asset_content_type: application/zip
+
+    - name: Upload macOS arm64 DMG
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: dist/darwin-arm64/owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_arm64.dmg
+        asset_name: owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_arm64.dmg
+        asset_content_type: application/x-apple-diskimage
+
+    - name: Upload macOS amd64 zip
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: dist/darwin-amd64/owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_amd64.zip
+        asset_name: owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_amd64.zip
         asset_content_type: application/zip
 
     - name: Upload macOS amd64 DMG
@@ -91,16 +131,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: fyne-cross/dist/darwin-amd64/owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_amd64.dmg
+        asset_path: dist/darwin-amd64/owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_amd64.dmg
         asset_name: owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_amd64.dmg
-        asset_content_type: application/x-apple-diskimage
-
-    - name: Upload macOS arm64 DMG
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: fyne-cross/dist/darwin-arm64/owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_arm64.dmg
-        asset_name: owlcms-launcher_${GITHUB_REF#refs/tags/}_mac_arm64.dmg
         asset_content_type: application/x-apple-diskimage
