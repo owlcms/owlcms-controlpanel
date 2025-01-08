@@ -5,9 +5,7 @@ Owlcms-launcher is a "control center" for owlcms.  It replaces the prior install
 - The launcher can also install updates
 - You can also have several versions at once, and copy your database and local changes between versions
 
-
-
-### Change Log for version _TAG_
+### Change Log for version v1.6.1
 
 - All releases are created using a single GitHub Actions workflow
 
@@ -15,14 +13,22 @@ Owlcms-launcher is a "control center" for owlcms.  It replaces the prior install
 ### Installing the Launcher
 
 - For Windows, download `owlcms.exe`  and copy it to your desktop
+  - Use the "More Information"  and "Run Anyway" options to allow execution (only needed once)
+ 
+- For Mac
+  1. For a recent Mac (M1/M2/,,,), download the file that ends with `_arm64.dmg`.   For an Intel mac, use the `_arm64.dmg` file
+  2. Execute the ,dmg file.
+  3. **Right-click on the application and use Open**.  This is needed once, to allow execution.
+  
 - For Raspberry Pi
   1. Download the file that ends with `_pi.deb` .
   2. Go to your Downloads directory, right-click on the downloaded file and select `Package Install`.  
      You will be prompted for the password of your pi user. This will create a desktop icon, and an entry in the "Other" section of the system menu.
+
 - For Linux on Intel or AMD computers
   1. Download the file that ends with `_amd64.deb` .
   2. Start a terminal window and go to `~/Downloads`
-  3. Use `sudo apt install ./name.deb` (replacing name with the actual name of the .deb file)
+  5. Use `sudo apt install ./name.deb` (replacing name with the actual name of the .deb file)
 
 If you do not wish to use the package install, or lack privileges to do so, you may also copy the owlcms-pi or owlcms-linux binary file directly to your machine, but then there will be no icons.
 
