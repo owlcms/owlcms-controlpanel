@@ -12,6 +12,9 @@ jobs:
   build_mac:
     runs-on: macos-latest
 
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -212,7 +215,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ needs.build_mac.outputs.create_release.outputs.upload_url }}
+        upload_url: ${{ needs.build_mac.outputs.upload_url }}
         asset_path: owlcms-launcher_${{ env.DEB_TAG }}_pi.deb
         asset_name: owlcms-launcher_${{ env.DEB_TAG }}_pi.deb
         asset_content_type: application/octet-stream
@@ -222,7 +225,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ needs.build_mac.outputs.create_release.outputs.upload_url }}
+        upload_url: ${{ needs.build_mac.outputs.upload_url }}
         asset_path: owlcms-launcher_${{ env.DEB_TAG }}_amd64.deb
         asset_name: owlcms-launcher_${{ env.DEB_TAG }}_amd64.deb
         asset_content_type: application/octet-stream
@@ -232,7 +235,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ needs.build_mac.outputs.create_release.outputs.upload_url }}
+        upload_url: ${{ needs.build_mac.outputs.upload_url }}
         asset_path: fyne-cross/bin/linux-arm64/owlcms-pi
         asset_name: owlcms-pi
         asset_content_type: application/octet-stream
@@ -242,7 +245,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ needs.build_mac.outputs.create_release.outputs.upload_url }}
+        upload_url: ${{ needs.build_mac.outputs.upload_url }}
         asset_path: fyne-cross/bin/linux-amd64/owlcms-linux
         asset_name: owlcms-linux
         asset_content_type: application/octet-stream
@@ -252,7 +255,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ needs.build_mac.outputs.create_release.outputs.upload_url }}
+        upload_url: ${{ needs.build_mac.outputs.upload_url }}
         asset_path: fyne-cross/bin/windows-amd64/owlcms.exe
         asset_name: owlcms.exe
         asset_content_type: application/octet-stream
