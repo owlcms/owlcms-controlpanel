@@ -24,35 +24,35 @@ jobs:
     - name: Install fyne
       run: go install fyne.io/fyne/v2/cmd/fyne@latest
 
-    # - name: Build for macOS arm64
-    #   run: |
-    #     export GOOS=darwin
-    #     export GOARCH=arm64
-    #     export CGO_ENABLED=1
-    #     go build -o owlcms .
+    - name: Build for macOS arm64
+      run: |
+        export GOOS=darwin
+        export GOARCH=arm64
+        export CGO_ENABLED=1
+        go build -o owlcms .
 
-    # - name: Package for macOS arm64
-    #   run: |
-    #     rm -rf owlcms.app
-    #     fyne package -os darwin -icon Icon.png -name owlcms -executable owlcms
+    - name: Package for macOS arm64
+      run: |
+        rm -rf owlcms.app
+        fyne package -os darwin -icon Icon.png -name owlcms -executable owlcms
 
-    # - name: Move macOS arm64 app to dist directory
-    #   run: |
-    #     rm -rf dist/darwin-arm64
-    #     mkdir -p dist/darwin-arm64
-    #     mv owlcms.app dist/darwin-arm64/
+    - name: Move macOS arm64 app to dist directory
+      run: |
+        rm -rf dist/darwin-arm64
+        mkdir -p dist/darwin-arm64
+        mv owlcms.app dist/darwin-arm64/
 
-    # - name: Zip macOS arm64 app
-    #   run: |
-    #     cd dist/darwin-arm64
-    #     zip -r owlcms_${GITHUB_REF#refs/tags/}_mac_arm64.zip owlcms.app
-    #     cd -
+    - name: Zip macOS arm64 app
+      run: |
+        cd dist/darwin-arm64
+        zip -r owlcms_${GITHUB_REF#refs/tags/}_mac_arm64.zip owlcms.app
+        cd -
 
-    # - name: Create DMG for macOS arm64
-    #   run: |
-    #     mkdir -p dist/darwin-arm64/dmg
-    #     cp -R dist/darwin-arm64/owlcms.app dist/darwin-arm64/dmg/
-    #     hdiutil create -volname "owlcms" -srcfolder dist/darwin-arm64/dmg -ov -format UDZO dist/darwin-arm64/owlcms_${GITHUB_REF#refs/tags/}_mac_arm64.dmg
+    - name: Create DMG for macOS arm64
+      run: |
+        mkdir -p dist/darwin-arm64/dmg
+        cp -R dist/darwin-arm64/owlcms.app dist/darwin-arm64/dmg/
+        hdiutil create -volname "owlcms" -srcfolder dist/darwin-arm64/dmg -ov -format UDZO dist/darwin-arm64/owlcms_${GITHUB_REF#refs/tags/}_mac_arm64.dmg
 
     - name: Build for macOS amd64
       run: |
@@ -78,7 +78,7 @@ jobs:
     - name: Zip macOS amd64 app
       run: |
         cd dist/darwin-amd64
-        zip -r owlcms_${GITHUB_REF#refs/tags/}_mac_amd64.zip dist/darwin-amd64/owlcms.app
+        zip -r owlcms_${GITHUB_REF#refs/tags/}_mac_amd64.zip owlcms.app
         cd -
 
     - name: Create DMG for macOS amd64
