@@ -20,7 +20,7 @@ cp RELEASE.md ./dist/RELEASE.md
 sed -i "s/_TAG_/${TAG}/g" ./dist/RELEASE.md
 
 # gh release delete ${TAG} -y
-gh release release edit ${TAG} --notes-file ./dist/RELEASE.md --title "owlcms-launcher ${TAG}"
+gh release edit ${TAG} --notes-file ./dist/RELEASE.md --title "owlcms-launcher ${TAG}"
 gh release upload ${TAG} owlcms-launcher_${DEB_TAG}_pi.deb
 gh release upload ${TAG} owlcms-launcher_${DEB_TAG}_amd64.deb
 gh release upload ${TAG} fyne-cross/bin/linux-arm64/owlcms-pi
