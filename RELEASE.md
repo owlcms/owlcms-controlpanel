@@ -1,4 +1,3 @@
-[comment]: <> (EDIT THIS FILE IN THE dist DIRECTORY ONLY)
 Owlcms-launcher is a "control center" for owlcms. 
 
 -  It will automatically download the current version of owlcms when used for the first time. 
@@ -11,12 +10,7 @@ Owlcms-launcher is a "control center" for owlcms.
 
 ### Change Log for version _TAG_
 
-[comment]: <> (EDIT THIS FILE IN THE dist DIRECTORY ONLY)
-
-- If not connected to the internet, don't show the information about updates.
-- Cosmetic changes for the "install other versions" (link instead of buttons)
-- The environment variable OWLCMS_LAUNCHER is added and set to true when launching java
-- Preparing for a Mac version (fixed the Java download)
+- All releases are created using a single GitHub Actions workflow
 
 
 ### Installing the Launcher
