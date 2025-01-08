@@ -56,15 +56,18 @@ jobs:
 
     - name: Build for macOS amd64
       run: |
+        ls -l owlcms owlcms.app
         export GOOS=darwin
         export GOARCH=amd64
         export CGO_ENABLED=1
         go build -o owlcms .
+        ls -l owlcms owlcms.app
 
     - name: Package for macOS amd64
       run: |
         rm -rf owlcms.app
         fyne package -os darwin -icon Icon.png -name owlcms -executable owlcms
+        ls -l owlcms owlcms.app
 
     - name: Move macOS amd64 app to dist directory
       run: |
