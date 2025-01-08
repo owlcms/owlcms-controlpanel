@@ -26,6 +26,12 @@ jobs:
       run: |
         echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
 
+    - name: Prepare release notes
+      run: |
+        cp RELEASE.md ./dist/RELEASE.md
+        cat ./dist/RELEASE.md
+        echo sed -i "s/_TAG_/${TAG}/g" ./dist/RELEASE.md
+
     - name: Install fyne
       run: go install fyne.io/fyne/v2/cmd/fyne@latest
 
@@ -97,11 +103,6 @@ jobs:
         cp -R dist/darwin-amd64/owlcms.app dist/darwin-amd64/dmg/
         hdiutil create -volname "owlcms" -srcfolder dist/darwin-amd64/dmg -ov -format UDZO dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_amd64.dmg
         ls -l dist/darwin-amd64
-
-    - name: Prepare release notes
-      run: |
-        cp RELEASE.md ./dist/RELEASE.md
-        sed -i "s/_TAG_/${TAG}/g" ./dist/RELEASE.md
 
     - name: Create GitHub Release
       id: create_release
