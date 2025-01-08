@@ -1,4 +1,4 @@
-name: Release
+name: Release owlcms-launcher
 
 on:
   push:
@@ -28,7 +28,6 @@ jobs:
 
     - name: Prepare release notes
       run: |
-        mkdir dist
         cp RELEASE.md ./dist/RELEASE.md
         sed -i '' "s/_TAG_/${TAG}/g" ./dist/RELEASE.md
 
