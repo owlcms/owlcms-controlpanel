@@ -21,57 +21,14 @@ jobs:
       with:
         go-version: '1.17'
 
-    - name: Install Docker
-      run: |
-        brew install --cask docker
-        open /Applications/Docker.app
-        MAX_RETRIES=15
-        RETRY_COUNT=0
-        while ! docker ps > /dev/null 2>&1; do
-          if [ $RETRY_COUNT -ge $MAX_RETRIES ]; then
-            echo "Docker failed to start after ${MAX_RETRIES} attempts"
-            exit 1
-          fi
-          echo "Waiting for Docker... attempt $((RETRY_COUNT+1))/${MAX_RETRIES}"
-          sleep 2
-          RETRY_COUNT=$((RETRY_COUNT+1))
-        done
-
-    - name: Install fyne-cross
-      run: |
-        go install github.com/fyne-io/fyne-cross@latest
-        echo "${HOME}/go/bin" >> $GITHUB_PATH
-
-    - name: Install Ruby
-      run: brew install ruby
-
-    - name: Install fpm
-      run: |
-        sudo gem install --no-document fpm
-        echo "$(gem environment gemdir)/bin" >> $GITHUB_PATH
-
-    - name: Build for Windows
-      run: fyne-cross windows -arch amd64 -app-id app.owlcms.owlcms-launcher -icon Icon.png -name owlcms
-
-    - name: Build for Linux amd64
-      run: fyne-cross linux -arch amd64 -app-id app.owlcms.owlcms-launcher -icon Icon.png -name owlcms
-
-    - name: Build for Linux arm64
-      run: fyne-cross linux -arch arm64 -app-id app.owlcms.owlcms-launcher -icon Icon.png -name owlcms
+    - name: Install fyne
+      run: go install fyne.io/fyne/v2/cmd/fyne@latest
 
     - name: Build for macOS amd64
-      run: fyne-cross darwin -arch amd64 -app-id app.owlcms.owlcms-launcher -icon Icon.png -name owlcms
+      run: fyne package -os darwin -arch amd64 -icon Icon.png -name owlcms
 
     - name: Build for macOS arm64
-      run: fyne-cross darwin -arch arm64 -app-id app.owlcms.owlcms-launcher -icon Icon.png -name owlcms
-
-    - name: Package Linux amd64
-      run: |
-        fpm -s tar -t deb -n owlcms-launcher -v ${GITHUB_REF#refs/tags/} -a amd64 --prefix / --after-install ./dist/after_install.sh --after-remove ./dist/after_remove.sh ./fyne-cross/dist/linux-amd64/owlcms.tar.xz
-
-    - name: Package Linux arm64
-      run: |
-        fpm -s tar -t deb -n owlcms-launcher -v ${GITHUB_REF#refs/tags/} -a arm64 --prefix / --after-install ./dist/after_install.sh --after-remove ./dist/after_remove.sh ./fyne-cross/dist/linux-arm64/owlcms.tar.xz
+      run: fyne package -os darwin -arch arm64 -icon Icon.png -name owlcms
 
     - name: Zip macOS amd64 app
       run: |
@@ -107,36 +64,6 @@ jobs:
         release_name: "owlcms-launcher ${{ github.ref }}"
         draft: false
         prerelease: false
-
-    - name: Upload Windows binary
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: fyne-cross/bin/windows-amd64/owlcms.exe
-        asset_name: owlcms-launcher_${GITHUB_REF#refs/tags/}_windows_amd64.exe
-        asset_content_type: application/octet-stream
-
-    - name: Upload Linux amd64 package
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: owlcms-launcher_${GITHUB_REF#refs/tags/}_amd64.deb
-        asset_name: owlcms-launcher_${GITHUB_REF#refs/tags/}_linux_amd64.deb
-        asset_content_type: application/octet-stream
-
-    - name: Upload Linux arm64 package
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: owlcms-launcher_${GITHUB_REF#refs/tags/}_arm64.deb
-        asset_name: owlcms-launcher_${GITHUB_REF#refs/tags/}_linux_arm64.deb
-        asset_content_type: application/octet-stream
 
     - name: Upload macOS amd64 zip
       uses: actions/upload-release-asset@v1
