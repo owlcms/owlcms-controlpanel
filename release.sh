@@ -1,8 +1,8 @@
 #!/bin/bash -x
-export TAG=v1.6.4-alpha03
+export TAG=v1.6.4-alpha04
 export DEB_TAG=${TAG#v}
 git pull
-git commit -am "Release $TAG."
+git commit -am "owlcms-launcher $TAG"
 git push
-git tag -a ${TAG} -m "Release $TAG"
+git tag -a ${TAG} -m "owlcms-launcher $TAG"
 git push origin --tags
