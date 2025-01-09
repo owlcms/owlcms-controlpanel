@@ -10,7 +10,7 @@ on:
 
 jobs:
   build_mac:
-    runs-on: macos-latest
+    runs-on: macos-13
 
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
