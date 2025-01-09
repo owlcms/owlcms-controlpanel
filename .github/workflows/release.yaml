@@ -67,8 +67,7 @@ jobs:
 
     - name: Create DMG for macOS arm64
       run: |
-        mkdir -p dist/darwin-arm64/dmg
-        cp -R dist/darwin-arm64/owlcms.app dist/darwin-arm64/dmg/
+        pwd
         appdmg dist/appdmg_arm64.json dist/darwin-arm64/owlcms-launcher_v1.6.4_mac_arm64.dmg
 
     - name: Build for macOS amd64
@@ -98,10 +97,7 @@ jobs:
 
     - name: Create DMG for macOS amd64
       run: |
-        mkdir -p dist/darwin-amd64/dmg
-        cp -R dist/darwin-amd64/owlcms.app dist/darwin-amd64/dmg/
-        ls -l dist
-        ls -l dist/darwin-amd64/dmg
+        pwd
         appdmg dist/appdmg_amd64.json dist/darwin-arm64/owlcms-launcher_v1.6.4_mac_amd64.dmg
 
 
