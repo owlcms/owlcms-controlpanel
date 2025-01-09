@@ -8,18 +8,20 @@ Owlcms-launcher is a control panel for owlcms.  It replaces the prior installati
 
 ### Change Log for version _TAG_
 
-- Download the correct Java runtime for Mac M Series
+- For Mac, Use an interactive DMG to simplify inastallation.
 
 ### Installing the Launcher
 
-- For Windows, download `owlcms.exe`  and copy it to your desktop
-  - Use the "More Information"  and "Run Anyway" options to allow execution (only needed once)
- 
-- For Mac
-  1. For a recent Mac (M1/M2/,,,), download the file that ends with `_arm64.dmg`.   For an Intel mac, use the `_amd.dmg` file
-  2. Execute the ,dmg file.
-  3. **Right-click on the application and use Open**.  This is needed once, to allow execution.
+- For Windows, 
+  1. Download `owlcms.exe`  
+  2. Drag or copy/paste the file to your Desktop
+  3. Double-click on the owlcms.exe file. If warnings are given, Use the "More Information"  and "Run Anyway" options to allow execution (only needed once)
   
+- For Mac
+  1. For a recent Mac (M1/M2/...), download the file that ends with `_arm64.dmg`.   For an Intel mac, use the `_amd.dmg` file
+  2. Execute the `.dmg` file.  Drag the application to the Application folder.
+  3. **Right-click on the application and use Open**.  This is needed once, to allow execution.
+
 - For Raspberry Pi
   1. Download the file that ends with `_pi.deb` .
   2. Go to your Downloads directory, right-click on the downloaded file and select `Package Install`.  

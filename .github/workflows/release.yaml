@@ -37,6 +37,9 @@ jobs:
     - name: Install fyne
       run: go install fyne.io/fyne/v2/cmd/fyne@latest
 
+    - name: Install create-dmg
+      run: npm install -g create-dmg
+
     - name: Build for macOS arm64
       run: |
         export GOOS=darwin
@@ -67,7 +70,7 @@ jobs:
       run: |
         mkdir -p dist/darwin-arm64/dmg
         cp -R dist/darwin-arm64/owlcms.app dist/darwin-arm64/dmg/
-        hdiutil create -volname "owlcms" -srcfolder dist/darwin-arm64/dmg -ov -format UDZO dist/darwin-arm64/owlcms-launcher_${{ env.TAG }}_mac_arm64.dmg
+        create-dmg --overwrite --volname "OWLCMS Control Panel Installer" --app-drop-link dist/darwin-arm64/dmg dist/darwin-arm64/owlcms-launcher_${{ env.TAG }}_mac_arm64.dmg
         ls -l dist/darwin-arm64
 
     - name: Build for macOS amd64
@@ -103,7 +106,7 @@ jobs:
       run: |
         mkdir -p dist/darwin-amd64/dmg
         cp -R dist/darwin-amd64/owlcms.app dist/darwin-amd64/dmg/
-        hdiutil create -volname "owlcms" -srcfolder dist/darwin-amd64/dmg -ov -format UDZO dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_amd64.dmg
+        create-dmg --overwrite --volname "OWLCMS Control Panel Installer" --app-drop-link dist/darwin-amd64/dmg dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_amd64.dmg
         ls -l dist/darwin-amd64
 
     - name: Create GitHub Release
