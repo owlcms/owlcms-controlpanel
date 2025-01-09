@@ -1,5 +1,6 @@
 {
     "title": "OWLCMS Control Panel Installer",
+    "icon": "darwin-amd64/owlcms.app/Contents/Resources/icon.icns",
     "contents": [
         {
             "x": 448,
