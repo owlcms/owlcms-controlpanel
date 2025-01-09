@@ -1,15 +1,14 @@
-Owlcms-launcher is a "control center" for owlcms.  It replaces the prior installation methods used until version 54 of owlcms.
+Owlcms-launcher is a control panel for owlcms.  It replaces the prior installation methods used until version 54 of owlcms.
 
-- It will automatically download the current version of owlcms when used for the first time. 
 - You will be able to start and stop owlcms from the control panel.  
-- The launcher can also install updates
-- You can also have several versions at once, and copy your database and local changes between versions
+- You will be able to install updates
+- It will automatically download the current version of owlcms when used for the first time.
+- It will get the correct version of Java when launching owlcms for the first time
+- You can also have several versions at once. You can copy your database and local changes between versions
 
 ### Change Log for version _TAG_
 
-- switched mac image for building to macos-13
-- All releases are created using a single GitHub Actions workflow
-
+- Download the correct Java runtime for Mac M Series
 
 ### Installing the Launcher
 

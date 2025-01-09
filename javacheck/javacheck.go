@@ -192,6 +192,7 @@ func findLatestTemurinRelease() (string, error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Printf("Failed to fetch latest release: %v", err)
 		return "", fmt.Errorf("failed to fetch latest release: %w", err)
 	}
 	defer resp.Body.Close()
@@ -203,6 +204,7 @@ func findLatestTemurinRelease() (string, error) {
 
 	var release TemurinRelease
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		log.Printf("Failed to parse release: %v", err)
 		return "", fmt.Errorf("failed to parse release: %w", err)
 	}
 
@@ -214,7 +216,8 @@ func getTemurinDownloadURL() (string, error) {
 	// Get the latest release tag
 	tag, err := findLatestTemurinRelease()
 	if err != nil {
-		return "", fmt.Errorf("failed to get latest version: %w", err)
+		log.Printf("Failed to get latest version number: %v", err)
+		return "", fmt.Errorf("failed to get latest version number: %w", err)
 	}
 
 	// Extract version number from tag (e.g., "jdk-17.0.13+11" -> "17.0.13_11")
@@ -237,6 +240,7 @@ func getTemurinDownloadURL() (string, error) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Printf("Failed to fetch release: %v", err)
 		return "", fmt.Errorf("failed to fetch release: %w", err)
 	}
 	defer resp.Body.Close()
@@ -248,6 +252,7 @@ func getTemurinDownloadURL() (string, error) {
 
 	var release TemurinRelease
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		log.Print("Failed to parse release: %v", err)
 		return "", fmt.Errorf("failed to parse release: %w", err)
 	}
 
@@ -262,18 +267,25 @@ func getTemurinDownloadURL() (string, error) {
 
 	// Always use Linux pattern for WSL/Linux, but with correct version
 	var pattern string
-	if isWSL() || runtime.GOOS != "windows" {
+	if runtime.GOOS == "darwin" {
+		switch runtime.GOARCH {
+		case "amd64":
+			pattern = fmt.Sprintf("OpenJDK17U-jre_x64_mac_hotspot_%s.tar.gz", version)
+		case "arm64":
+			pattern = fmt.Sprintf("OpenJDK17U-jre_aarch64_mac_hotspot_%s.tar.gz", version)
+		default:
+			return "", fmt.Errorf("unsupported architecture: %s", runtime.GOARCH)
+		}
+	} else if isWSL() || runtime.GOOS == "linux" {
 		switch runtime.GOARCH {
 		case "amd64":
 			pattern = fmt.Sprintf("OpenJDK17U-jre_x64_linux_hotspot_%s.tar.gz", version)
 		case "arm64":
 			pattern = fmt.Sprintf("OpenJDK17U-jre_aarch64_linux_hotspot_%s.tar.gz", version)
-		case "arm":
-			pattern = fmt.Sprintf("OpenJDK17U-jre_arm_linux_hotspot_%s.tar.gz", version)
 		default:
 			return "", fmt.Errorf("unsupported architecture: %s", runtime.GOARCH)
 		}
-	} else {
+	} else if runtime.GOOS == "windows" {
 		switch runtime.GOARCH {
 		case "amd64":
 			pattern = fmt.Sprintf("OpenJDK17U-jre_x64_windows_hotspot_%s.zip", version)
@@ -282,6 +294,8 @@ func getTemurinDownloadURL() (string, error) {
 		default:
 			return "", fmt.Errorf("unsupported architecture: %s", runtime.GOARCH)
 		}
+	} else {
+		return "", fmt.Errorf("unsupported OS: %s", runtime.GOOS)
 	}
 
 	log.Printf("\nLooking for asset: %s\n", pattern)
