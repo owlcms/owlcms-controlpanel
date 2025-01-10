@@ -8,7 +8,8 @@ Owlcms-launcher is a control panel for owlcms.  It replaces the prior installati
 
 ### Change Log for version _TAG_
 
-- For Mac, Use an interactive DMG to simplify inastallation.
+- For Mac, added an interactive DMG to simplify inastallation.
+- For Mac, adjusted the location of the java runtime
 
 ### Installing the Launcher
 
