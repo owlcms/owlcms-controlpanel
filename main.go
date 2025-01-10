@@ -86,8 +86,11 @@ func checkJava(statusLabel *widget.Label) error {
 	if err != nil {
 		statusLabel.SetText("Could not install a Java runtime.")
 		statusLabel.Refresh()
+		return err
 	}
-	return err
+
+	statusLabel.Hide() // Hide the status label if Java check is successful
+	return nil
 }
 
 func goBackToMainScreen() {
@@ -105,15 +108,77 @@ func computeVersionScrollHeight(numVersions int) float32 {
 	rowHeight := 45 // approximate height per row
 	return float32(minHeight + (rowHeight * min(numVersions, 4)))
 }
+
+func removeAllVersions() {
+	entries, err := os.ReadDir(owlcmsInstallDir)
+	if err != nil {
+		log.Printf("Failed to read owlcms directory: %v\n", err)
+		dialog.ShowError(fmt.Errorf("failed to read owlcms directory: %w", err), fyne.CurrentApp().Driver().AllWindows()[0])
+		return
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			_, err := semver.NewVersion(entry.Name())
+			if err == nil {
+				dirPath := filepath.Join(owlcmsInstallDir, entry.Name())
+				if err := os.RemoveAll(dirPath); err != nil {
+					log.Printf("Failed to remove directory %s: %v\n", dirPath, err)
+					dialog.ShowError(fmt.Errorf("failed to remove directory %s: %w", dirPath, err), fyne.CurrentApp().Driver().AllWindows()[0])
+					return
+				}
+			}
+		}
+	}
+
+	log.Println("All versions removed successfully")
+	dialog.ShowInformation("Success", "All versions removed successfully", fyne.CurrentApp().Driver().AllWindows()[0])
+	getAllInstalledVersions()
+	updateTitle.SetText("All Versions Removed.")
+	downloadButtonTitle.SetText("Click here to install a version.")
+	downloadButtonTitle.Refresh()
+	updateTitle.Refresh()
+	recomputeVersionList(fyne.CurrentApp().Driver().AllWindows()[0])
+}
+
+func uninstallAll() {
+	dialog.ShowConfirm("Confirm Uninstall", "This will remove all the data and configurations currently stored and exit the program.\nIf you proceed, this cannot be undone. Restarting the program will create new data.", func(confirm bool) {
+		if confirm {
+			err := os.RemoveAll(owlcmsInstallDir)
+			if err != nil {
+				log.Printf("Failed to remove all data: %v\n", err)
+				dialog.ShowError(fmt.Errorf("failed to remove all data: %w", err), fyne.CurrentApp().Driver().AllWindows()[0])
+			} else {
+				log.Println("All data removed successfully")
+				dialog.ShowInformation("Success", "All data removed successfully", fyne.CurrentApp().Driver().AllWindows()[0])
+				fyne.CurrentApp().Quit()
+			}
+		}
+	}, fyne.CurrentApp().Driver().AllWindows()[0])
+}
+
+func removeJava() {
+	javaDir := filepath.Join(owlcmsInstallDir, "java17")
+	err := os.RemoveAll(javaDir)
+	if err != nil {
+		log.Printf("Failed to remove Java: %v\n", err)
+		dialog.ShowError(fmt.Errorf("failed to remove Java: %w", err), fyne.CurrentApp().Driver().AllWindows()[0])
+	} else {
+		log.Println("Java removed successfully")
+		dialog.ShowInformation("Success", "Java removed successfully", fyne.CurrentApp().Driver().AllWindows()[0])
+	}
+}
+
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
 	a.Settings().SetTheme(newMyTheme())
-	w := a.NewWindow("OWLCMS Launcher")
-	w.Resize(fyne.NewSize(600, 300)) // Larger initial window size
+	w := a.NewWindow("OWLCMS Control Panel")
+	w.Resize(fyne.NewSize(800, 400)) // Larger initial window size
 
 	// Create stop button and status label
 	stopButton = widget.NewButton("Stop", nil)
+	stopButton.Importance = widget.HighImportance // Make the stop button important
 	statusLabel = widget.NewLabel("")
 	statusLabel.Wrapping = fyne.TextWrapWord // Allow status messages to wrap
 
@@ -147,11 +212,49 @@ func main() {
 	stopButton.Hide()
 	stopContainer.Hide()
 
-	releases, err := fetchReleases()
-	if err == nil {
-		allReleases = releases
+	mainContent := container.NewVBox(
+		// widget.NewLabelWithStyle("OWLCMS Launcher", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		stopContainer,
+		versionContainer,
+		downloadContainer, // Use downloadGroup here
+	)
+
+	var javaAvailable bool
+	javaLoc, err := javacheck.FindLocalJava()
+	javaAvailable = err == nil && javaLoc != ""
+
+	// Check for internet connection before anything else
+	internetAvailable := CheckForInternet() //&& false
+	log.Printf("javaloc %s err %v javaAvailable %t internetAvailable %t", javaLoc, err, javaAvailable, internetAvailable)
+	if internetAvailable && !javaAvailable {
+		// Check for Java before anything else
+		if err := checkJava(statusLabel); err != nil {
+			dialog.ShowError(fmt.Errorf("failed to fetch Java: %w", err), w)
+		}
+	}
+
+	var releases []string
+	if internetAvailable {
+		releases, err = fetchReleases()
+		if err == nil {
+			allReleases = releases
+		}
 	} else {
 		allReleases = []string{}
+	}
+
+	numVersions := len(getAllInstalledVersions())
+	if numVersions == 0 && !internetAvailable {
+		w.Resize(fyne.NewSize(800, 400))
+		d := dialog.NewInformation("No Internet Connection", "You must be connected to the internet to fetch a version of the program.\nPlease connect and restart the program", w)
+		d.Resize(fyne.NewSize(400, 200))
+		d.SetDismissText("Exit")
+		d.Show()
+		d.SetOnClosed(func() {
+			a.Driver().Quit()
+		})
+		w.ShowAndRun()
+		return
 	}
 
 	// Initialize version list
@@ -183,31 +286,29 @@ func main() {
 		}
 	}
 
-	mainContent := container.NewVBox(
-		// widget.NewLabelWithStyle("OWLCMS Launcher", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-		stopContainer,
-		versionContainer,
-		downloadContainer, // Use downloadGroup here
+	// Create menu items
+	fileMenu := fyne.NewMenu("File",
+		fyne.NewMenuItem("Remove All Versions", func() {
+			removeAllVersions()
+		}),
+		fyne.NewMenuItem("Remove Java", func() {
+			removeJava()
+		}),
+		fyne.NewMenuItem("Remove All Stored Data and Configurations", func() {
+			uninstallAll()
+		}),
 	)
-
+	menu := fyne.NewMainMenu(fileMenu)
+	w.SetMainMenu(menu)
+	mainContent.Resize(fyne.NewSize(800, 400))
 	w.SetContent(mainContent)
-	w.Resize(fyne.NewSize(800, 600))
-
-	// Show installed versions first
-	w.SetContent(mainContent)
-	w.Canvas().Refresh(mainContent)
+	w.Resize(fyne.NewSize(800, 400))
 
 	populateReleaseSelect(releaseSelect) // Populate the dropdown with the releases
 	updateTitle.Show()
 	releaseDropdown.Hide()
 	prereleaseCheckbox.Hide() // Show the checkbox once releases are fetched
 	log.Printf("Fetched %d releases\n", len(releases))
-	if len(allReleases) > 0 {
-		// downloadButtonContainer.Show()
-	}
-
-	// Check if a more recent version is available
-	checkForNewerVersion()
 
 	// If no version is installed, get the latest stable version
 	if len(getAllInstalledVersions()) == 0 {
@@ -220,6 +321,13 @@ func main() {
 		}
 	}
 
+	// Check if a more recent version is available
+	checkForNewerVersion()
+	downloadContainer.Refresh()
+	downloadContainer.Show()
+	mainContent.Refresh()
+
+	w.SetContent(mainContent)
 	w.Canvas().Refresh(mainContent)
 
 	w.SetCloseIntercept(func() {

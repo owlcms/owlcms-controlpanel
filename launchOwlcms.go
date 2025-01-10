@@ -89,6 +89,8 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 	}
 
 	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s...", version))
+	statusLabel.Refresh()
+	statusLabel.Show() // Show the status label when starting Java
 	// Store current directory to restore it later
 	originalDir, err := os.Getwd()
 	if err != nil {
