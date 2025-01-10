@@ -77,11 +77,18 @@ func findLocalJava() (string, error) {
 	latestJDK := jdkDirs[0]
 
 	// Check for java executable
-	javaExe := "java"
-	if runtime.GOOS == "windows" {
+	var javaExe string
+	var javaPath string
+	if runtime.GOOS == "linux" || isWSL() {
+		javaExe = "java"
+		javaPath = filepath.Join(javaDir, latestJDK, "bin", javaExe)
+	} else if runtime.GOOS == "windows" && !isWSL() {
 		javaExe = "javaw.exe"
+		javaPath = filepath.Join(javaDir, latestJDK, "bin", javaExe)
+	} else if runtime.GOOS == "darwin" {
+		javaDir = filepath.Join(javaDir, latestJDK, "Contents", "Home", "bin", javaExe)
+		javaPath = filepath.Join(javaDir, latestJDK, "bin", javaExe)
 	}
-	javaPath := filepath.Join(javaDir, latestJDK, "bin", javaExe)
 
 	if _, err := os.Stat(javaPath); err != nil {
 		return "", fmt.Errorf("java executable not found in %s", javaPath)
@@ -110,11 +117,19 @@ func CheckJava(statusLabel *widget.Label) error {
 	// 		log.Printf("System Java version %d is too old, need 17 or later\n", version)
 	// 	}
 	// }
-
 	fmt.Println("Suitable Java not found. Downloading from Temurin...")
 	statusLabel.SetText("Downloading a local copy of the Java language runtime.")
 	statusLabel.Refresh()
 	statusLabel.Show()
+
+	// Recursively delete the java17 directory if it exists
+	javaDir := filepath.Join(owlcmsInstallDir, "java17")
+	if _, err := os.Stat(javaDir); err == nil {
+		err := os.RemoveAll(javaDir)
+		if err != nil {
+			return fmt.Errorf("failed to delete existing java17 directory: %w", err)
+		}
+	}
 
 	// Ensure the owlcms directory exists
 	if _, err := os.Stat(owlcmsInstallDir); os.IsNotExist(err) {
@@ -123,7 +138,7 @@ func CheckJava(statusLabel *widget.Label) error {
 		}
 	}
 
-	javaDir := filepath.Join(owlcmsInstallDir, "java17")
+	javaDir = filepath.Join(owlcmsInstallDir, "java17")
 	if _, err := os.Stat(javaDir); os.IsNotExist(err) {
 		if err := os.Mkdir(javaDir, 0755); err != nil {
 			return fmt.Errorf("creating java directory: %w", err)

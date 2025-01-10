@@ -145,6 +145,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 	if err := cmd.Start(); err != nil {
 		statusLabel.SetText(fmt.Sprintf("Failed to start OWLCMS %s", version))
 		launchButton.Show() // Show launch button again if start fails
+		goBackToMainScreen()
 		return fmt.Errorf("failed to start OWLCMS %s: %w", version, err)
 	}
 
@@ -206,22 +207,21 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 	return nil
 }
 
-// func fetchReleasesInBackground(releasesChan chan<- []string, errChan chan<- error) {
-// 	time.Sleep(1 * time.Second) // Wait for 1 second before attempting to retrieve the releases
-// 	releases, err := fetchReleases()
-// 	if err != nil {
-// 		errChan <- err
-// 		return
-// 	}
-// 	releasesChan <- releases
-// }
+func goBackToMainScreen() {
+	// Implement the logic to go back to the main screen
+	// This might involve setting the visibility of certain UI elements
+	// or navigating to a different screen in your application.
+	stopButton.Hide()
+	stopContainer.Hide()
+	downloadContainer.Show()
+	versionContainer.Show()
+}
 
 func computeVersionScrollHeight(numVersions int) float32 {
 	minHeight := 50 // minimum height
 	rowHeight := 45 // approximate height per row
 	return float32(minHeight + (rowHeight * min(numVersions, 4)))
 }
-
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
