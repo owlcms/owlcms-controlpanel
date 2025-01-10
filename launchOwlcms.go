@@ -6,13 +6,17 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 
+	"owlcms-launcher/downloadUtils"
 	"owlcms-launcher/javacheck"
 
 	"fyne.io/fyne/v2/widget"
 	"github.com/gofrs/flock"
+	"github.com/shirou/gopsutil/process"
 )
 
 var (
@@ -64,7 +68,41 @@ func releaseJavaLock() {
 		lock.Unlock()
 		lock = nil
 	}
+	os.Remove(lockFilePath)
+}
 
+func killLockingProcess() error {
+	data, err := os.ReadFile(lockFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to read lock file: %w", err)
+	}
+
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil {
+		return fmt.Errorf("failed to parse PID from lock file: %w", err)
+	}
+
+	proc, err := process.NewProcess(int32(pid))
+	if err != nil {
+		releaseJavaLock()
+		return fmt.Errorf("failed to find process with PID %d: %w", pid, err)
+
+	}
+
+	if runtime.GOOS == "windows" && !downloadUtils.IsWSL() {
+		if err := proc.Terminate(); err != nil {
+			releaseJavaLock()
+			return fmt.Errorf("failed to terminate process with PID %d: %w", pid, err)
+		}
+	} else {
+		if err := proc.SendSignal(syscall.SIGKILL); err != nil {
+			releaseJavaLock()
+			return fmt.Errorf("failed to kill process with PID %d: %w", pid, err)
+		}
+	}
+	releaseJavaLock()
+	log.Printf("Killed process with PID %d\n", pid)
+	return nil
 }
 
 func launchOwlcms(version string, launchButton, stopButton *widget.Button) error {

@@ -297,6 +297,13 @@ func main() {
 		fyne.NewMenuItem("Remove All Stored Data and Configurations", func() {
 			uninstallAll()
 		}),
+		fyne.NewMenuItem("Kill Already Running Process", func() {
+			if err := killLockingProcess(); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to kill already running process: %w", err), w)
+			} else {
+				dialog.ShowInformation("Success", "Successfully killed the already running process", w)
+			}
+		}),
 	)
 	menu := fyne.NewMainMenu(fileMenu)
 	w.SetMainMenu(menu)
