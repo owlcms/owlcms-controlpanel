@@ -101,5 +101,6 @@ func stopProcess(currentProcess *exec.Cmd, currentVersion string, stopButton *wi
 		checkForNewerVersion()
 		downloadGroup.Show()
 		versionContainer.Show()
+		releaseJavaLock()
 	}()
 }

@@ -6,50 +6,85 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"owlcms-launcher/javacheck"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 	"github.com/gofrs/flock"
 )
 
-var lockFilePath = filepath.Join(owlcmsInstallDir, "owlcms.lock")
+var (
+	lockFilePath = filepath.Join(owlcmsInstallDir, "java.lock")
+	javaPID      int          // Add a global variable to store the Java process PID
+	lock         *flock.Flock // Add a global variable to store the lock
+)
 
-func acquireLock() (*flock.Flock, error) {
+func acquireJavaLock() (*flock.Flock, error) {
 	lock := flock.New(lockFilePath)
 	locked, err := lock.TryLock()
 	if err != nil {
+		log.Print("Failed to acquire lock: ", err)
 		return nil, fmt.Errorf("failed to acquire lock: %w", err)
 	}
 	if !locked {
+		data, err := os.ReadFile(lockFilePath)
+		if err == nil && len(data) > 0 {
+			pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+			if err == nil && pid != 0 {
+				log.Printf("Another instance of OWLCMS is already running with PID %d", pid)
+				return nil, fmt.Errorf("another instance of OWLCMS is already running with PID %d", pid)
+			}
+		}
+		log.Println("Another instance of OWLCMS is already running")
 		return nil, fmt.Errorf("another instance of OWLCMS is already running")
 	}
+
+	// we acquired the lock but someone has written a PID to the file
+	data, err := os.ReadFile(lockFilePath)
+	if err == nil && len(data) > 0 {
+		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+		if err == nil && pid != 0 {
+			log.Printf("Another instance of OWLCMS is already running with PID %d", pid)
+			return nil, fmt.Errorf("another instance of OWLCMS is already running with PID %d", pid)
+		}
+	}
+
 	return lock, nil
 }
 
-func releaseLock(lock *flock.Flock) {
-	lock.Unlock()
+func releaseJavaLock() {
+	// write empty content to the lock file
+	if err := os.WriteFile(lockFilePath, []byte{}, 0644); err != nil {
+		log.Printf("Failed to clear lock file content: %v\n", err)
+	}
+	log.Println("Released Java lock")
+	if lock != nil {
+		lock.Unlock()
+		lock = nil
+	}
+
 }
 
 func launchOwlcms(version string, launchButton, stopButton *widget.Button) error {
 	currentVersion = version // Store current version
 
 	// Acquire lock file
-	lock, err := acquireLock()
+	var err error
+	lock, err = acquireJavaLock()
 	if err != nil {
-		dialog.ShowError(fmt.Errorf("another instance of OWLCMS is already running"), fyne.CurrentApp().Driver().AllWindows()[0])
+		// acquring lock already shows an error message
 		goBackToMainScreen()
 		return err
 	}
-	defer releaseLock(lock)
 
 	// Check if port 8080 is already in use
 	if err := checkPort(); err == nil {
 		statusLabel.SetText("Another program is running on port 8080")
 		statusLabel.Refresh()
 		goBackToMainScreen()
+		log.Println("Another program is running on port 8080")
 		return fmt.Errorf("another program is running on port 8080")
 	}
 
@@ -104,15 +139,16 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 		return fmt.Errorf("failed to start OWLCMS %s: %w", version, err)
 	}
 
-	// Store the PID in the lock file
-	if err := os.WriteFile(lockFilePath, []byte(fmt.Sprintf("%d\n", cmd.Process.Pid)), 0644); err != nil {
+	// Store the PID in the lock file and globally
+	javaPID = cmd.Process.Pid
+	if err := os.WriteFile(lockFilePath, []byte(fmt.Sprintf("%d\n", javaPID)), 0644); err != nil {
 		log.Printf("Failed to write PID to lock file: %v\n", err)
 	} else {
-		log.Printf("Wrote PID %d to lock file %s\n", cmd.Process.Pid, lockFilePath)
+		log.Printf("Wrote PID %d to lock file %s\n", javaPID, lockFilePath)
 	}
 
-	log.Printf("Launching OWLCMS %s (PID: %d), waiting for port 8080...\n", version, cmd.Process.Pid)
-	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s (PID: %d), please wait.  Full startup can take up to 30 seconds.", version, cmd.Process.Pid))
+	log.Printf("Launching OWLCMS %s (PID: %d), waiting for port 8080...\n", version, javaPID)
+	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s (PID: %d), please wait.  Full startup can take up to 30 seconds.", version, javaPID))
 	currentProcess = cmd
 	stopButton.SetText(fmt.Sprintf("Stop OWLCMS %s", version))
 	stopButton.Show()
@@ -126,20 +162,20 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 	// Wait for monitoring result in background
 	go func() {
 		if err := <-monitorChan; err != nil {
-			log.Printf("OWLCMS process %d failed to start properly: %v\n", cmd.Process.Pid, err)
-			statusLabel.SetText(fmt.Sprintf("OWLCMS process %d failed to start properly", cmd.Process.Pid))
+			log.Printf("OWLCMS process %d failed to start properly: %v\n", javaPID, err)
+			statusLabel.SetText(fmt.Sprintf("OWLCMS process %d failed to start properly", javaPID))
 			stopButton.Hide()
 			stopContainer.Hide()
 			launchButton.Show()
 			currentProcess = nil
 			downloadContainer.Show()
 			versionContainer.Show()
-			releaseLock(lock)
+			releaseJavaLock()
 			return
 		}
 
-		log.Printf("OWLCMS process %d is ready (port 8080 responding)\n", cmd.Process.Pid)
-		statusLabel.SetText(fmt.Sprintf("OWLCMS running (PID: %d)", cmd.Process.Pid))
+		log.Printf("OWLCMS process %d is ready (port 8080 responding)\n", javaPID)
+		statusLabel.SetText(fmt.Sprintf("OWLCMS running (PID: %d)", javaPID))
 
 		// Process is stable, wait for it to end
 		err := cmd.Wait()
@@ -165,7 +201,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 		launchButton.Show()
 		downloadContainer.Show()
 		versionContainer.Show()
-		releaseLock(lock)
+		releaseJavaLock()
 	}()
 
 	return nil
