@@ -10,13 +10,13 @@
     },
     "contents": [
         {
-            "x": 268,        // center(300) - iconWidth/2(32)
+            "x": 268,)
             "y": 110,
             "type": "link",
             "path": "/Applications"
         },
         {
-            "x": 68,         // center(100) - iconWidth/2(32)
+            "x": 68,
             "y": 110, 
             "type": "file",
             "path": "darwin-arm64/owlcms.app"
