@@ -21,6 +21,7 @@ import (
 
 var (
 	lockFilePath = filepath.Join(owlcmsInstallDir, "java.lock")
+	pidFilePath  = filepath.Join(owlcmsInstallDir, "java.pid")
 	javaPID      int          // Add a global variable to store the Java process PID
 	lock         *flock.Flock // Add a global variable to store the lock
 )
@@ -33,7 +34,8 @@ func acquireJavaLock() (*flock.Flock, error) {
 		return nil, fmt.Errorf("failed to acquire lock: %w", err)
 	}
 	if !locked {
-		data, err := os.ReadFile(lockFilePath)
+		// we could not lock, so the lock owner should have written a PID to the file
+		data, err := os.ReadFile(pidFilePath)
 		if err == nil && len(data) > 0 {
 			pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 			if err == nil && pid != 0 {
@@ -45,41 +47,29 @@ func acquireJavaLock() (*flock.Flock, error) {
 		return nil, fmt.Errorf("another instance of OWLCMS is already running")
 	}
 
-	// we acquired the lock but someone has written a PID to the file
-	data, err := os.ReadFile(lockFilePath)
-	if err == nil && len(data) > 0 {
-		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-		if err == nil && pid != 0 {
-			log.Printf("Another instance of OWLCMS is already running with PID %d", pid)
-			return nil, fmt.Errorf("another instance of OWLCMS is already running with PID %d", pid)
-		}
-	}
-
 	return lock, nil
 }
 
 func releaseJavaLock() {
-	// write empty content to the lock file
-	if err := os.WriteFile(lockFilePath, []byte{}, 0644); err != nil {
-		log.Printf("Failed to clear lock file content: %v\n", err)
-	}
+
 	log.Println("Released Java lock")
 	if lock != nil {
 		lock.Unlock()
 		lock = nil
 	}
 	os.Remove(lockFilePath)
+	os.Remove(pidFilePath)
 }
 
 func killLockingProcess() error {
-	data, err := os.ReadFile(lockFilePath)
+	data, err := os.ReadFile(pidFilePath)
 	if err != nil {
-		return fmt.Errorf("failed to read lock file: %w", err)
+		return fmt.Errorf("failed to read PID file: %w", err)
 	}
 
 	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 	if err != nil {
-		return fmt.Errorf("failed to parse PID from lock file: %w", err)
+		return fmt.Errorf("failed to parse PID from PID file: %w", err)
 	}
 
 	proc, err := process.NewProcess(int32(pid))
@@ -112,7 +102,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 	var err error
 	lock, err = acquireJavaLock()
 	if err != nil {
-		// acquring lock already shows an error message
+		// failure to lock has already shown the error message
 		goBackToMainScreen()
 		return err
 	}
@@ -179,12 +169,12 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 		return fmt.Errorf("failed to start OWLCMS %s: %w", version, err)
 	}
 
-	// Store the PID in the lock file and globally
+	// Store the PID in the PID file and globally
 	javaPID = cmd.Process.Pid
-	if err := os.WriteFile(lockFilePath, []byte(fmt.Sprintf("%d\n", javaPID)), 0644); err != nil {
-		log.Printf("Failed to write PID to lock file: %v\n", err)
+	if err := os.WriteFile(pidFilePath, []byte(fmt.Sprintf("%d\n", javaPID)), 0644); err != nil {
+		log.Printf("Failed to write PID to PID file: %v\n", err)
 	} else {
-		log.Printf("Wrote PID %d to lock file %s\n", javaPID, lockFilePath)
+		log.Printf("Wrote PID %d to PID file %s\n", javaPID, pidFilePath)
 	}
 
 	log.Printf("Launching OWLCMS %s (PID: %d), waiting for port 8080...\n", version, javaPID)
