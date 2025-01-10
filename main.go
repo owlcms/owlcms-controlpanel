@@ -95,7 +95,9 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 
 	// Check if port 8080 is already in use
 	if err := checkPort(); err == nil {
-		statusLabel.Hide()
+		statusLabel.SetText("OWLCMS is already running on port 8080")
+		statusLabel.Refresh()
+		goBackToMainScreen()
 		return fmt.Errorf("OWLCMS is already running on port 8080")
 	}
 
