@@ -149,7 +149,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 	}
 
 	log.Printf("Launching OWLCMS %s (PID: %d), waiting for port 8080...\n", version, cmd.Process.Pid)
-	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s (PID: %d), please wait...", version, cmd.Process.Pid))
+	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s (PID: %d), please wait.  Full startup can take up to 30 seconds.", version, cmd.Process.Pid))
 	currentProcess = cmd
 	stopButton.SetText(fmt.Sprintf("Stop OWLCMS %s", version))
 	stopButton.Show()
