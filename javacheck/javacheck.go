@@ -47,7 +47,7 @@ func compareVersions(a, b string) bool {
 	return len(aParts) > len(bParts)
 }
 
-func findLocalJava() (string, error) {
+func FindLocalJava() (string, error) {
 	javaDir := filepath.Join(owlcmsInstallDir, "java17")
 	if _, err := os.Stat(javaDir); err != nil {
 		return "", fmt.Errorf("java17 directory not found")
@@ -99,7 +99,7 @@ func findLocalJava() (string, error) {
 // CheckJava checks for Java 17 or later and downloads/installs it if necessary.
 func CheckJava(statusLabel *widget.Label) error {
 	// First check for local Java installation
-	javaPath, err := findLocalJava()
+	javaPath, err := FindLocalJava()
 	if err == nil {
 		log.Printf("Found local Java at: %s\n", javaPath)
 		return nil

@@ -129,23 +129,24 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 	defer os.Chdir(originalDir)
 
 	// Start OWLCMS in the background
-	var localJava string
-	if runtime.GOOS == "windows" && !downloadUtils.IsWSL() {
-		localJava = filepath.Join(owlcmsInstallDir, "java17", "bin", "javaw.exe")
-	} else if runtime.GOOS == "darwin" {
-		localJava = filepath.Join(owlcmsInstallDir, "java17", "Contents", "Home", "bin", "java")
-	} else if runtime.GOOS == "linux" || downloadUtils.IsWSL() {
-		localJava = filepath.Join(owlcmsInstallDir, "java17", "bin", "java")
+	localJava, err := javacheck.FindLocalJava()
+	if err != nil {
+		statusLabel.SetText(fmt.Sprintf("Failed to find local Java: %v", err))
+		launchButton.Show()
+		goBackToMainScreen()
+		return fmt.Errorf("failed to find local Java: %w", err)
 	}
 
 	env := os.Environ()
 	env = append(env, "OWLCMS_LAUNCHER=true")
 	cmd := exec.Command(localJava, "-jar", "owlcms.jar")
+	log.Printf("Starting OWLCMS %s with command: %v\n", version, cmd.Args)
 	cmd.Env = env
 	if err := cmd.Start(); err != nil {
 		statusLabel.SetText(fmt.Sprintf("Failed to start OWLCMS %s", version))
 		launchButton.Show() // Show launch button again if start fails
 		goBackToMainScreen()
+		log.Printf("Failed to start OWLCMS %s: %v\n", version, err)
 		return fmt.Errorf("failed to start OWLCMS %s: %w", version, err)
 	}
 
