@@ -252,7 +252,7 @@ func getTemurinDownloadURL() (string, error) {
 
 	var release TemurinRelease
 	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		log.Print("Failed to parse release: %v", err)
+		log.Printf("Failed to parse release: %v", err)
 		return "", fmt.Errorf("failed to parse release: %w", err)
 	}
 
