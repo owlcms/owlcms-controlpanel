@@ -1,5 +1,5 @@
 {
-    "title": "OWLCMS Control Panel Installer",
+    "title": "OWLCMS Installer",
     "icon": "darwin-arm64/owlcms.app/Contents/Resources/icon.icns",
     "background": "dmgBackground.png",
     "window": {
