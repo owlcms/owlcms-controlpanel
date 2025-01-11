@@ -133,196 +133,43 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 	versionList = widget.NewList(
 		func() int { return len(versions) },
 		func() fyne.CanvasObject {
-			label := widget.NewLabelWithStyle("Template", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
-			launchButton := widget.NewButton("Launch", nil)
-			filesButton := widget.NewButton("Files", nil)
-			updateButton := widget.NewButton("Update", nil) // New update button
-			removeButton := widget.NewButton("Remove", nil)
-			importButton := widget.NewButton("Import Data and Config", nil) // New button
+			// Template item for the version list. Used to compute sizes
+			label := widget.NewLabelWithStyle("LabelTemplate", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+			launchButton := widget.NewButton("ButtonTemplate", nil)
 			launchButton.Resize(fyne.NewSize(80, 25))
-			removeButton.Resize(fyne.NewSize(80, 25))
-			filesButton.Resize(fyne.NewSize(80, 25))
-			updateButton.Resize(fyne.NewSize(150, 25))      // Resize new button
-			importButton.Resize(fyne.NewSize(150, 25))      // Resize new button
-			launchButton.Importance = widget.HighImportance // Make the launch button important
+			launchButton.Importance = widget.HighImportance
 			buttonContainer := container.NewHBox(
 				container.NewPadded(launchButton),
-				container.NewPadded(filesButton),
-				container.NewPadded(updateButton), // Add new button to container
-				container.NewPadded(removeButton),
-				container.NewPadded(importButton),
 				layout.NewSpacer(), // Add spacer to push buttons to the left
 			)
 			grid := container.New(layout.NewHBoxLayout(), container.NewGridWrap(fyne.NewSize(120, 25), label), buttonContainer)
 			return grid
 		},
 		func(index widget.ListItemID, item fyne.CanvasObject) {
-			grid := item.(*fyne.Container)
-			label := grid.Objects[0].(*fyne.Container).Objects[0].(*widget.Label)
-			buttonContainer := grid.Objects[1].(*fyne.Container)
-			launchButton := buttonContainer.Objects[0].(*fyne.Container).Objects[0].(*widget.Button)
-			filesButton := buttonContainer.Objects[1].(*fyne.Container).Objects[0].(*widget.Button)
-
-			var removeButton, updateButton, importButton *widget.Button
-			log.Printf("=== Button container has %d objects\n", len(buttonContainer.Objects))
-
-			if len(buttonContainer.Objects) == 6 {
-				updateButton = buttonContainer.Objects[2].(*fyne.Container).Objects[0].(*widget.Button)
-				removeButton = buttonContainer.Objects[3].(*fyne.Container).Objects[0].(*widget.Button)
-				importButton = buttonContainer.Objects[4].(*fyne.Container).Objects[0].(*widget.Button)
-				if len(versions) <= 1 {
-					log.Printf("=== Removing import button\n")
-					buttonContainer.Remove(buttonContainer.Objects[4])
-					importButton = nil
-				}
-			} else if len(buttonContainer.Objects) == 5 {
-				updateButton = nil
-				removeButton = buttonContainer.Objects[2].(*fyne.Container).Objects[0].(*widget.Button)
-				importButton = buttonContainer.Objects[3].(*fyne.Container).Objects[0].(*widget.Button)
-				if len(versions) <= 1 {
-					buttonContainer.Remove(buttonContainer.Objects[3])
-				}
-			} else if len(buttonContainer.Objects) == 4 {
-				updateButton = nil
-				removeButton = buttonContainer.Objects[2].(*fyne.Container).Objects[0].(*widget.Button)
-				importButton = nil
-			}
-
+			// This function is called for each item in the list to build the actual entries
 			version := versions[index]
+
+			grid := item.(*fyne.Container)
+
+			label := grid.Objects[0].(*fyne.Container).Objects[0].(*widget.Label)
 			label.SetText(version)
 			label.TextStyle = fyne.TextStyle{Bold: true} // Make the version number bold
 			label.Refresh()
-			launchButton.SetText("Launch")
-			launchButton.OnTapped = func() {
-				if currentProcess != nil {
-					dialog.ShowError(fmt.Errorf("OWLCMS is already running"), w)
-					return
-				}
 
-				log.Printf("Launching version %s\n", version)
-				if err := checkJava(statusLabel); err != nil {
-					dialog.ShowError(fmt.Errorf("java check/installation failed: %w", err), w)
-					return
-				}
+			buttonContainer := grid.Objects[1].(*fyne.Container)
+			buttonContainer.RemoveAll()
 
-				if err := launchOwlcms(version, launchButton, stopButton); err != nil {
-					dialog.ShowError(err, w)
-					return
-				}
+			createLaunchButton(w, version, stopButton, buttonContainer)
+			createFilesButton(version, w, buttonContainer)
+			createRemoveButton(version, w, buttonContainer)
+			if len(allReleases) > 0 {
+				createUpdateButton(version, w, buttonContainer)
 			}
-
-			removeButton.SetText("Remove")
-			removeButton.OnTapped = func() {
-				dialog.ShowConfirm("Confirm Remove",
-					fmt.Sprintf("Do you want to remove OWLCMS version %s?", version),
-					func(ok bool) {
-						if !ok {
-							return
-						}
-
-						err := os.RemoveAll(filepath.Join(owlcmsInstallDir, version))
-						if err != nil {
-							dialog.ShowError(fmt.Errorf("failed to remove OWLCMS %s: %w", version, err), w)
-							return
-						}
-
-						// Recompute the version list
-						recomputeVersionList(w)
-
-						// Check if a more recent version is available
-						checkForNewerVersion()
-						downloadContainer.Refresh()
-					},
-					w)
+			if len(versions) > 1 {
+				createImportButton(versions, version, w, buttonContainer)
 			}
-
-			filesButton.SetText("Files")
-			filesButton.OnTapped = func() {
-				versionDir := filepath.Join(owlcmsInstallDir, version)
-				if err := openFileExplorer(versionDir); err != nil {
-					dialog.ShowError(fmt.Errorf("failed to open file explorer for %s: %w", versionDir, err), w)
-				}
-			}
-
-			if len(allReleases) == 0 {
-				buttonContainer.Remove(buttonContainer.Objects[2])
-			} else {
-				if updateButton != nil {
-					updateButton.SetText("Update") // Set text for new button
-					var mostRecent string
-					var err error
-
-					// Check if the current version is stable or a prerelease
-					if !containsPreReleaseTag(version) {
-						mostRecent, err = getMostRecentStableRelease()
-						if err == nil {
-							prepareButton(mostRecent, version, updateButton, buttonContainer, w)
-						} else {
-							log.Printf("failed to get most recent stable release: %v", err)
-						}
-					} else {
-						mostRecent, err = getMostRecentPrerelease()
-						if err == nil {
-							prepareButton(mostRecent, version, updateButton, buttonContainer, w)
-						} else {
-							log.Printf("failed to get most recent prerelease: %v", err)
-						}
-					}
-				}
-			}
-
-			if importButton != nil {
-				importButton.SetText("Import Data and Config") // Set text for new button
-				if len(versions) <= 1 {
-					importButton.Hide() // Hide import button if there is only one installed version
-				} else {
-					importButton.Show()
-					importButton.OnTapped = func() {
-						// Open a dialog to select the source version
-						sourceVersions := filterVersions(versions, version) // Filter out the current version
-						sourceVersionDropdown := widget.NewSelect(sourceVersions, func(selected string) {})
-						dialog.ShowForm("Import Data and Config",
-							"Import",
-							"Cancel",
-							[]*widget.FormItem{
-								widget.NewFormItem("Copy the database and locally modified configurations from a previous installation", sourceVersionDropdown),
-							},
-							func(ok bool) {
-								if !ok {
-									return
-								}
-
-								sourceVersion := sourceVersionDropdown.Selected
-								if sourceVersion == "" {
-									dialog.ShowError(fmt.Errorf("source version cannot be empty"), w)
-									return
-								}
-
-								sourceDir := filepath.Join(owlcmsInstallDir, sourceVersion)
-								destDir := filepath.Join(owlcmsInstallDir, version)
-
-								if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
-									dialog.ShowError(fmt.Errorf("source version %s does not exist", sourceVersion), w)
-									return
-								}
-
-								// Copy database files
-								if err := copyFiles(filepath.Join(sourceDir, "database"), filepath.Join(destDir, "database"), true); err != nil {
-									log.Printf("No database files to copy from %s\n", sourceDir)
-								}
-								// Copy local files if they are newer
-								if err := copyFiles(filepath.Join(sourceDir, "local"), filepath.Join(destDir, "local"), false); err != nil {
-									log.Printf("No local files to copy from %s\n", sourceDir)
-									dialog.ShowError(fmt.Errorf("failed to copy local files: %w", err), w)
-									return
-								}
-
-								dialog.ShowInformation("Import Complete", fmt.Sprintf("Successfully imported data and config from version %s to version %s", sourceVersion, version), w)
-							},
-							w)
-					}
-				}
-			}
+			buttonContainer.Add(layout.NewSpacer()) // Add spacer to push buttons to the left
+			buttonContainer.Refresh()
 		},
 	)
 
@@ -345,13 +192,148 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 		}
 	}
 
-	// Log the versions being added
-	log.Println("Versions being added to the version list:")
-	for _, version := range versions {
-		log.Println(version)
-	}
-
 	return versionList
+}
+
+func createImportButton(versions []string, version string, w fyne.Window, buttonContainer *fyne.Container) {
+	importButton := widget.NewButton("Import Data and Confi", nil)
+	importButton.Show()
+	importButton.OnTapped = func() {
+		// Open a dialog to select the source version
+		sourceVersions := filterVersions(versions, version) // Filter out the current version
+		sourceVersionDropdown := widget.NewSelect(sourceVersions, func(selected string) {})
+		dialog.ShowForm("Import Data and Config",
+			"Import",
+			"Cancel",
+			[]*widget.FormItem{
+				widget.NewFormItem("Copy the database and locally modified configurations from a previous installation", sourceVersionDropdown),
+			},
+			func(ok bool) {
+				if !ok {
+					return
+				}
+
+				sourceVersion := sourceVersionDropdown.Selected
+				if sourceVersion == "" {
+					dialog.ShowError(fmt.Errorf("source version cannot be empty"), w)
+					return
+				}
+
+				sourceDir := filepath.Join(owlcmsInstallDir, sourceVersion)
+				destDir := filepath.Join(owlcmsInstallDir, version)
+
+				if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
+					dialog.ShowError(fmt.Errorf("source version %s does not exist", sourceVersion), w)
+					return
+				}
+
+				// Copy database files
+				if err := copyFiles(filepath.Join(sourceDir, "database"), filepath.Join(destDir, "database"), true); err != nil {
+					log.Printf("No database files to copy from %s\n", sourceDir)
+				}
+				// Copy local files if they are newer
+				if err := copyFiles(filepath.Join(sourceDir, "local"), filepath.Join(destDir, "local"), false); err != nil {
+					log.Printf("No local files to copy from %s\n", sourceDir)
+					dialog.ShowError(fmt.Errorf("failed to copy local files: %w", err), w)
+					return
+				}
+
+				dialog.ShowInformation("Import Complete", fmt.Sprintf("Successfully imported data and config from version %s to version %s", sourceVersion, version), w)
+			},
+			w)
+	}
+	buttonContainer.Add(container.NewPadded(importButton))
+}
+
+func createUpdateButton(version string, w fyne.Window, buttonContainer *fyne.Container) {
+	updateButton := widget.NewButton("Update", nil)
+	var mostRecent string
+	var err error
+
+	// Check if the current version is stable or a prerelease
+	if !containsPreReleaseTag(version) {
+		mostRecent, err = getMostRecentStableRelease()
+		if err == nil {
+			prepareButton(mostRecent, version, updateButton, buttonContainer, w)
+		} else {
+			log.Printf("failed to get most recent stable release: %v", err)
+		}
+	} else {
+		mostRecent, err = getMostRecentPrerelease()
+		if err == nil {
+			prepareButton(mostRecent, version, updateButton, buttonContainer, w)
+		} else {
+			log.Printf("failed to get most recent prerelease: %v", err)
+		}
+	}
+	buttonContainer.Add(container.NewPadded(updateButton))
+}
+
+func createRemoveButton(version string, w fyne.Window, buttonContainer *fyne.Container) {
+	removeButton := widget.NewButton("Remove", nil)
+	removeButton.OnTapped = func() {
+		dialog.ShowConfirm("Confirm Remove",
+			fmt.Sprintf("Do you want to remove OWLCMS version %s?", version),
+			func(ok bool) {
+				if !ok {
+					return
+				}
+
+				err := os.RemoveAll(filepath.Join(owlcmsInstallDir, version))
+				if err != nil {
+					dialog.ShowError(fmt.Errorf("failed to remove OWLCMS %s: %w", version, err), w)
+					return
+				}
+
+				// Recompute the version list
+				recomputeVersionList(w)
+
+				// Check if a more recent version is available
+				checkForNewerVersion()
+				downloadContainer.Refresh()
+			},
+			w)
+	}
+	buttonContainer.Add(container.NewPadded(removeButton))
+}
+
+func createFilesButton(version string, w fyne.Window, buttonContainer *fyne.Container) *widget.Button {
+	filesButton := widget.NewButton("Files", nil)
+	filesButton.Resize(fyne.NewSize(80, 25))
+	filesButton.SetText("Files")
+	filesButton.OnTapped = func() {
+		versionDir := filepath.Join(owlcmsInstallDir, version)
+		if err := openFileExplorer(versionDir); err != nil {
+			dialog.ShowError(fmt.Errorf("failed to open file explorer for %s: %w", versionDir, err), w)
+		}
+	}
+	buttonContainer.Add(container.NewPadded(filesButton))
+	return filesButton
+}
+
+func createLaunchButton(w fyne.Window, version string, stopButton *widget.Button, buttonContainer *fyne.Container) {
+	launchButton := widget.NewButton("Launch", nil)
+	launchButton.Resize(fyne.NewSize(80, 25))
+	launchButton.Importance = widget.HighImportance
+	launchButton.SetText("Launch")
+	launchButton.OnTapped = func() {
+		if currentProcess != nil {
+			dialog.ShowError(fmt.Errorf("OWLCMS is already running"), w)
+			return
+		}
+
+		log.Printf("Launching version %s\n", version)
+		if err := checkJava(statusLabel); err != nil {
+			dialog.ShowError(fmt.Errorf("java check/installation failed: %w", err), w)
+			return
+		}
+
+		if err := launchOwlcms(version, launchButton, stopButton); err != nil {
+			dialog.ShowError(err, w)
+			return
+		}
+	}
+	buttonContainer.Add(container.NewPadded(launchButton))
 }
 
 func prepareButton(mostRecent string, version string, updateButton *widget.Button, buttonContainer *fyne.Container, w fyne.Window) {
@@ -364,7 +346,6 @@ func prepareButton(mostRecent string, version string, updateButton *widget.Butto
 	if (!containsPreReleaseTag(latestStableInstalled) && stableErr == nil && latestStableInstalled == latestStable) ||
 		(containsPreReleaseTag(latestPrereleaseInstalled) && preErr == nil && latestPrereleaseInstalled == latestPrerelease) {
 		buttonContainer.Remove(buttonContainer.Objects[2])
-		buttonContainer.Remove(buttonContainer.Objects[4])
 		return
 	}
 
