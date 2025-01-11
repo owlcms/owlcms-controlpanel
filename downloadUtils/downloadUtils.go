@@ -15,8 +15,8 @@ import (
 	"time"
 )
 
-// DownloadZip downloads a zip file from the given URL and saves it to the specified path.
-func DownloadZip(url, destPath string) error {
+// DownloadArchive downloads a zip file from the given URL and saves it to the specified path.
+func DownloadArchive(url, destPath string) error {
 	log.Printf("Attempting to download from URL: %s\n", url)
 
 	client := &http.Client{
@@ -64,10 +64,11 @@ func IsWSL() bool {
 // GetDownloadURL returns the correct download URL based on the operating system.
 func GetDownloadURL(baseURL string) string {
 	var asset string
+	goos := GetGoos()
 	if IsWSL() {
 		asset = "temurin.tar.gz"
 	} else {
-		switch runtime.GOOS {
+		switch goos {
 		case "windows":
 			asset = "temurin.zip"
 		case "linux":
@@ -77,6 +78,10 @@ func GetDownloadURL(baseURL string) string {
 		}
 	}
 	return fmt.Sprintf("%s/%s", baseURL, asset)
+}
+
+func GetGoos() string {
+	return runtime.GOOS
 }
 
 // ExtractZip extracts a zip archive to the specified destination directory.
@@ -194,7 +199,6 @@ func ExtractTarGz(tarGzPath, dest string) error {
 				r.Close()
 				return err
 			}
-			log.Printf("attempting to change file times: %s %s", header.AccessTime, header.ModTime)
 			if err := os.Chtimes(target, header.AccessTime, header.ModTime); err != nil {
 				log.Printf("failed to change file times: %v  %s %s", err, header.AccessTime, header.ModTime)
 				gzr.Close()

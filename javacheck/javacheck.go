@@ -50,11 +50,13 @@ func compareVersions(a, b string) bool {
 func FindLocalJava() (string, error) {
 	javaDir := filepath.Join(owlcmsInstallDir, "java17")
 	if _, err := os.Stat(javaDir); err != nil {
+		log.Printf("*** Java directory not found: %v\n", err)
 		return "", fmt.Errorf("java17 directory not found")
 	}
 
 	entries, err := os.ReadDir(javaDir)
 	if err != nil {
+		log.Printf("*** Error reading java directory: %v\n", err)
 		return "", fmt.Errorf("reading java directory: %w", err)
 	}
 
@@ -67,6 +69,7 @@ func FindLocalJava() (string, error) {
 	}
 
 	if len(jdkDirs) == 0 {
+		log.Printf("*** No Java installation found in %s\n", javaDir)
 		return "", fmt.Errorf("no Java installation found in %s", javaDir)
 	}
 
@@ -79,21 +82,34 @@ func FindLocalJava() (string, error) {
 	// Check for java executable
 	var javaExe string
 	var javaPath string
-	if runtime.GOOS == "linux" || isWSL() {
-		javaExe = "java"
-		javaPath = filepath.Join(javaDir, latestJDK, "bin", javaExe)
-	} else if runtime.GOOS == "windows" && !isWSL() {
+	goos := downloadUtils.GetGoos()
+
+	if goos == "windows" && !isWSL() {
 		javaExe = "javaw.exe"
 		javaPath = filepath.Join(javaDir, latestJDK, "bin", javaExe)
-	} else if runtime.GOOS == "darwin" {
-		javaDir = filepath.Join(javaDir, latestJDK, "Contents", "Home", "bin", javaExe)
+		log.Printf("*** goos=%s javaPath=%s\n", goos, javaPath)
+	} else if goos == "darwin" {
+		javaExe = "java"
+		javaPath = filepath.Join(javaDir, latestJDK, "Contents", "Home", "bin", javaExe)
+		log.Printf("*** goos=%s javaPath=%s\n", goos, javaPath)
+	} else if goos == "linux" {
+		javaExe = "java"
 		javaPath = filepath.Join(javaDir, latestJDK, "bin", javaExe)
+		log.Printf("*** goos=%s javaPath=%s\n", goos, javaPath)
+	} else {
+		log.Printf("*** Unsupported OS: %s\n", goos)
+		return "", fmt.Errorf("unsupported OS: %s", goos)
 	}
 
-	if _, err := os.Stat(javaPath); err != nil {
-		return "", fmt.Errorf("java executable not found in %s", javaPath)
+	_, err = os.Stat(javaPath)
+	if err != nil {
+		log.Printf("*** Java executable NOT found in %s: %v\n", javaPath, err)
+		return "", fmt.Errorf("java executable not found in %s: %v", javaPath, err)
+	} else {
+		log.Printf("*** Found local Java %s at: %s\n", latestJDK, javaPath)
+		return javaPath, nil
 	}
-	return javaPath, nil
+
 }
 
 // CheckJava checks for Java 17 or later and downloads/installs it if necessary.
@@ -101,8 +117,10 @@ func CheckJava(statusLabel *widget.Label) error {
 	// First check for local Java installation
 	javaPath, err := FindLocalJava()
 	if err == nil {
-		log.Printf("Found local Java at: %s\n", javaPath)
+		log.Printf("*** Found local Java at: %s\n", javaPath)
 		return nil
+	} else {
+		log.Printf("*** Local Java not found at %s: %v\n", javaPath, err)
 	}
 
 	// // Then check for system Java
@@ -133,14 +151,14 @@ func CheckJava(statusLabel *widget.Label) error {
 
 	// Ensure the owlcms directory exists
 	if _, err := os.Stat(owlcmsInstallDir); os.IsNotExist(err) {
-		if err := os.Mkdir(owlcmsInstallDir, 0755); err != nil {
+		if err := os.MkdirAll(owlcmsInstallDir, 0755); err != nil {
 			return fmt.Errorf("creating owlcms directory: %w", err)
 		}
 	}
 
 	javaDir = filepath.Join(owlcmsInstallDir, "java17")
 	if _, err := os.Stat(javaDir); os.IsNotExist(err) {
-		if err := os.Mkdir(javaDir, 0755); err != nil {
+		if err := os.MkdirAll(javaDir, 0755); err != nil {
 			return fmt.Errorf("creating java directory: %w", err)
 		}
 	}
@@ -151,17 +169,17 @@ func CheckJava(statusLabel *widget.Label) error {
 	}
 
 	archivePath := filepath.Join(javaDir, "temurin")
-	if runtime.GOOS == "windows" && !isWSL() {
+	if downloadUtils.GetGoos() == "windows" && !isWSL() {
 		archivePath += ".zip"
 	} else {
 		archivePath += ".tar.gz"
 	}
 
-	if err := downloadUtils.DownloadZip(url, archivePath); err != nil {
+	if err := downloadUtils.DownloadArchive(url, archivePath); err != nil {
 		return fmt.Errorf("error downloading Temurin: %w", err)
 	}
 
-	if runtime.GOOS == "windows" && !isWSL() {
+	if downloadUtils.GetGoos() == "windows" && !isWSL() {
 		if err := downloadUtils.ExtractZip(archivePath, javaDir); err != nil {
 			return fmt.Errorf("error extracting Temurin zip: %w", err)
 		}
@@ -171,8 +189,7 @@ func CheckJava(statusLabel *widget.Label) error {
 		}
 	}
 	// extract now removes the archive
-
-	fmt.Println("Java downloaded and installed to ./owlcms/java17")
+	log.Printf("Java downloaded and installed to %s\n", javaDir)
 	return nil
 }
 
@@ -272,17 +289,12 @@ func getTemurinDownloadURL() (string, error) {
 	}
 
 	// Print environment info for debugging
-	log.Printf("\nRunning on: OS=%s, ARCH=%s, WSL=%v\n", runtime.GOOS, runtime.GOARCH, isWSL())
-
-	// Print all available assets for debugging
-	// fmt.Println("\nAvailable assets:")
-	// for _, asset := range release.Assets {
-	// 	log.Printf("- %s\n", asset.Name)
-	// }
+	log.Printf("Running on: OS=%s, ARCH=%s, WSL=%v\n", downloadUtils.GetGoos(), runtime.GOARCH, isWSL())
 
 	// Always use Linux pattern for WSL/Linux, but with correct version
 	var pattern string
-	if runtime.GOOS == "darwin" {
+	goos := downloadUtils.GetGoos()
+	if goos == "darwin" {
 		switch runtime.GOARCH {
 		case "amd64":
 			pattern = fmt.Sprintf("OpenJDK17U-jre_x64_mac_hotspot_%s.tar.gz", version)
@@ -291,7 +303,7 @@ func getTemurinDownloadURL() (string, error) {
 		default:
 			return "", fmt.Errorf("unsupported architecture: %s", runtime.GOARCH)
 		}
-	} else if isWSL() || runtime.GOOS == "linux" {
+	} else if isWSL() || goos == "linux" {
 		switch runtime.GOARCH {
 		case "amd64":
 			pattern = fmt.Sprintf("OpenJDK17U-jre_x64_linux_hotspot_%s.tar.gz", version)
@@ -300,7 +312,7 @@ func getTemurinDownloadURL() (string, error) {
 		default:
 			return "", fmt.Errorf("unsupported architecture: %s", runtime.GOARCH)
 		}
-	} else if runtime.GOOS == "windows" {
+	} else if goos == "windows" {
 		switch runtime.GOARCH {
 		case "amd64":
 			pattern = fmt.Sprintf("OpenJDK17U-jre_x64_windows_hotspot_%s.zip", version)
@@ -310,10 +322,10 @@ func getTemurinDownloadURL() (string, error) {
 			return "", fmt.Errorf("unsupported architecture: %s", runtime.GOARCH)
 		}
 	} else {
-		return "", fmt.Errorf("unsupported OS: %s", runtime.GOOS)
+		return "", fmt.Errorf("unsupported OS: %s", downloadUtils.GetGoos())
 	}
 
-	log.Printf("\nLooking for asset: %s\n", pattern)
+	log.Printf("Looking for asset: %s\n", pattern)
 
 	// Look for exact matching JRE asset
 	for _, asset := range release.Assets {
@@ -329,7 +341,7 @@ func getTemurinDownloadURL() (string, error) {
 func findJava() (string, error) {
 	javaHome := os.Getenv("JAVA_HOME")
 	javaCommand := "java"
-	if runtime.GOOS == "windows" && !isWSL() {
+	if downloadUtils.GetGoos() == "windows" && !isWSL() {
 		javaCommand = "javaw"
 	}
 	if javaHome != "" {

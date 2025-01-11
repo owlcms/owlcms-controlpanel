@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"runtime"
+	"owlcms-launcher/downloadUtils"
 	"syscall"
 	"time"
 
@@ -78,7 +78,7 @@ func stopProcess(currentProcess *exec.Cmd, currentVersion string, stopButton *wi
 		killedByUs = true
 
 		var err error
-		if runtime.GOOS == "windows" {
+		if downloadUtils.GetGoos() == "windows" {
 			err = currentProcess.Process.Signal(os.Interrupt)
 		} else {
 			err = currentProcess.Process.Signal(syscall.SIGINT)

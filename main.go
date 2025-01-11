@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 
 	"owlcms-launcher/downloadUtils"
 	"owlcms-launcher/javacheck"
@@ -61,7 +60,7 @@ func (m myTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) colo
 }
 
 func getInstallDir() string {
-	switch runtime.GOOS {
+	switch downloadUtils.GetGoos() {
 	case "windows":
 		return filepath.Join(os.Getenv("APPDATA"), "owlcms")
 	case "darwin":
@@ -297,6 +296,13 @@ func main() {
 		fyne.NewMenuItem("Remove All Stored Data and Configurations", func() {
 			uninstallAll()
 		}),
+		fyne.NewMenuItem("Open Installation Directory", func() {
+			if err := openFileExplorer(owlcmsInstallDir); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to open installation directory: %w", err), w)
+			}
+		}),
+	)
+	killMenu := fyne.NewMenu("Processes",
 		fyne.NewMenuItem("Kill Already Running Process", func() {
 			if err := killLockingProcess(); err != nil {
 				dialog.ShowError(fmt.Errorf("failed to kill already running process: %w", err), w)
@@ -305,7 +311,7 @@ func main() {
 			}
 		}),
 	)
-	menu := fyne.NewMainMenu(fileMenu)
+	menu := fyne.NewMainMenu(fileMenu, killMenu)
 	w.SetMainMenu(menu)
 	mainContent.Resize(fyne.NewSize(800, 400))
 	w.SetContent(mainContent)
@@ -361,7 +367,7 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 	// Ensure the owlcms directory exists
 	owlcmsDir := owlcmsInstallDir
 	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
-		if err := os.Mkdir(owlcmsDir, 0755); err != nil {
+		if err := os.MkdirAll(owlcmsDir, 0755); err != nil {
 			dialog.ShowError(fmt.Errorf("creating owlcms directory: %w", err), w)
 			return
 		}
@@ -381,7 +387,7 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 	go func() {
 		// Download the ZIP file using downloadUtils
 		log.Printf("Starting download from URL: %s\n", zipURL)
-		err := downloadUtils.DownloadZip(zipURL, zipPath)
+		err := downloadUtils.DownloadArchive(zipURL, zipPath)
 		if err != nil {
 			progressDialog.Hide()
 			dialog.ShowError(fmt.Errorf("download failed: %w", err), w)

@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -27,27 +26,31 @@ var (
 )
 
 func acquireJavaLock() (*flock.Flock, error) {
-	lock := flock.New(lockFilePath)
-	locked, err := lock.TryLock()
-	if err != nil {
-		log.Print("Failed to acquire lock: ", err)
-		return nil, fmt.Errorf("failed to acquire lock: %w", err)
-	}
-	if !locked {
-		// we could not lock, so the lock owner should have written a PID to the file
-		data, err := os.ReadFile(pidFilePath)
-		if err == nil && len(data) > 0 {
-			pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-			if err == nil && pid != 0 {
-				log.Printf("Another instance of OWLCMS is already running with PID %d", pid)
-				return nil, fmt.Errorf("another instance of OWLCMS is already running with PID %d", pid)
-			}
+	// lock := flock.New(lockFilePath)
+	// locked, err := lock.TryLock()
+	// if err != nil {
+	// 	log.Printf("Failed to acquire lock %s: %v", lockFilePath, err)
+	// 	return nil, fmt.Errorf("failed to acquire lock: %w", err)
+	// }
+	// if !locked {
+	// 	// we could not lock, so the lock owner should have written a PID to the file
+	data, err := os.ReadFile(pidFilePath)
+	if err == nil && len(data) > 0 {
+		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+		if err == nil && pid != 0 {
+			log.Printf("Another instance of OWLCMS is already running with PID %d", pid)
+			return nil, fmt.Errorf("another instance of OWLCMS is already running with PID %d", pid)
+		} else {
+			log.Printf("Failed to parse PID from PID file: %v", err)
+			os.Remove(pidFilePath)
 		}
-		log.Println("Another instance of OWLCMS is already running")
-		return nil, fmt.Errorf("another instance of OWLCMS is already running")
+	} else {
+		return nil, nil
 	}
 
-	return lock, nil
+	// }
+
+	return nil, nil
 }
 
 func releaseJavaLock() {
@@ -79,7 +82,7 @@ func killLockingProcess() error {
 
 	}
 
-	if runtime.GOOS == "windows" && !downloadUtils.IsWSL() {
+	if downloadUtils.GetGoos() == "windows" && !downloadUtils.IsWSL() {
 		if err := proc.Terminate(); err != nil {
 			releaseJavaLock()
 			return fmt.Errorf("failed to terminate process with PID %d: %w", pid, err)
@@ -128,7 +131,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 	// Ensure the owlcms directory exists
 	owlcmsDir := owlcmsInstallDir
 	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
-		if err := os.Mkdir(owlcmsDir, 0755); err != nil {
+		if err := os.MkdirAll(owlcmsDir, 0755); err != nil {
 			return fmt.Errorf("creating owlcms directory: %w", err)
 		}
 	}
@@ -163,6 +166,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 	cmd.Env = env
 	if err := cmd.Start(); err != nil {
 		statusLabel.SetText(fmt.Sprintf("Failed to start OWLCMS %s", version))
+		releaseJavaLock()
 		launchButton.Show() // Show launch button again if start fails
 		goBackToMainScreen()
 		log.Printf("Failed to start OWLCMS %s: %v\n", version, err)

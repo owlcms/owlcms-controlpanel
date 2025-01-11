@@ -101,7 +101,7 @@ func openFileExplorer(path string) error {
 	case "linux":
 		cmd = exec.Command("xdg-open", path)
 	default:
-		return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
+		return fmt.Errorf("unsupported operating system: %s", downloadUtils.GetGoos())
 	}
 
 	if err := cmd.Start(); err != nil {
@@ -144,7 +144,7 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 		// Ensure the owlcms directory exists
 		owlcmsDir := owlcmsInstallDir
 		if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
-			if err := os.Mkdir(owlcmsDir, 0755); err != nil {
+			if err := os.MkdirAll(owlcmsDir, 0755); err != nil {
 				dialog.ShowError(fmt.Errorf("creating owlcms directory: %w", err), w)
 				return
 			}
@@ -171,7 +171,7 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 				go func() {
 					// Download the ZIP file using downloadUtils
 					log.Printf("Starting download from URL: %s\n", zipURL)
-					err := downloadUtils.DownloadZip(zipURL, zipPath)
+					err := downloadUtils.DownloadArchive(zipURL, zipPath)
 					if err != nil {
 						progressDialog.Hide()
 						dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
