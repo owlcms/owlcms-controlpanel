@@ -1,5 +1,5 @@
 #!/bin/bash -x
-export TAG=v1.6.7-beta03
+export TAG=v1.7.0-beta01
 export DEB_TAG=${TAG#v}
 git pull
 git commit -am "owlcms-launcher $TAG"

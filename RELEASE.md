@@ -1,19 +1,21 @@
-Owlcms-launcher is a control panel for owlcms.  It replaces the prior installation methods used until version 54 of owlcms.
+Owlcms-launcher is a control panel for owlcms.  It replaces the prior installation methods used until version 54 of owlcms.  The control panel is also used to
 
-- You will be able to start and stop owlcms from the control panel.  
-- You will be able to install updates
-- It will automatically download the current version of owlcms when used for the first time.
-- It will get the correct version of Java when launching owlcms for the first time
-- You can also have several versions at once. You can copy your database and local changes between versions
+- Start and Stop owlcms
+
+- Install updates
+- Have multiple versions at once for testing purposes, with the ability to copy data from one to the other.
+
+The control panel is installed once. It will automatically download the current version of owlcms and the correct version of Java when used for the first time.
 
 ### Change Log for version _TAG_
 
 - More robust logic for downloading and using the correct Java runtime
-- Added a File menu to allow removing OWLCMS versions, or the Java runtime, or the whole directory (including config files etc.)
-- Added a File menu entry to kill a Java process started by another instance of the control panel.
-- Updated the DMG background in the futile hope of centering the arrow.
+- More robust implementation of the 
+- Added a File menu to allow removing the OWLCMS versions, the Java runtime, or the whole local directory
+- Prevent multiple instances from being started, added a menu to kill left-over instance if the prevention failed.
+- Updated the DMG background in the hope of centering the arrow.
 
-### Installing the Launcher
+### Installing the Control Panel
 
 - For Windows, 
   1. Download `owlcms.exe`  
@@ -37,11 +39,10 @@ Owlcms-launcher is a control panel for owlcms.  It replaces the prior installati
 
 If you do not wish to use the package install, or lack privileges to do so, you may also copy the owlcms-pi or owlcms-linux binary file directly to your machine, but then there will be no icons.
 
-### Running OWLCMS using the Launcher
+### Running OWLCMS using the Control Panel
 
 - Double-click on the icon on your desktop
-  - This will download the latest version of OWLCMS if there is none installed
-  - When launching for the first time, the launcher will fetch an appropriate version of the Java programming language
+  - This will download the latest version of OWLCMS and a Java runtime if there is none installed
   - Starting the program takes 20 to 30 seconds, and a browser window should open
   - A Stop button will be shown so you can politely stop the program.
   - If you stop the program, all the browsers will stay open and wait for a restart, so they must be stopped individually.
