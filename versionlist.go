@@ -196,7 +196,7 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 }
 
 func createImportButton(versions []string, version string, w fyne.Window, buttonContainer *fyne.Container) {
-	importButton := widget.NewButton("Import Data and Confi", nil)
+	importButton := widget.NewButton("Import Data and Config", nil)
 	importButton.Show()
 	importButton.OnTapped = func() {
 		// Open a dialog to select the source version
