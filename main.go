@@ -103,8 +103,8 @@ func goBackToMainScreen() {
 }
 
 func computeVersionScrollHeight(numVersions int) float32 {
-	minHeight := 50 // minimum height
-	rowHeight := 45 // approximate height per row
+	minHeight := 0  // minimum height
+	rowHeight := 50 // approximate height per row
 	return float32(minHeight + (rowHeight * min(numVersions, 4)))
 }
 
@@ -191,15 +191,9 @@ func main() {
 	downloadButtonTitle = widget.NewHyperlink("Click here to install additional versions.", nil) // New title for download button
 	downloadButtonTitle.OnTapped = func() {
 		if !downloadsShown {
-			downloadsShown = true
-			releaseDropdown.Show()
-			prereleaseCheckbox.Show()
-			downloadContainer.Refresh()
+			ShowDownloadables()
 		} else {
-			downloadsShown = false
-			releaseDropdown.Hide()
-			prereleaseCheckbox.Hide()
-			downloadContainer.Refresh()
+			HideDownloadables()
 		}
 	}
 	singleOrMultiVersionLabel = widget.NewLabel("")
@@ -316,6 +310,7 @@ func main() {
 	mainContent.Resize(fyne.NewSize(800, 400))
 	w.SetContent(mainContent)
 	w.Resize(fyne.NewSize(800, 400))
+	w.Canvas().Refresh(mainContent)
 
 	populateReleaseSelect(releaseSelect) // Populate the dropdown with the releases
 	updateTitle.Show()
@@ -354,6 +349,20 @@ func main() {
 	w.ShowAndRun()
 }
 
+func HideDownloadables() {
+	downloadsShown = false
+	releaseDropdown.Hide()
+	prereleaseCheckbox.Hide()
+	downloadContainer.Refresh()
+}
+
+func ShowDownloadables() {
+	downloadsShown = true
+	releaseDropdown.Show()
+	prereleaseCheckbox.Show()
+	downloadContainer.Refresh()
+}
+
 func downloadAndInstallVersion(version string, w fyne.Window) {
 	var urlPrefix string
 	if containsPreReleaseTag(version) {
@@ -380,7 +389,7 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 	progressDialog := dialog.NewCustom(
 		"Installing OWLCMS",
 		"Please wait...",
-		widget.NewTextGridFromString("Downloading and extracting files..."),
+		widget.NewLabel("Downloading and extracting files..."),
 		w)
 	progressDialog.Show()
 
@@ -418,6 +427,7 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 			version, extractPath)
 
 		dialog.ShowInformation("Installation Complete", message, w)
+		HideDownloadables()
 
 		// Recompute the version list
 		recomputeVersionList(w)
@@ -523,7 +533,8 @@ func updateExplanation() {
 	x := getAllInstalledVersions()
 	log.Printf("Updating explanation %d\n", len(x))
 	if len(x) == 0 {
-		singleOrMultiVersionLabel.Hide()
+		downloadContainer.Remove(singleOrMultiVersionLabel)
+		downloadContainer.Refresh()
 	} else if len(x) == 1 {
 		latestStable, stableErr := getMostRecentStableRelease()
 		latestPrerelease, preErr := getMostRecentPrerelease()

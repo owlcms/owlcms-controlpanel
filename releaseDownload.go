@@ -164,7 +164,7 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 				progressDialog := dialog.NewCustom(
 					"Installing OWLCMS",
 					"Please wait...",
-					widget.NewTextGridFromString("Downloading and extracting files..."),
+					widget.NewLabel("Downloading and extracting files..."),
 					w)
 				progressDialog.Show()
 
@@ -204,6 +204,7 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 						selected, extractPath)
 
 					dialog.ShowInformation("Installation Complete", message, w)
+					HideDownloadables()
 
 					// Recompute the version list
 					recomputeVersionList(w)

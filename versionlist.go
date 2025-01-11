@@ -161,13 +161,13 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 
 			createLaunchButton(w, version, stopButton, buttonContainer)
 			createFilesButton(version, w, buttonContainer)
-			createRemoveButton(version, w, buttonContainer)
 			if len(allReleases) > 0 {
 				createUpdateButton(version, w, buttonContainer)
 			}
 			if len(versions) > 1 {
 				createImportButton(versions, version, w, buttonContainer)
 			}
+			createRemoveButton(version, w, buttonContainer)
 			buttonContainer.Add(layout.NewSpacer()) // Add spacer to push buttons to the left
 			buttonContainer.Refresh()
 		},
@@ -250,18 +250,29 @@ func createUpdateButton(version string, w fyne.Window, buttonContainer *fyne.Con
 	var mostRecent string
 	var err error
 
+	latestStable, stableErr := getMostRecentStableRelease()
+	latestPrerelease, preErr := getMostRecentPrerelease()
+	latestStableInstalled := findLatestStableInstalled()
+	latestPrereleaseInstalled := findLatestPrereleaseInstalled()
+
+	if (!containsPreReleaseTag(latestStableInstalled) && stableErr == nil && latestStableInstalled == latestStable) ||
+		(containsPreReleaseTag(latestPrereleaseInstalled) && preErr == nil && latestPrereleaseInstalled == latestPrerelease) {
+		// here is no point in updating since the most recent version is already installed
+		return
+	}
+
 	// Check if the current version is stable or a prerelease
 	if !containsPreReleaseTag(version) {
 		mostRecent, err = getMostRecentStableRelease()
 		if err == nil {
-			prepareButton(mostRecent, version, updateButton, buttonContainer, w)
+			adjustUpdateButton(mostRecent, version, updateButton, buttonContainer, w)
 		} else {
 			log.Printf("failed to get most recent stable release: %v", err)
 		}
 	} else {
 		mostRecent, err = getMostRecentPrerelease()
 		if err == nil {
-			prepareButton(mostRecent, version, updateButton, buttonContainer, w)
+			adjustUpdateButton(mostRecent, version, updateButton, buttonContainer, w)
 		} else {
 			log.Printf("failed to get most recent prerelease: %v", err)
 		}
@@ -336,19 +347,7 @@ func createLaunchButton(w fyne.Window, version string, stopButton *widget.Button
 	buttonContainer.Add(container.NewPadded(launchButton))
 }
 
-func prepareButton(mostRecent string, version string, updateButton *widget.Button, buttonContainer *fyne.Container, w fyne.Window) {
-	latestStable, stableErr := getMostRecentStableRelease()
-	latestPrerelease, preErr := getMostRecentPrerelease()
-	latestStableInstalled := findLatestStableInstalled()
-	latestPrereleaseInstalled := findLatestPrereleaseInstalled()
-
-	// Check if the latest installed version is the latest stable or prerelease version
-	if (!containsPreReleaseTag(latestStableInstalled) && stableErr == nil && latestStableInstalled == latestStable) ||
-		(containsPreReleaseTag(latestPrereleaseInstalled) && preErr == nil && latestPrereleaseInstalled == latestPrerelease) {
-		buttonContainer.Remove(buttonContainer.Objects[2])
-		return
-	}
-
+func adjustUpdateButton(mostRecent string, version string, updateButton *widget.Button, buttonContainer *fyne.Container, w fyne.Window) {
 	compare, err := semver.NewVersion(mostRecent)
 	x, err2 := semver.NewVersion(version)
 	if err == nil && err2 == nil {
@@ -359,7 +358,6 @@ func prepareButton(mostRecent string, version string, updateButton *widget.Butto
 			}
 			updateButton.Refresh()
 		} else {
-			buttonContainer.Remove(buttonContainer.Objects[2]) // Remove padded container if no update is available
 			buttonContainer.Refresh()
 		}
 	} else {
@@ -405,7 +403,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	progressDialog := dialog.NewCustom(
 		"Updating OWLCMS",
 		"Please wait...",
-		widget.NewTextGridFromString("Downloading and extracting files..."),
+		widget.NewLabel("Downloading and extracting files..."),
 		w)
 	progressDialog.Show()
 
