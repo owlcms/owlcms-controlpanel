@@ -8,8 +8,10 @@ Owlcms-launcher is a control panel for owlcms.  It replaces the prior installati
 
 ### Change Log for version _TAG_
 
-- For Mac, added an interactive DMG to simplify inastallation.
-- For Mac, adjusted the location of the java runtime
+- More robust logic for downloading and using the correct Java runtime
+- Added a File menu to allow removing OWLCMS versions, or the Java runtime, or the whole directory (including config files etc.)
+- Added a File menu entry to kill a Java process started by another instance of the control panel.
+- Updated the DMG background in the futile hope of centering the arrow.
 
 ### Installing the Launcher
 
