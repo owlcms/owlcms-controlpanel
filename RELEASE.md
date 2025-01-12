@@ -1,4 +1,4 @@
-Owlcms-launcher is a control panel for owlcms.  It replaces the prior installation methods used until version 54 of owlcms.  The control panel is also used to
+Owlcms-launcher is a control panel for owlcms.  The control panel is used to
 
 - Start and Stop owlcms
 
@@ -9,7 +9,8 @@ The control panel is installed once. It will automatically download the current 
 
 ### Change Log for version _TAG_
 
-- (beta02) Updated the DMG background in the hope of centering the arrow.
+- (beta04) First build after moving the repository
+- (beta04) Updated the DMG background in the hope of centering the arrow.
 - More robust logic for downloading and using the correct Java runtime
 - More robust implementation of the 
 - Added a File menu to allow removing the OWLCMS versions, the Java runtime, or the whole local directory
