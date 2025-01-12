@@ -9,11 +9,11 @@ The control panel is installed once. It will automatically download the current 
 
 ### Change Log for version _TAG_
 
+- (beta02) Updated the DMG background in the hope of centering the arrow.
 - More robust logic for downloading and using the correct Java runtime
 - More robust implementation of the 
 - Added a File menu to allow removing the OWLCMS versions, the Java runtime, or the whole local directory
 - Prevent multiple instances from being started, added a menu to kill left-over instance if the prevention failed.
-- Updated the DMG background in the hope of centering the arrow.
 
 ### Installing the Control Panel
 
