@@ -170,6 +170,7 @@ func removeJava() {
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.Println("Starting OWLCMS Launcher")
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
 	a.Settings().SetTheme(newMyTheme())
 	w := a.NewWindow("OWLCMS Control Panel")
@@ -211,141 +212,147 @@ func main() {
 		versionContainer,
 		downloadContainer, // Use downloadGroup here
 	)
+	statusLabel.SetText("Checking installation status...")
+	statusLabel.Refresh()
+	statusLabel.Show()
+	stopContainer.Show()
 
 	var javaAvailable bool
-	javaLoc, err := javacheck.FindLocalJava()
-	javaAvailable = err == nil && javaLoc != ""
+	go func() {
+		javaLoc, err := javacheck.FindLocalJava()
+		javaAvailable = err == nil && javaLoc != ""
 
-	// Check for internet connection before anything else
-	internetAvailable := CheckForInternet() //&& false
-	log.Printf("javaloc %s err %v javaAvailable %t internetAvailable %t", javaLoc, err, javaAvailable, internetAvailable)
-	if internetAvailable && !javaAvailable {
-		// Check for Java before anything else
-		if err := checkJava(statusLabel); err != nil {
-			dialog.ShowError(fmt.Errorf("failed to fetch Java: %w", err), w)
+		// Check for internet connection before anything else
+		internetAvailable := CheckForInternet() //&& false
+		log.Printf("javaloc %s err %v javaAvailable %t internetAvailable %t", javaLoc, err, javaAvailable, internetAvailable)
+		if internetAvailable && !javaAvailable {
+			// Check for Java before anything else
+			if err := checkJava(statusLabel); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to fetch Java: %w", err), w)
+			}
 		}
-	}
 
-	var releases []string
-	if internetAvailable {
-		releases, err = fetchReleases()
-		if err == nil {
-			allReleases = releases
+		var releases []string
+		if internetAvailable {
+			releases, err = fetchReleases()
+			if err == nil {
+				allReleases = releases
+			}
+		} else {
+			allReleases = []string{}
 		}
-	} else {
-		allReleases = []string{}
-	}
 
-	numVersions := len(getAllInstalledVersions())
-	if numVersions == 0 && !internetAvailable {
-		w.Resize(fyne.NewSize(800, 400))
-		d := dialog.NewInformation("No Internet Connection", "You must be connected to the internet to fetch a version of the program.\nPlease connect and restart the program", w)
-		d.Resize(fyne.NewSize(400, 200))
-		d.SetDismissText("Exit")
-		d.Show()
-		d.SetOnClosed(func() {
-			a.Driver().Quit()
+		numVersions := len(getAllInstalledVersions())
+		if numVersions == 0 && !internetAvailable {
+			w.SetContent(mainContent)
+			d := dialog.NewInformation("No Internet Connection", "You must be connected to the internet to fetch a version of the program.\nPlease connect and restart the program", w)
+			d.Resize(fyne.NewSize(400, 200))
+			d.SetDismissText("Exit")
+			d.Show()
+			d.SetOnClosed(func() {
+				a.Driver().Quit()
+			})
+			return
+		}
+
+		// Initialize version list
+		recomputeVersionList(w)
+
+		// Create release dropdown for downloads
+		releaseSelect, releaseDropdown := createReleaseDropdown(w)
+		updateTitle.Hide()
+		releaseDropdown.Hide() // Hide the dropdown initially
+
+		// Create checkbox for showing prereleases
+		prereleaseCheckbox = widget.NewCheck("Show Prereleases", func(checked bool) {
+			showPrereleases = checked
+			populateReleaseSelect(releaseSelect) // Repopulate the dropdown when the checkbox is changed
 		})
-		w.ShowAndRun()
-		return
-	}
+		prereleaseCheckbox.Hide() // Hide the checkbox initially
 
-	// Initialize version list
-	recomputeVersionList(w)
-
-	// Create release dropdown for downloads
-	releaseSelect, releaseDropdown := createReleaseDropdown(w)
-	updateTitle.Hide()
-	releaseDropdown.Hide() // Hide the dropdown initially
-
-	// Create checkbox for showing prereleases
-	prereleaseCheckbox = widget.NewCheck("Show Prereleases", func(checked bool) {
-		showPrereleases = checked
-		populateReleaseSelect(releaseSelect) // Repopulate the dropdown when the checkbox is changed
-	})
-	prereleaseCheckbox.Hide() // Hide the checkbox initially
-
-	if len(allReleases) > 0 {
-		downloadContainer.Objects = []fyne.CanvasObject{
-			updateTitle,
-			singleOrMultiVersionLabel,
-			downloadButtonTitle,
-			releaseDropdown,
-			prereleaseCheckbox,
-		}
-	} else {
-		downloadContainer.Objects = []fyne.CanvasObject{
-			widget.NewLabel("You are not connected to the Internet. Available updates cannot be shown."),
-		}
-	}
-
-	// Create menu items
-	fileMenu := fyne.NewMenu("File",
-		fyne.NewMenuItem("Remove All Versions", func() {
-			removeAllVersions()
-		}),
-		fyne.NewMenuItem("Remove Java", func() {
-			removeJava()
-		}),
-		fyne.NewMenuItem("Remove All Stored Data and Configurations", func() {
-			uninstallAll()
-		}),
-		fyne.NewMenuItem("Open Installation Directory", func() {
-			if err := openFileExplorer(owlcmsInstallDir); err != nil {
-				dialog.ShowError(fmt.Errorf("failed to open installation directory: %w", err), w)
+		if len(allReleases) > 0 {
+			downloadContainer.Objects = []fyne.CanvasObject{
+				updateTitle,
+				singleOrMultiVersionLabel,
+				downloadButtonTitle,
+				releaseDropdown,
+				prereleaseCheckbox,
 			}
-		}),
-	)
-	killMenu := fyne.NewMenu("Processes",
-		fyne.NewMenuItem("Kill Already Running Process", func() {
-			if err := killLockingProcess(); err != nil {
-				dialog.ShowError(fmt.Errorf("failed to kill already running process: %w", err), w)
-			} else {
-				dialog.ShowInformation("Success", "Successfully killed the already running process", w)
-			}
-		}),
-	)
-	menu := fyne.NewMainMenu(fileMenu, killMenu)
-	w.SetMainMenu(menu)
-	mainContent.Resize(fyne.NewSize(800, 400))
-	w.SetContent(mainContent)
-	w.Resize(fyne.NewSize(800, 400))
-	w.Canvas().Refresh(mainContent)
-
-	populateReleaseSelect(releaseSelect) // Populate the dropdown with the releases
-	updateTitle.Show()
-	releaseDropdown.Hide()
-	prereleaseCheckbox.Hide() // Show the checkbox once releases are fetched
-	log.Printf("Fetched %d releases\n", len(releases))
-
-	// If no version is installed, get the latest stable version
-	if len(getAllInstalledVersions()) == 0 {
-		for _, release := range allReleases {
-			if !containsPreReleaseTag(release) {
-				// Automatically download and install the latest stable version
-				downloadAndInstallVersion(release, w)
-				break
+		} else {
+			downloadContainer.Objects = []fyne.CanvasObject{
+				widget.NewLabel("You are not connected to the Internet. Available updates cannot be shown."),
 			}
 		}
-	}
 
-	// Check if a more recent version is available
-	checkForNewerVersion()
-	downloadContainer.Refresh()
-	downloadContainer.Show()
-	mainContent.Refresh()
+		// Create menu items
+		fileMenu := fyne.NewMenu("File",
+			fyne.NewMenuItem("Remove All Versions", func() {
+				removeAllVersions()
+			}),
+			fyne.NewMenuItem("Remove Java", func() {
+				removeJava()
+			}),
+			fyne.NewMenuItem("Remove All Stored Data and Configurations", func() {
+				uninstallAll()
+			}),
+			fyne.NewMenuItem("Open Installation Directory", func() {
+				if err := openFileExplorer(owlcmsInstallDir); err != nil {
+					dialog.ShowError(fmt.Errorf("failed to open installation directory: %w", err), w)
+				}
+			}),
+		)
+		killMenu := fyne.NewMenu("Processes",
+			fyne.NewMenuItem("Kill Already Running Process", func() {
+				if err := killLockingProcess(); err != nil {
+					dialog.ShowError(fmt.Errorf("failed to kill already running process: %w", err), w)
+				} else {
+					dialog.ShowInformation("Success", "Successfully killed the already running process", w)
+				}
+			}),
+		)
+		menu := fyne.NewMainMenu(fileMenu, killMenu)
+		w.SetMainMenu(menu)
+		mainContent.Resize(fyne.NewSize(800, 400))
+		w.SetContent(mainContent)
+		w.Resize(fyne.NewSize(800, 400))
+		w.Canvas().Refresh(mainContent)
 
-	w.SetContent(mainContent)
-	w.Canvas().Refresh(mainContent)
+		populateReleaseSelect(releaseSelect) // Populate the dropdown with the releases
+		updateTitle.Show()
+		releaseDropdown.Hide()
+		prereleaseCheckbox.Hide() // Show the checkbox once releases are fetched
+		log.Printf("Fetched %d releases\n", len(releases))
 
-	w.SetCloseIntercept(func() {
-		if currentProcess != nil {
-			stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+		// If no version is installed, get the latest stable version
+		if len(getAllInstalledVersions()) == 0 {
+			for _, release := range allReleases {
+				if !containsPreReleaseTag(release) {
+					// Automatically download and install the latest stable version
+					downloadAndInstallVersion(release, w)
+					break
+				}
+			}
 		}
-		w.Close()
-	})
 
-	log.Println("Starting OWLCMS Launcher")
+		// Check if a more recent version is available
+		checkForNewerVersion()
+		downloadContainer.Refresh()
+		downloadContainer.Show()
+		mainContent.Refresh()
+
+		w.SetContent(mainContent)
+		w.Canvas().Refresh(mainContent)
+
+		w.SetCloseIntercept(func() {
+			if currentProcess != nil {
+				stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+			}
+			w.Close()
+		})
+		log.Println("setup done.")
+		statusLabel.Hide()
+	}()
+	log.Println("Showing OWLCMS Launcher")
 	w.ShowAndRun()
 }
 
