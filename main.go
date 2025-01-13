@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"log"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -310,7 +311,17 @@ func main() {
 				}
 			}),
 		)
-		menu := fyne.NewMainMenu(fileMenu, killMenu)
+		helpMenu := fyne.NewMenu("Help",
+			fyne.NewMenuItem("Documentation", func() {
+				linkURL, _ := url.Parse("https://owlcms.github.io/owlcms4-prerelease/#/LocalControlPanel")
+				link := widget.NewHyperlink("Control Panel Documentation", linkURL)
+				dialog.ShowCustom("Documentation", "Close", link, w)
+			}),
+			fyne.NewMenuItem("About", func() {
+				dialog.ShowInformation("About", "OWLCMS Launcher version "+launcherVersion, w)
+			}),
+		)
+		menu := fyne.NewMainMenu(fileMenu, killMenu, helpMenu)
 		w.SetMainMenu(menu)
 		mainContent.Resize(fyne.NewSize(800, 400))
 		w.SetContent(mainContent)
@@ -571,4 +582,13 @@ func updateExplanation() {
 	singleOrMultiVersionLabel.Wrapping = fyne.TextWrapWord
 	singleOrMultiVersionLabel.Show()
 	singleOrMultiVersionLabel.Refresh()
+}
+
+func printHelp() {
+	fmt.Println("Help Menu:")
+	fmt.Println("1. Start - Start the launcher")
+	fmt.Println("2. Stop - Stop the launcher")
+	fmt.Println("3. Status - Get the status of the launcher")
+	fmt.Println("4. Help - Display this help menu")
+	fmt.Println("5. Exit - Exit the application")
 }
