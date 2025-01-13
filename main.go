@@ -375,10 +375,8 @@ func main() {
 		log.Println("setup done.")
 		statusLabel.Hide()
 	}()
-	log.Println("Showing OWLCMS Launcher")
-	w.ShowAndRun()
 
-	// Set up channel to listen for interrupt signals
+	// Set up channel to listen for interrupt signals BEFORE ShowAndRun
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt)
 
@@ -394,8 +392,12 @@ func main() {
 			stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
 		}()
 		wg.Wait()
+		log.Println("Exiting Control Panel...")
 		os.Exit(0)
 	}()
+
+	log.Println("Showing OWLCMS Launcher")
+	w.ShowAndRun()
 }
 
 func HideDownloadables() {

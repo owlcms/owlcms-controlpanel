@@ -70,38 +70,37 @@ func stopProcess(currentProcess *exec.Cmd, currentVersion string, stopButton *wi
 	log.Printf("Stopping OWLCMS %s...\n", currentVersion)
 	statusLabel.SetText(fmt.Sprintf("Stopping OWLCMS %s...", currentVersion))
 
-	go func() {
-		if currentProcess == nil || currentProcess.Process == nil {
+	if currentProcess == nil || currentProcess.Process == nil {
+		return
+	}
+	pid := currentProcess.Process.Pid
+	killedByUs = true
+
+	var err error
+	if downloadUtils.GetGoos() == "windows" {
+		err = currentProcess.Process.Signal(os.Interrupt)
+	} else {
+		err = currentProcess.Process.Signal(syscall.SIGINT)
+	}
+
+	if err != nil {
+		log.Printf("Failed to send interrupt signal to OWLCMS %s (PID: %d): %v\n", currentVersion, pid, err)
+		err = currentProcess.Process.Kill()
+		if err != nil {
+			killedByUs = false
+			dialog.ShowError(fmt.Errorf("failed to stop OWLCMS %s (PID: %d): %w", currentVersion, pid, err), w)
 			return
 		}
-		pid := currentProcess.Process.Pid
-		killedByUs = true
+	}
 
-		var err error
-		if downloadUtils.GetGoos() == "windows" {
-			err = currentProcess.Process.Signal(os.Interrupt)
-		} else {
-			err = currentProcess.Process.Signal(syscall.SIGINT)
-		}
+	log.Printf("OWLCMS %s (PID: %d) has been stopped\n", currentVersion, pid)
+	statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) has been stopped", currentVersion, pid))
+	currentProcess = nil
+	stopButton.Hide()
+	urlLink.Hide() // Hide the URL when stopping
+	checkForNewerVersion()
+	downloadGroup.Show()
+	versionContainer.Show()
+	releaseJavaLock()
 
-		if err != nil {
-			log.Printf("Failed to send interrupt signal to OWLCMS %s (PID: %d): %v\n", currentVersion, pid, err)
-			err = currentProcess.Process.Kill()
-			if err != nil {
-				killedByUs = false
-				dialog.ShowError(fmt.Errorf("failed to stop OWLCMS %s (PID: %d): %w", currentVersion, pid, err), w)
-				return
-			}
-		}
-
-		log.Printf("OWLCMS %s (PID: %d) has been stopped\n", currentVersion, pid)
-		statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) has been stopped", currentVersion, pid))
-		currentProcess = nil
-		stopButton.Hide()
-		urlLink.Hide() // Hide the URL when stopping
-		checkForNewerVersion()
-		downloadGroup.Show()
-		versionContainer.Show()
-		releaseJavaLock()
-	}()
 }
