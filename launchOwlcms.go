@@ -223,7 +223,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 		}
 
 		log.Printf("OWLCMS process %d is ready (port %s responding)\n", javaPID, GetPort())
-		url := fmt.Sprintf("http://localhost:%s", GetPort())
+		// url := fmt.Sprintf("http://localhost:%s", GetPort())
 		statusLabel.SetText(fmt.Sprintf("OWLCMS running (PID: %d) on port %s", javaPID, GetPort()))
 
 		// Process is stable, wait for it to end
