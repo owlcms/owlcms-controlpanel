@@ -1,0 +1,6 @@
+go 1.23.4
+
+use (
+    ./  // Include the current directory
+    // Add other directories if needed
+)
