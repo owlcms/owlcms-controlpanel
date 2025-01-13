@@ -17,9 +17,9 @@ import (
 
 var killedByUs bool
 
-// checkPort tries to connect to localhost:8080 and returns nil if successful
+// checkPort tries to connect to localhost:port and returns nil if successful
 func checkPort() error {
-	resp, err := http.Get("http://localhost:8080")
+	resp, err := http.Get(fmt.Sprintf("http://localhost:%s", GetPort()))
 	if err != nil {
 		return err
 	}

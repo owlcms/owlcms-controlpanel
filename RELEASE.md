@@ -9,8 +9,7 @@ The control panel is installed once. It will automatically download the current 
 
 ### Change Log for version _TAG_
 
-- (beta04) First build after moving the repository
-- (beta04) Updated the DMG background in the hope of centering the arrow.
+- (beta05) added Help menu with link to documentation and about with version number
 - More robust logic for downloading and using the correct Java runtime
 - More robust implementation of the 
 - Added a File menu to allow removing the OWLCMS versions, the Java runtime, or the whole local directory

@@ -110,13 +110,13 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 		return err
 	}
 
-	// Check if port 8080 is already in use
+	// Check if port is already in use
 	if err := checkPort(); err == nil {
-		statusLabel.SetText("Another program is running on port 8080")
+		statusLabel.SetText(fmt.Sprintf("Another program is running on port %s", GetPort()))
 		statusLabel.Refresh()
 		goBackToMainScreen()
-		log.Println("Another program is running on port 8080")
-		return fmt.Errorf("another program is running on port 8080")
+		log.Printf("Another program is running on port %s", GetPort())
+		return fmt.Errorf("another program is running on port %s", GetPort())
 	}
 
 	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s...", version))
@@ -150,7 +150,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 	}
 	defer os.Chdir(originalDir)
 
-	// Start OWLCMS in the background
+	// find the java runtime binary
 	localJava, err := javacheck.FindLocalJava()
 	if err != nil {
 		statusLabel.SetText(fmt.Sprintf("Failed to find local Java: %v", err))
@@ -160,10 +160,24 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 	}
 
 	env := os.Environ()
-	env = append(env, "OWLCMS_LAUNCHER=true")
+	env = append(env, fmt.Sprintf("OWLCMS_LAUNCHER=%s", version))
+
+	// Add all properties from environment to process env
+	for _, key := range environment.Keys() {
+		value, _ := environment.Get(key)
+		env = append(env, fmt.Sprintf("%s=%s", key, value))
+	}
+
+	// Log all environment variables before starting Java
+	log.Printf("Environment variables for OWLCMS %s:", version)
+	for _, envVar := range env {
+		log.Printf("  %s", envVar)
+	}
+
+	// Start the Java process
 	cmd := exec.Command(localJava, "-jar", "owlcms.jar")
-	log.Printf("Starting OWLCMS %s with command: %v\n", version, cmd.Args)
 	cmd.Env = env
+	log.Printf("Starting OWLCMS %s with command: %v\n", version, cmd.Args)
 	if err := cmd.Start(); err != nil {
 		statusLabel.SetText(fmt.Sprintf("Failed to start OWLCMS %s", version))
 		releaseJavaLock()
@@ -181,8 +195,8 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 		log.Printf("Wrote PID %d to PID file %s\n", javaPID, pidFilePath)
 	}
 
-	log.Printf("Launching OWLCMS %s (PID: %d), waiting for port 8080...\n", version, javaPID)
-	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s (PID: %d), please wait.  Full startup can take up to 30 seconds.", version, javaPID))
+	log.Printf("Launching OWLCMS %s (PID: %d), waiting for port %s...\n", version, javaPID, GetPort())
+	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s (PID: %d), please wait. Full startup can take up to 30 seconds.", version, javaPID))
 	currentProcess = cmd
 	stopButton.SetText(fmt.Sprintf("Stop OWLCMS %s", version))
 	stopButton.Show()

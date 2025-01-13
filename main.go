@@ -583,12 +583,3 @@ func updateExplanation() {
 	singleOrMultiVersionLabel.Show()
 	singleOrMultiVersionLabel.Refresh()
 }
-
-func printHelp() {
-	fmt.Println("Help Menu:")
-	fmt.Println("1. Start - Start the launcher")
-	fmt.Println("2. Stop - Stop the launcher")
-	fmt.Println("3. Status - Get the status of the launcher")
-	fmt.Println("4. Help - Display this help menu")
-	fmt.Println("5. Exit - Exit the application")
-}
