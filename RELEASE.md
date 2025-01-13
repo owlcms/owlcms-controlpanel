@@ -9,9 +9,10 @@ The control panel is installed once. It will automatically download the current 
 
 ### Change Log for version _TAG_
 
-- (beta05) added Help menu with link to documentation and about with version number
+- Added a link to open owlcms on a localhost browser if it closed by mistake
+- A configuration file is now available (`env.properties`) that allows setting any of the owlcms environment variables.  This can be used to change the port, load testing data, set features, etc.
+- Added Help menu with link to documentation and about with version number
 - More robust logic for downloading and using the correct Java runtime
-- More robust implementation of the 
 - Added a File menu to allow removing the OWLCMS versions, the Java runtime, or the whole local directory
 - Prevent multiple instances from being started, added a menu to kill left-over instance if the prevention failed.
 
