@@ -7,7 +7,9 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
+	"sync"
 
 	"owlcms-launcher/downloadUtils"
 	"owlcms-launcher/javacheck"
@@ -368,6 +370,25 @@ func main() {
 	}()
 	log.Println("Showing OWLCMS Launcher")
 	w.ShowAndRun()
+
+	// Set up channel to listen for interrupt signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt)
+
+	var wg sync.WaitGroup
+
+	// Goroutine to handle interrupt signal
+	go func() {
+		<-sigChan
+		log.Println("Interrupt signal caught, stopping Java process...")
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+		}()
+		wg.Wait()
+		os.Exit(0)
+	}()
 }
 
 func HideDownloadables() {
