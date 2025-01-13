@@ -225,13 +225,16 @@ func main() {
 
 		// Check for internet connection before anything else
 		internetAvailable := CheckForInternet() //&& false
-		log.Printf("javaloc %s err %v javaAvailable %t internetAvailable %t", javaLoc, err, javaAvailable, internetAvailable)
+		// log.Printf("javaloc %s err %v javaAvailable %t internetAvailable %t", javaLoc, err, javaAvailable, internetAvailable)
 		if internetAvailable && !javaAvailable {
 			// Check for Java before anything else
 			if err := checkJava(statusLabel); err != nil {
 				dialog.ShowError(fmt.Errorf("failed to fetch Java: %w", err), w)
 			}
 		}
+
+		// Initialize environment properties
+		InitEnv()
 
 		var releases []string
 		if internetAvailable {
@@ -479,7 +482,7 @@ func checkForNewerVersion() {
 					if releaseVersion.GreaterThan(latestInstalledVersion) {
 						log.Printf("Found newer version: %s\n", releaseVersion)
 						if containsPreReleaseTag(release) {
-							log.Printf("Newer version is a pre-release: %s\n", release)
+							// log.Printf("Newer version is a pre-release: %s\n", release)
 							if containsPreReleaseTag(latestInstalled) {
 								updateTitle.SetText(fmt.Sprintf("A more recent prerelease version (%s) is available", releaseVersion))
 								updateTitle.TextStyle = fyne.TextStyle{Bold: true}
@@ -487,7 +490,7 @@ func checkForNewerVersion() {
 								updateTitle.Show()
 								return
 							} else {
-								log.Printf("Skipping pre-release version: %s\n", release)
+								// log.Printf("Skipping pre-release version: %s\n", release)
 							}
 						} else {
 							updateTitle.SetText(fmt.Sprintf("A more recent stable version (%s) is available", releaseVersion))

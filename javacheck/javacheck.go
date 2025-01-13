@@ -87,15 +87,15 @@ func FindLocalJava() (string, error) {
 	if goos == "windows" && !isWSL() {
 		javaExe = "javaw.exe"
 		javaPath = filepath.Join(javaDir, latestJDK, "bin", javaExe)
-		log.Printf("*** goos=%s javaPath=%s\n", goos, javaPath)
+		// log.Printf("*** goos=%s javaPath=%s\n", goos, javaPath)
 	} else if goos == "darwin" {
 		javaExe = "java"
 		javaPath = filepath.Join(javaDir, latestJDK, "Contents", "Home", "bin", javaExe)
-		log.Printf("*** goos=%s javaPath=%s\n", goos, javaPath)
+		// log.Printf("*** goos=%s javaPath=%s\n", goos, javaPath)
 	} else if goos == "linux" {
 		javaExe = "java"
 		javaPath = filepath.Join(javaDir, latestJDK, "bin", javaExe)
-		log.Printf("*** goos=%s javaPath=%s\n", goos, javaPath)
+		// log.Printf("*** goos=%s javaPath=%s\n", goos, javaPath)
 	} else {
 		log.Printf("*** Unsupported OS: %s\n", goos)
 		return "", fmt.Errorf("unsupported OS: %s", goos)

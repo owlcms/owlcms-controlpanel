@@ -25,7 +25,7 @@ func GetPort() string {
 	if environment == nil {
 		return "8080"
 	}
-	port, ok := environment.Get("PORT")
+	port, ok := environment.Get("OWLCMS_PORT")
 	if !ok {
 		return "8080"
 	}
@@ -37,8 +37,8 @@ func InitEnv() {
 	props := properties.NewProperties()
 	envFilePath := filepath.Join(owlcmsInstallDir, "env.properties")
 	if _, err := os.Stat(envFilePath); os.IsNotExist(err) {
-		// Create env.properties file with entry "PORT=8080"
-		props.Set("PORT", "8080")
+		// Create env.properties file with entry "OWLCMS_PORT=8080"
+		props.Set("OWLCMS_PORT", "8080")
 		file, err := os.Create(envFilePath)
 		if err != nil {
 			log.Fatalf("Failed to create env.properties file: %v", err)
@@ -48,12 +48,20 @@ func InitEnv() {
 			log.Fatalf("Failed to write env.properties file: %v", err)
 		}
 		// Add commented-out entries
-		if _, err := file.WriteString("# Add any environment variable you need.\n"); err != nil {
+		rawString := `# Add any environment variable you need. (remove the leading # to uncomment)
+#OWLCMS_INITIALDATA=LARGEGROUP_DEMO
+#OWLCMS_MEMORYMODE=false
+#OWLCMS_RESETMODE=false
+
+# this overrides all the feature toggles in the database (remove the leading # to uncomment)
+#OWLCMS_FEATURESWITCHES=interimScores
+
+# java options can be set with this variable (remove the leading # to uncomment)
+#JAVA_OPTIONS=-Xmx512m -Xmx512m`
+
+		if _, err := file.WriteString(rawString); err != nil {
 			log.Fatalf("Failed to write comment to env.properties file: %v", err)
 		}
-		file.WriteString("#OWLCMS_INITIALDATA=LARGEGROUP_DEMO\n")
-		file.WriteString("#OWLCMS_MEMORYMODE=false\n")
-		file.WriteString("#OWLCMS_RESETMODE=false\n")
 	}
 
 	// Load the properties into the global variable environment

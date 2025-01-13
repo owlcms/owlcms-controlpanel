@@ -162,17 +162,17 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("OWLCMS_LAUNCHER=%s", version))
 
-	// Add all properties from environment to process env
+	// Add all properties from env.properties to the process env
 	for _, key := range environment.Keys() {
 		value, _ := environment.Get(key)
 		env = append(env, fmt.Sprintf("%s=%s", key, value))
 	}
 
-	// Log all environment variables before starting Java
-	log.Printf("Environment variables for OWLCMS %s:", version)
-	for _, envVar := range env {
-		log.Printf("  %s", envVar)
-	}
+	// // Log all environment variables before starting Java
+	// log.Printf("Environment variables for OWLCMS %s:", version)
+	// for _, envVar := range env {
+	// 	log.Printf("  %s", envVar)
+	// }
 
 	// Start the Java process
 	cmd := exec.Command(localJava, "-jar", "owlcms.jar")
@@ -196,7 +196,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 	}
 
 	log.Printf("Launching OWLCMS %s (PID: %d), waiting for port %s...\n", version, javaPID, GetPort())
-	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s (PID: %d), please wait. Full startup can take up to 30 seconds.", version, javaPID))
+	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s (PID: %d), waiting for port %s.\nFull startup can take up to 30 seconds.", version, javaPID, GetPort()))
 	currentProcess = cmd
 	stopButton.SetText(fmt.Sprintf("Stop OWLCMS %s", version))
 	stopButton.Show()
@@ -222,8 +222,9 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 			return
 		}
 
-		log.Printf("OWLCMS process %d is ready (port 8080 responding)\n", javaPID)
-		statusLabel.SetText(fmt.Sprintf("OWLCMS running (PID: %d)", javaPID))
+		log.Printf("OWLCMS process %d is ready (port %s responding)\n", javaPID, GetPort())
+		url := fmt.Sprintf("http://localhost:%s", GetPort())
+		statusLabel.SetText(fmt.Sprintf("OWLCMS running (PID: %d) on port %s", javaPID, GetPort()))
 
 		// Process is stable, wait for it to end
 		err := cmd.Wait()
