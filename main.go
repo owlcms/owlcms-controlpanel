@@ -31,10 +31,10 @@ var (
 	stopButton                *widget.Button
 	versionContainer          *fyne.Container
 	stopContainer             *fyne.Container
-	singleOrMultiVersionLabel *widget.Label   // New label for single or multi version update
-	downloadContainer         *fyne.Container // New global to track the same container
-	downloadsShown            bool            // New global to track whether downloads are shown
-
+	singleOrMultiVersionLabel *widget.Label     // New label for single or multi version update
+	downloadContainer         *fyne.Container   // New global to track the same container
+	downloadsShown            bool              // New global to track whether downloads are shown
+	urlLink                   *widget.Hyperlink // Add this new variable
 )
 
 func init() {
@@ -188,7 +188,12 @@ func main() {
 	// Create containers
 	downloadContainer = container.NewVBox()
 	versionContainer = container.NewVBox()
-	stopContainer = container.NewVBox(stopButton, statusLabel)
+
+	// Create URL hyperlink
+	urlLink = widget.NewHyperlink("", nil)
+	urlLink.Hide()
+
+	stopContainer = container.NewVBox(stopButton, statusLabel, urlLink)
 
 	// Initialize download titles
 	updateTitle = widget.NewLabel("")
@@ -204,6 +209,7 @@ func main() {
 
 	// Configure stop button behavior
 	stopButton.OnTapped = func() {
+		log.Println("Stop button tapped")
 		stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
 	}
 	stopButton.Hide()
@@ -360,6 +366,7 @@ func main() {
 		w.Canvas().Refresh(mainContent)
 
 		w.SetCloseIntercept(func() {
+			log.Println("Closing OWLCMS Launcher")
 			if currentProcess != nil {
 				stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
 			}

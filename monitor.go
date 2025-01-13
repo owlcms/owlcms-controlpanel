@@ -98,6 +98,7 @@ func stopProcess(currentProcess *exec.Cmd, currentVersion string, stopButton *wi
 		statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) has been stopped", currentVersion, pid))
 		currentProcess = nil
 		stopButton.Hide()
+		urlLink.Hide() // Hide the URL when stopping
 		checkForNewerVersion()
 		downloadGroup.Show()
 		versionContainer.Show()
