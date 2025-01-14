@@ -96,7 +96,7 @@ jobs:
     - name: Zip macOS amd64 app
       run: |
         cd dist/darwin-amd64
-        zip -r owlcms-launcher_${{ env.TAG }}_mac_amd64.zip owlcms.app
+        zip -r owlcms-launcher_${{ env.TAG }}_mac_intel.zip owlcms.app
         cd -
 
     - name: Create DMG for macOS amd64
