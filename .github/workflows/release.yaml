@@ -63,11 +63,11 @@ jobs:
         mv owlcms.app dist/darwin-arm64/
         ls -l dist/darwin-arm64
 
-    - name: Zip macOS arm64 app
-      run: |
-        cd dist/darwin-arm64
-        zip -r owlcms-launcher_${{ env.TAG }}_mac_arm64.zip owlcms.app
-        cd -
+    # - name: Zip macOS arm64 app
+    #   run: |
+    #     cd dist/darwin-arm64
+    #     zip -r owlcms-launcher_${{ env.TAG }}_mac_arm64.zip owlcms.app
+    #     cd -
 
     - name: Create DMG for macOS arm64
       run: |
@@ -93,11 +93,11 @@ jobs:
         mkdir -p dist/darwin-amd64
         mv owlcms.app dist/darwin-amd64/
 
-    - name: Zip macOS amd64 app
-      run: |
-        cd dist/darwin-amd64
-        zip -r owlcms-launcher_${{ env.TAG }}_mac_intel.zip owlcms.app
-        cd -
+    # - name: Zip macOS amd64 app
+    #   run: |
+    #     cd dist/darwin-amd64
+    #     zip -r owlcms-launcher_${{ env.TAG }}_mac_intel.zip owlcms.app
+    #     cd -
 
     - name: Create DMG for macOS amd64
       run: |
@@ -117,15 +117,15 @@ jobs:
         prerelease: false
         body_path: ./dist/RELEASE.md
 
-    - name: Upload macOS arm64 zip
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: dist/darwin-arm64/owlcms-launcher_${{ env.TAG }}_mac_arm64.zip
-        asset_name: owlcms-launcher_${{ env.TAG }}_mac_arm64.zip
-        asset_content_type: application/zip
+    # - name: Upload macOS arm64 zip
+    #   uses: actions/upload-release-asset@v1
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #   with:
+    #     upload_url: ${{ steps.create_release.outputs.upload_url }}
+    #     asset_path: dist/darwin-arm64/owlcms-launcher_${{ env.TAG }}_mac_arm64.zip
+    #     asset_name: owlcms-launcher_${{ env.TAG }}_mac_arm64.zip
+    #     asset_content_type: application/zip
 
     - name: Upload macOS arm64 DMG
       uses: actions/upload-release-asset@v1
@@ -137,15 +137,15 @@ jobs:
         asset_name: owlcms-launcher_${{ env.TAG }}_mac_arm64.dmg
         asset_content_type: application/x-apple-diskimage
 
-    - name: Upload macOS amd64 zip
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_amd64.zip
-        asset_name: owlcms-launcher_${{ env.TAG }}_mac_amd64.zip
-        asset_content_type: application/zip
+    # - name: Upload macOS amd64 zip
+    #   uses: actions/upload-release-asset@v1
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #   with:
+    #     upload_url: ${{ steps.create_release.outputs.upload_url }}
+    #     asset_path: dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_intel.zip
+    #     asset_name: owlcms-launcher_${{ env.TAG }}_mac_amd64.zip
+    #     asset_content_type: application/zip
 
     - name: Upload macOS amd64 DMG
       uses: actions/upload-release-asset@v1
