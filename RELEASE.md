@@ -19,19 +19,20 @@ The control panel is installed once. It will automatically download the current 
 ### Installing the Control Panel
 
 - For Windows, 
-  1. Download `owlcms.exe`  
+  1. Download `owlcms.exe` -- You may get warnings about rarely downloaded files, select the options to keep the file and download anyway.
   2. Drag or copy/paste the file to your Desktop
-  3. Double-click on the owlcms.exe file. If warnings are given, Use the "More Information"  and "Run Anyway" options to allow execution (only needed once)
+  3. Double-click on the owlcms executable you copied to your Desktop.
+  4. If warnings are given, Use the "More Information"  and "Run Anyway" options to allow execution (only needed once)
   
 - For Mac
-  1. For a recent Mac (M1/M2/...), download the file that ends with `_arm64.dmg`.   For an Intel mac, use the `_amd.dmg` file
-  2. Execute the `.dmg` file.  Drag the application to the Application folder.
+  1. For a recent Mac (M1/M2/...), download the file that ends with `_arm64.dmg`.   For an Intel mac, use the `_intel.dmg` file
+  2. Execute the `.dmg` file.  Drag the application to the Application folder, or drag the application to your desktop
   3. **Right-click on the application and use Open**.  This is needed once, to allow execution.
 
 - For Raspberry Pi
   1. Download the file that ends with `_pi.deb` .
   2. Go to your Downloads directory, right-click on the downloaded file and select `Package Install`.  
-     You will be prompted for the password of your pi user. This will create a desktop icon, and an entry in the "Other" section of the system menu.
+     You will be prompted for your password to get installation permissions. This will create a desktop icon, and an entry in the "Other" section of the system menu.
 
 - For Linux on Intel or AMD computers
   1. Download the file that ends with `_amd64.deb` .
