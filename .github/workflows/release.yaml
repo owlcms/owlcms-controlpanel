@@ -233,27 +233,27 @@ jobs:
         asset_name: owlcms-launcher_${{ env.DEB_TAG }}_amd64.deb
         asset_content_type: application/octet-stream
 
-    - name: Upload binaries
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.build_mac.outputs.upload_url }}
-        asset_path: fyne-cross/bin/linux-arm64/owlcms-pi
-        asset_name: owlcms-pi
-        asset_content_type: application/octet-stream
+    # - name: Upload binaries
+    #   uses: actions/upload-release-asset@v1
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #   with:
+    #     upload_url: ${{ needs.build_mac.outputs.upload_url }}
+    #     asset_path: fyne-cross/bin/linux-arm64/owlcms-pi
+    #     asset_name: owlcms-pi
+    #     asset_content_type: application/octet-stream
 
-    - name: Upload binaries
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.build_mac.outputs.upload_url }}
-        asset_path: fyne-cross/bin/linux-amd64/owlcms-linux
-        asset_name: owlcms-linux
-        asset_content_type: application/octet-stream
+    # - name: Upload binaries
+    #   uses: actions/upload-release-asset@v1
+    #   env:
+    #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #   with:
+    #     upload_url: ${{ needs.build_mac.outputs.upload_url }}
+    #     asset_path: fyne-cross/bin/linux-amd64/owlcms-linux
+    #     asset_name: owlcms-linux
+    #     asset_content_type: application/octet-stream
 
-    - name: Upload binaries
+    - name: Upload Windows binary
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
