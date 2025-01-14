@@ -9,6 +9,7 @@ The control panel is installed once. It will automatically download the current 
 
 ### Change Log for version _TAG_
 
+- 1.7.1: Renamed the _arm64.dmg file to _intel.dmg as people refer to "intel mac"
 - Added a link to open owlcms on a localhost browser if it closed by mistake
 - A configuration file is now available (`env.properties`) that allows setting any of the owlcms environment variables.  This can be used to change the port, load testing data, set features, etc.
 - Added Help menu with link to documentation and about with version number
