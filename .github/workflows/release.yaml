@@ -102,7 +102,7 @@ jobs:
     - name: Create DMG for macOS amd64
       run: |
         pwd
-        appdmg dist/appdmg_amd64.json dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_amd64.dmg
+        appdmg dist/appdmg_amd64.json dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_intel.dmg
 
 
     - name: Create GitHub Release
@@ -153,8 +153,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_amd64.dmg
-        asset_name: owlcms-launcher_${{ env.TAG }}_mac_amd64.dmg
+        asset_path: dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_intel.dmg
+        asset_name: owlcms-launcher_${{ env.TAG }}_mac_intel.dmg
         asset_content_type: application/x-apple-diskimage
 
   build_deb:
