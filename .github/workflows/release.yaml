@@ -241,14 +241,8 @@ jobs:
     - name: Run Inno Setup
       run: |
         cd dist
-        dir /x "C:\Program Files (x86)"
-        dir /x "C:\Program Files (x86)\Inno Setup 6"
-        dir
         & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "setup.iss"
-
-    - name: Rename Windows installer
-      run: |
-        mv dist/owlcms-Panel-installer_windows.exe dist/owlcms-launcher_${{ env.TAG }}_windows.exe
+        dir
 
     - name: Upload Windows installer
       uses: actions/upload-release-asset@v1
@@ -256,6 +250,6 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ needs.build_mac.outputs.upload_url }}
-        asset_path: dist/owlcms-launcher_${{ env.TAG }}_windows.exe
+        asset_path: dist/owlcms-Panel-installer_windows.exe
         asset_name: "Windows_Control_Panel_Installer.exe"
         asset_content_type: application/octet-stream
