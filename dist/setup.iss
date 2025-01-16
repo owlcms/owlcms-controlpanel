@@ -3,18 +3,19 @@ AppName=owlcms Control Panel
 AppVersion=1.0
 DefaultDirName={userappdata}\owlcms Control Panel
 OutputDir=.
-OutputBaseFilename=owlcms-Windows-installer
+OutputBaseFilename=owlcms-Panel-installer_windows
 SetupIconFile=installer.ico
 UninstallDisplayIcon={app}\installer.ico
 PrivilegesRequired=lowest
 DisableDirPage=yes
 DisableProgramGroupPage=yes
-DisableStartupPrompt=no
+DisableStartupPrompt=yes
 
 [Files]
-Source: "..\fyne-cross\bin\windows-amd64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-Source: "owlcms.ico"; DestDir: "{app}"; Flags: ignoreversion
-Source: "installer.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "iss\owlcms.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "iss\owlcms.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "iss\installer.ico"; DestDir: "{app}"; Flags: ignoreversion
+
 [Icons]
 Name: "{group}\owlcms Control Panel"; Filename: "{app}\owlcms-launcher.exe"; IconFilename: "{app}\owlcms.ico"
 Name: "{userdesktop}\owlcms Control Panel"; Filename: "{app}\owlcms-launcher.exe"; IconFilename: "{app}\owlcms.ico"
