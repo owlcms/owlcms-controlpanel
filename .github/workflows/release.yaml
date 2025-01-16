@@ -72,12 +72,6 @@ jobs:
         mv owlcms.app dist/darwin-arm64/
         ls -l dist/darwin-arm64
 
-    # - name: Zip macOS arm64 app
-    #   run: |
-    #     cd dist/darwin-arm64
-    #     zip -r owlcms-launcher_${{ env.TAG }}_mac_arm64.zip owlcms.app
-    #     cd -
-
     - name: Create DMG for macOS arm64
       run: |
         pwd
@@ -114,7 +108,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ env.TAG }}
-        release_name: "owlcms ${{ env.TAG }}"
+        release_name: "owlcms Control Panel ${{ env.TAG }}"
         draft: false
         prerelease: ${{ env.PRERELEASE }}
         body_path: ./dist/RELEASE.md
@@ -237,7 +231,7 @@ jobs:
 
     - name: Prepare Inno Setup directory
       run: |
-        mkdir -p dist/iss
+        mkdir dist/iss
         cp dist/owlcms.exe dist/iss/
         cp dist/*.ico dist/iss/
 
@@ -247,7 +241,8 @@ jobs:
     - name: Run Inno Setup
       run: |
         cd dist
-        "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" setup.iss
+        dir
+        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "setup.iss"
 
     - name: Rename Windows installer
       run: |

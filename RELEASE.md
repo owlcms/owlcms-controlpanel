@@ -1,6 +1,6 @@
-> ## Alpha TEST VERSION: DO NOT USE 1.8.0-alpha00
+> ### Alpha TEST VERSION: DO NOT USE 1.8.0-alpha00
 >
-> ### Please go down the list and use version 1.7.2
+> ### Please go down the list and use [version 1.7.1](https://github.com/owlcms/owlcms-controlpanel/releases/tag/v1.7.1)
 >
 > Sorry for the inconvenience -- testing release procedures is annoying.
 
