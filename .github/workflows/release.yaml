@@ -247,7 +247,7 @@ jobs:
     - name: Run Inno Setup
       run: |
         cd dist
-        "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /Q iss/setup.iss
+        "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" iss/setup.iss
 
     - name: Rename Windows installer
       run: |
