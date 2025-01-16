@@ -126,7 +126,7 @@ jobs:
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: dist/darwin-arm64/owlcms-launcher_${{ env.TAG }}_mac_arm64.dmg
-        asset_name: "macOS M-series Control Panel Installer.dmg"
+        asset_name: "macOS_M-series_Control_Panel_Installer.dmg"
         asset_content_type: application/x-apple-diskimage
 
     - name: Upload macOS amd64 DMG
@@ -136,7 +136,7 @@ jobs:
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_intel.dmg
-        asset_name: "macOS Intel Control Panel Installer.dmg"
+        asset_name: "macOS_Intel_Control_Panel_Installer.dmg"
         asset_content_type: application/x-apple-diskimage
 
   build_deb:
@@ -202,7 +202,7 @@ jobs:
       with:
         upload_url: ${{ needs.build_mac.outputs.upload_url }}
         asset_path: owlcms-launcher_${{ env.DEB_TAG }}_pi.deb
-        asset_name: "Raspberry Pi arm64 Control Panel Installer.deb"
+        asset_name: "Raspberry_Pi_arm64_Control_Panel_Installer.deb"
         asset_content_type: application/octet-streamd
 
     - name: Upload DEB packages
@@ -212,7 +212,7 @@ jobs:
       with:
         upload_url: ${{ needs.build_mac.outputs.upload_url }}
         asset_path: owlcms-launcher_${{ env.DEB_TAG }}_amd64.deb
-        asset_name: "Linux Intel Control Panel Installer.deb"
+        asset_name: "Linux_Intel_Control_Panel_Installer.deb"
         asset_content_type: application/octet-stream
 
     - name: Create Windows artifact
@@ -260,5 +260,5 @@ jobs:
       with:
         upload_url: ${{ needs.build_mac.outputs.upload_url }}
         asset_path: dist/owlcms-launcher_${{ env.TAG }}_windows.exe
-        asset_name: "Windows Control Panel Installer.exe"
+        asset_name: "Windows_Control_Panel_Installer.exe"
         asset_content_type: application/octet-stream
