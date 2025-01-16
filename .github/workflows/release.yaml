@@ -241,6 +241,8 @@ jobs:
     - name: Run Inno Setup
       run: |
         cd dist
+        dir /x "C:\Program Files (x86)"
+        dir /x "C:\Program Files (x86)\Inno Setup 6"
         dir
         & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "setup.iss"
 
