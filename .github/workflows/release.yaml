@@ -215,15 +215,11 @@ jobs:
         asset_name: "Linux Intel Control Panel Installer.deb"
         asset_content_type: application/octet-stream
 
-    - name: Upload Windows binary
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Create Windows artifact
+      uses: actions/upload-artifact@v4
       with:
-        upload_url: ${{ needs.build_mac.outputs.upload_url }}
-        asset_path: fyne-cross/bin/windows-amd64/owlcms.exe
-        asset_name: "Windows Control Panel Installer.exe"
-        asset_content_type: application/octet-stream
+        name: owlcms.exe
+        path: fyne-cross/bin/windows-amd64/owlcms.exe
 
   package_windows:
     runs-on: windows-latest
@@ -234,7 +230,7 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Download Windows artifact
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         name: owlcms.exe
         path: ./dist
