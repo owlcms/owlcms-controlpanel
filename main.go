@@ -136,7 +136,7 @@ func removeAllVersions() {
 	log.Println("All versions removed successfully")
 	dialog.ShowInformation("Success", "All versions removed successfully", fyne.CurrentApp().Driver().AllWindows()[0])
 	getAllInstalledVersions()
-	updateTitle.SetText("All Versions Removed.")
+	updateTitle.ParseMarkdown("All Versions Removed.")
 	downloadButtonTitle.SetText("Click here to install a version.")
 	downloadButtonTitle.Refresh()
 	updateTitle.Refresh()
@@ -196,7 +196,7 @@ func main() {
 	stopContainer = container.NewVBox(stopButton, statusLabel, urlLink)
 
 	// Initialize download titles
-	updateTitle = widget.NewLabel("")
+	updateTitle = widget.NewRichTextFromMarkdown("")                                             // Initialize as RichText for Markdown
 	downloadButtonTitle = widget.NewHyperlink("Click here to install additional versions.", nil) // New title for download button
 	downloadButtonTitle.OnTapped = func() {
 		if !downloadsShown {
@@ -511,20 +511,18 @@ func checkForNewerVersion() {
 				if err == nil {
 					if releaseVersion.GreaterThan(latestInstalledVersion) {
 						log.Printf("Found newer version: %s\n", releaseVersion)
+						var releaseURL string
 						if containsPreReleaseTag(release) {
-							// log.Printf("Newer version is a pre-release: %s\n", release)
+							releaseURL = fmt.Sprintf("https://github.com/owlcms/owlcms4-prerelease/releases/tag/%s", release)
 							if containsPreReleaseTag(latestInstalled) {
-								updateTitle.SetText(fmt.Sprintf("A more recent prerelease version (%s) is available", releaseVersion))
-								updateTitle.TextStyle = fyne.TextStyle{Bold: true}
+								updateTitle.ParseMarkdown(fmt.Sprintf("**A more recent prerelease version %s is available.** [Release Notes](%s)", releaseVersion, releaseURL))
 								updateTitle.Refresh()
 								updateTitle.Show()
 								return
-							} else {
-								// log.Printf("Skipping pre-release version: %s\n", release)
 							}
 						} else {
-							updateTitle.SetText(fmt.Sprintf("A more recent stable version (%s) is available", releaseVersion))
-							updateTitle.TextStyle = fyne.TextStyle{Bold: true}
+							releaseURL = fmt.Sprintf("https://github.com/owlcms/owlcms4/releases/tag/%s", release)
+							updateTitle.ParseMarkdown(fmt.Sprintf("**A more recent stable version %s is available.** [Release Notes](%s)", releaseVersion, releaseURL))
 							updateTitle.Refresh()
 							updateTitle.Show()
 							return
@@ -538,12 +536,19 @@ func checkForNewerVersion() {
 			updateTitle.Show()
 			downloadButtonTitle.Show()
 
+			var releaseURL string
 			if containsPreReleaseTag(latestInstalled) {
-				updateTitle.SetText(fmt.Sprintf("The latest installed version is a pre-release; the latest stable version is %s", latestStable))
+				stableURL := fmt.Sprintf("https://github.com/owlcms/owlcms4-prerelease/releases/tag/%s", latestStable)
+				prereleaseURL := fmt.Sprintf("https://github.com/owlcms/owlcms4-prerelease/releases/tag/%s", latestInstalled)
+				updateTitle.ParseMarkdown(fmt.Sprintf(
+					`**The latest installed version is pre-release %s** [Release Notes](%s)
+					
+The latest stable version is %s.** [Release Notes](%s)`,
+					latestInstalled, prereleaseURL, latestStable, stableURL))
 			} else {
-				updateTitle.SetText("The latest stable version is installed.")
+				releaseURL = fmt.Sprintf("https://github.com/owlcms/owlcms4/releases/tag/%s", latestInstalled)
+				updateTitle.ParseMarkdown(fmt.Sprintf("**The latest stable version is installed.** [Release Notes](%s)", releaseURL))
 			}
-			updateTitle.TextStyle = fyne.TextStyle{Bold: true}
 			updateTitle.Refresh()
 
 			downloadButtonTitle.Refresh()
@@ -560,9 +565,7 @@ func checkForNewerVersion() {
 			}
 		}
 	} else {
-		updateTitle.SetText("No version installed. Select a version to download below.")
-		updateTitle.TextStyle = fyne.TextStyle{Bold: true}
-		updateExplanation()
+		updateTitle.ParseMarkdown("**No version installed. Select a version to download below.**")
 		updateTitle.Refresh()
 		updateTitle.Show()
 		if downloadContainer != nil {

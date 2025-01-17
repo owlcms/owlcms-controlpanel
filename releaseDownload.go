@@ -33,7 +33,7 @@ var (
 	allReleases         []string
 	releaseDropdown     *fyne.Container
 	prereleaseCheckbox  *widget.Check
-	updateTitle         *widget.Label
+	updateTitle         *widget.RichText  // Change to RichText for Markdown support
 	downloadButtonTitle *widget.Hyperlink // New title for download button
 )
 
