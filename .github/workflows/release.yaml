@@ -12,9 +12,6 @@ jobs:
   build_mac:
     runs-on: macos-13
 
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -23,6 +20,10 @@ jobs:
       uses: actions/setup-go@v2
       with:
         go-version: '1.23.4'
+
+    - name: Install gh CLI
+      run: |
+        brew install gh
 
     - name: Extract tag
       id: extract_tag
@@ -102,36 +103,22 @@ jobs:
         appdmg dist/appdmg_amd64.json dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_intel.dmg
 
     - name: Create GitHub Release
-      id: create_release
-      uses: actions/create-release@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ env.TAG }}
-        release_name: "owlcms Control Panel ${{ env.TAG }}"
-        draft: false
-        prerelease: ${{ env.PRERELEASE }}
-        body_path: ./dist/RELEASE.md
+      run: |
+        gh release create ${{ env.TAG }} ./dist/RELEASE.md --title "owlcms Control Panel ${{ env.TAG }}" --notes-file ./dist/RELEASE.md --draft=false --prerelease=${{ env.PRERELEASE }}
 
     - name: Upload macOS arm64 DMG
-      uses: actions/upload-release-asset@v3
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: dist/darwin-arm64/owlcms-launcher_${{ env.TAG }}_mac_arm64.dmg
-        asset_name: "macOS_M-series_Control_Panel_Installer.dmg"
-        asset_content_type: application/x-apple-diskimage
+      run: |
+        gh release upload ${{ env.TAG }} dist/darwin-arm64/owlcms-launcher_${{ env.TAG }}_mac_arm64.dmg --name "macOS_M-series_Control_Panel_Installer.dmg" --content-type application/x-apple-diskimage
 
     - name: Upload macOS amd64 DMG
-      uses: actions/upload-release-asset@v3
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_intel.dmg
-        asset_name: "macOS_Intel_Control_Panel_Installer.dmg"
-        asset_content_type: application/x-apple-diskimage
+      run: |
+        gh release upload ${{ env.TAG }} dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_intel.dmg --name "macOS_Intel_Control_Panel_Installer.dmg" --content-type application/x-apple-diskimage
 
   build_deb:
     runs-on: ubuntu-latest
@@ -140,6 +127,13 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
+
+    - name: Install gh CLI
+      run: |
+        sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-key C99B11DEB97541F0
+        sudo apt-add-repository https://cli.github.com/packages
+        sudo apt-get update
+        sudo apt-get install gh
 
     - name: Set up Go
       uses: actions/setup-go@v2
@@ -190,24 +184,16 @@ jobs:
         mv owlcms-launcher_${DEB_TAG}_arm64.deb owlcms-launcher_${DEB_TAG}_pi.deb
 
     - name: Upload DEB packages
-      uses: actions/upload-release-asset@v3
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.build_mac.outputs.upload_url }}
-        asset_path: owlcms-launcher_${{ env.DEB_TAG }}_pi.deb
-        asset_name: "Raspberry_Pi_arm64_Control_Panel_Installer.deb"
-        asset_content_type: application/octet-streamd
+      run: |
+        gh release upload ${{ env.TAG }} owlcms-launcher_${{ env.DEB_TAG }}_pi.deb --name "Raspberry_Pi_arm64_Control_Panel_Installer.deb" --content-type application/octet-stream
 
     - name: Upload DEB packages
-      uses: actions/upload-release-asset@v3
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.build_mac.outputs.upload_url }}
-        asset_path: owlcms-launcher_${{ env.DEB_TAG }}_amd64.deb
-        asset_name: "Linux_Intel_Control_Panel_Installer.deb"
-        asset_content_type: application/octet-stream
+      run: |
+        gh release upload ${{ env.TAG }} owlcms-launcher_${{ env.DEB_TAG }}_amd64.deb --name "Linux_Intel_Control_Panel_Installer.deb" --content-type application/octet-stream
 
     - name: Create Windows artifact
       uses: actions/upload-artifact@v4
@@ -222,6 +208,9 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
+
+    - name: Install gh CLI
+      run: choco install gh
 
     - name: Download Windows artifact
       uses: actions/download-artifact@v4
@@ -245,11 +234,7 @@ jobs:
         dir
 
     - name: Upload Windows installer
-      uses: actions/upload-release-asset@v3
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ needs.build_mac.outputs.upload_url }}
-        asset_path: dist/owlcms-Panel-installer_windows.exe
-        asset_name: "Windows_Control_Panel_Installer.exe"
-        asset_content_type: application/octet-stream
+      run: |
+        gh release upload ${{ env.TAG }} dist/owlcms-Panel-installer_windows.exe --name "Windows_Control_Panel_Installer.exe" --content-type application/octet-stream
