@@ -133,7 +133,7 @@ jobs:
 
   build_deb:
     runs-on: ubuntu-latest
-    needs: build_mac
+    # needs: build_mac
 
     steps:
     - name: Checkout code
