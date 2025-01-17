@@ -17,8 +17,8 @@ Source: "iss\owlcms.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "iss\installer.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\owlcms Control Panel"; Filename: "{app}\owlcms-launcher.exe"; IconFilename: "{app}\owlcms.ico"
-Name: "{userdesktop}\owlcms Control Panel"; Filename: "{app}\owlcms-launcher.exe"; IconFilename: "{app}\owlcms.ico"
+Name: "{group}\owlcms Control Panel"; Filename: "{app}\owlcms.exe"; IconFilename: "{app}\owlcms.ico"
+Name: "{userdesktop}\owlcms Control Panel"; Filename: "{app}\owlcms.exe"; IconFilename: "{app}\owlcms.ico"
 Name: "{group}\Uninstall owlcms Control Panel"; Filename: "{uninstallexe}"; IconFilename: "{app}\installer.ico"
 
 [Run]
