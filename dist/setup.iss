@@ -22,4 +22,4 @@ Name: "{userdesktop}\owlcms Control Panel"; Filename: "{app}\owlcms.exe"; IconFi
 Name: "{group}\Uninstall owlcms Control Panel"; Filename: "{uninstallexe}"; IconFilename: "{app}\installer.ico"
 
 [Run]
-Filename: "{app}\owlcms-launcher.exe"; Description: "Launch owlcms Control Panel"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\owlcms.exe"; Description: "Launch owlcms Control Panel"; Flags: nowait postinstall skipifsilent

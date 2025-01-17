@@ -1,4 +1,4 @@
-name: Release owlcms-launcher
+name: Release owlcms-controlpanel
 
 on:
   push:
