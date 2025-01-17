@@ -121,16 +121,16 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh release upload ${{ env.TAG }} dist/darwin-arm64/owlcms-launcher_${{ env.TAG }}_mac_arm64.dmg \
-          --name "macOS_M-series_Control_Panel_Installer.dmg" \
+        mv dist/darwin-arm64/owlcms-launcher_${{ env.TAG }}_mac_arm64.dmg dist/darwin-arm64/macOS_M-series_Control_Panel_Installer.dmg
+        gh release upload ${{ env.TAG }} dist/darwin-arm64/macOS_M-series_Control_Panel_Installer.dmg \
           --content-type application/x-apple-diskimage
 
     - name: Upload macOS amd64 DMG
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh release upload ${{ env.TAG }} dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_intel.dmg \
-          --name "macOS_Intel_Control_Panel_Installer.dmg" \
+        mv dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_intel.dmg dist/darwin-amd64/macOS_Intel_Control_Panel_Installer.dmg
+        gh release upload ${{ env.TAG }} dist/darwin-amd64/macOS_Intel_Control_Panel_Installer.dmg \
           --content-type application/x-apple-diskimage
 
   build_deb:
@@ -200,16 +200,16 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh release upload ${{ env.TAG }} owlcms-launcher_${{ env.DEB_TAG }}_pi.deb \
-          --name "Raspberry_Pi_arm64_Control_Panel_Installer.deb" \
+        mv owlcms-launcher_${{ env.DEB_TAG }}_pi.deb Raspberry_Pi_arm64_Control_Panel_Installer.deb
+        gh release upload ${{ env.TAG }} Raspberry_Pi_arm64_Control_Panel_Installer.deb \
           --content-type application/octet-stream
 
     - name: Upload DEB packages
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh release upload ${{ env.TAG }} owlcms-launcher_${{ env.DEB_TAG }}_amd64.deb \
-          --name "Linux_Intel_Control_Panel_Installer.deb" \
+        mv owlcms-launcher_${{ env.DEB_TAG }}_amd64.deb Linux_Intel_Control_Panel_Installer.deb
+        gh release upload ${{ env.TAG }} Linux_Intel_Control_Panel_Installer.deb \
           --content-type application/octet-stream
 
     - name: Create Windows artifact
@@ -254,6 +254,6 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh release upload ${{ env.TAG }} dist/owlcms-Panel-installer_windows.exe \
-          --name "Windows_Control_Panel_Installer.exe" \
+        mv dist/owlcms-Panel-installer_windows.exe Windows_Control_Panel_Installer.exe
+        gh release upload ${{ env.TAG }} Windows_Control_Panel_Installer.exe \
           --content-type application/octet-stream
