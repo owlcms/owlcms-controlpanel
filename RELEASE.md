@@ -9,6 +9,7 @@ The control panel is installed once. It will automatically download the current 
 
 ### Change Log for version _TAG_
 
+- 1.8.1: Added links to the release notes when referring to a version
 - 1.8.0: Added an installer for Windows
 - 1.8.0: Renamed the installers for better understandability
 
