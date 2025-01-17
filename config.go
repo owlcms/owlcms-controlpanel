@@ -15,7 +15,7 @@ var (
 )
 
 func init() {
-	if buildVersion != "_TAG_" {
+	if buildVersion != ("_" + "TAG" + "_") {
 		launcherVersion = buildVersion
 	}
 }
