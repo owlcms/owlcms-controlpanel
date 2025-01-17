@@ -16,6 +16,7 @@ var (
 
 func init() {
 	if buildVersion != ("_" + "TAG" + "_") {
+		// not running in a development environment
 		launcherVersion = buildVersion
 	}
 }

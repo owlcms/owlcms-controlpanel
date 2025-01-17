@@ -41,6 +41,7 @@ jobs:
 
     - name: Substitute tag in config.go
       run: |
+        # use this approach because we can't easily set ldflags in fyne-cross
         sed -i '' "s/_TAG_/${TAG}/g" config.go
 
     - name: Prepare release notes
