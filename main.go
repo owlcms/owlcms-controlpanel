@@ -538,12 +538,12 @@ func checkForNewerVersion() {
 
 			var releaseURL string
 			if containsPreReleaseTag(latestInstalled) {
-				stableURL := fmt.Sprintf("https://github.com/owlcms/owlcms4-prerelease/releases/tag/%s", latestStable)
+				stableURL := fmt.Sprintf("https://github.com/owlcms/owlcms4/releases/tag/%s", latestStable)
 				prereleaseURL := fmt.Sprintf("https://github.com/owlcms/owlcms4-prerelease/releases/tag/%s", latestInstalled)
 				updateTitle.ParseMarkdown(fmt.Sprintf(
 					`**The latest installed version is pre-release %s** [Release Notes](%s)
 					
-The latest stable version is %s.** [Release Notes](%s)`,
+The latest stable version is %s. [Release Notes](%s)`,
 					latestInstalled, prereleaseURL, latestStable, stableURL))
 			} else {
 				releaseURL = fmt.Sprintf("https://github.com/owlcms/owlcms4/releases/tag/%s", latestInstalled)
