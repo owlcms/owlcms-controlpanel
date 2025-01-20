@@ -1,7 +1,6 @@
 Owlcms-launcher is a control panel for owlcms.  The control panel is used to
 
 - Start and Stop owlcms
-
 - Install updates
 - Have multiple versions at once for testing purposes, with the ability to copy data from one to the other.
 
@@ -9,10 +8,8 @@ The control panel is installed once. It will automatically download the current 
 
 ### Change Log for version _TAG_
 
-- 1.8.2: Fixed link when current release is pre-release newer than a stable release + formatting.
-- 1.8.1: Added links to the release notes when referring to a version
-- 1.8.0: Added an installer for Windows
-- 1.8.0: Renamed the installers for better understandability
+- 1.9.0: The `env.properties` file is now reloaded before launching owlcms, at every launch
+- 1.9.0: Added a "Check for Updates" entry in the help menu.
 
 ### Installing the Control Panel
 
@@ -30,7 +27,7 @@ The control panel is installed once. It will automatically download the current 
   3. The first time you use the program, you **must** *Right-click on the application and use Open.*  This is only needed once, to allow execution.
 - For Raspberry Pi
   1. Download the `.deb` file that starts with `Raspberry`.
-  2. Go to your Downloads directory, right-click on the downloaded file and select `Package Install`.  
+  2. Go to your Downloads directory, *right-click on the downloaded file and select `Package Install`.*
      You will be prompted for your password to get installation permissions. This will create a desktop icon, and an entry in the "Other" section of the system menu.
 - For Linux on Intel or AMD computers
   1. Download the `.deb` file that starts with `Linux_Intel`
