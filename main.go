@@ -241,9 +241,6 @@ func main() {
 			}
 		}
 
-		// Initialize environment properties
-		InitEnv()
-
 		var releases []string
 		if internetAvailable {
 			releases, err = fetchReleases()

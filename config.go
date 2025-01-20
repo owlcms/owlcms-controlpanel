@@ -51,8 +51,8 @@ func InitEnv() {
 		// Add commented-out entries
 		rawString := `# Add any environment variable you need. (remove the leading # to uncomment)
 #OWLCMS_INITIALDATA=LARGEGROUP_DEMO
-#OWLCMS_MEMORYMODE=false
-#OWLCMS_RESETMODE=false
+#OWLCMS_RESETMODE=true
+#OWLCMS_MEMORYMODE=true
 
 # this overrides all the feature toggles in the database (remove the leading # to uncomment)
 #OWLCMS_FEATURESWITCHES=interimScores
@@ -66,6 +66,10 @@ func InitEnv() {
 	}
 
 	// Load the properties into the global variable environment
+	loadProperties(envFilePath)
+}
+
+func loadProperties(envFilePath string) {
 	environment = properties.NewProperties()
 	file, err := os.Open(envFilePath)
 	if err != nil {
@@ -80,10 +84,10 @@ func InitEnv() {
 		log.Fatalf("Failed to load env.properties file: %v", err)
 	}
 
-	// Log the properties for debugging
-	log.Printf("Loaded properties from %s:", envFilePath)
-	for _, key := range environment.Keys() {
-		value, _ := environment.Get(key)
-		log.Printf("  %s = %s", key, value)
-	}
+	// // Log the properties for debugging
+	// log.Printf("Loaded properties from %s:", envFilePath)
+	// for _, key := range environment.Keys() {
+	// 	value, _ := environment.Get(key)
+	// 	log.Printf("  %s = %s", key, value)
+	// }
 }

@@ -159,12 +159,14 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 		return fmt.Errorf("failed to find local Java: %w", err)
 	}
 
+	InitEnv()
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("OWLCMS_LAUNCHER=%s", version))
 
 	// Add all properties from env.properties to the process env
 	for _, key := range environment.Keys() {
 		value, _ := environment.Get(key)
+		log.Printf("   %s=%s", key, value)
 		env = append(env, fmt.Sprintf("%s=%s", key, value))
 	}
 
