@@ -1,10 +1,18 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/widget"
 	"github.com/magiconair/properties"
 )
 
@@ -90,4 +98,44 @@ func loadProperties(envFilePath string) {
 	// 	value, _ := environment.Get(key)
 	// 	log.Printf("  %s = %s", key, value)
 	// }
+}
+
+func checkForUpdates(win fyne.Window) {
+	const repoURL = "https://api.github.com/repos/owlcms/owlcms-controlpanel/releases/latest"
+	resp, err := http.Get(repoURL)
+	if err != nil {
+		log.Printf("Failed to check for updates: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		log.Printf("Failed to check for updates: received status code %d", resp.StatusCode)
+		return
+	}
+
+	var release struct {
+		TagName string `json:"tag_name"`
+		HTMLURL string `json:"html_url"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		log.Printf("Failed to parse update information: %v", err)
+		return
+	}
+
+	if release.TagName > launcherVersion {
+		url, err := url.Parse(release.HTMLURL)
+		if err != nil {
+			log.Printf("Failed to parse release URL: %v", err)
+			return
+		}
+		link := widget.NewHyperlink("Release Notes and Installer", url)
+		content := container.NewVBox(
+			widget.NewLabel(fmt.Sprintf("A new version (%s) is available. You are currently using version %s.\nYou can simply download the new installer and install over the current version.", release.TagName, launcherVersion)),
+			link,
+		)
+		dialog.ShowCustom("Update Available", "Close", content, win)
+	} else {
+		dialog.ShowInformation("No Updates", "You are using the latest version.", win)
+	}
 }

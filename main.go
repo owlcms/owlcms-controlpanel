@@ -325,6 +325,9 @@ func main() {
 				link := widget.NewHyperlink("Control Panel Documentation", linkURL)
 				dialog.ShowCustom("Documentation", "Close", link, w)
 			}),
+			fyne.NewMenuItem("Check for Updates", func() {
+				checkForUpdates(w)
+			}),
 			fyne.NewMenuItem("About", func() {
 				dialog.ShowInformation("About", "OWLCMS Launcher version "+launcherVersion, w)
 			}),
