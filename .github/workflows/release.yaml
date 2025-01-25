@@ -249,11 +249,28 @@ jobs:
 
     - name: Modify EXE metadata
       run: |
+        dir dist\owlcms.exe
+
         Set-Location dist
+        Write-Host "Current directory: $(Get-Location)"
+
         $exePath = "owlcms.exe"
+        if (!(Test-Path $exePath)) { # Check if the file exists
+          throw "File '$exePath' not found in '$(Get-Location)'."
+        }
+        Write-Host "File exists: $exePath"
+
         $shell = New-Object -ComObject Shell.Application
         $folder = $shell.Namespace(".")
+        if ($folder -eq $null) {
+            throw "Could not get folder object"
+        }
         $item = $folder.ParseName($exePath)
+        if ($item -eq $null) {
+            throw "Could not get file item"
+        }
+        Write-Host "File item found"
+
         $item.SetInfo("Title", "owlcms Control Panel")
         $item.SetInfo("Company", "Jean-François Lamy")
         $item.SetInfo("Copyright", "Copyright (C) 2024 Jean-François Lamy")
