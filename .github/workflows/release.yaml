@@ -162,7 +162,7 @@ jobs:
     # Windows build steps
     - name: Build for Windows
       if: ${{ env.BUILD_WINDOWS == 'true' }}
-      run: fyne-cross windows -arch amd64 -app-id app.owlcms.owlcms-launcher -icon Icon.png -name owlcms
+      run: fyne-cross windows -arch amd64 -app-id app.owlcms.owlcms-launcher -name owlcms -release -debug
 
     - name: Create Windows artifact
       if: ${{ env.BUILD_WINDOWS == 'true' }}
