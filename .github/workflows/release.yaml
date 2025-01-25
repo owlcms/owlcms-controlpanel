@@ -258,13 +258,16 @@ jobs:
         $fileInfo = Get-Item "owlcms.exe"
 
         # Use Set-ItemProperty to set the properties directly
-        Set-ItemProperty -Path $fileInfo.FullName -Name "Title" -Value "owlcms Control Panel"
-        Set-ItemProperty -Path $fileInfo.FullName -Name "Company" -Value "Jean-François Lamy"
-        Set-ItemProperty -Path $fileInfo.FullName -Name "Copyright" -Value "Copyright (C) 2024 Jean-François Lamy"
-        Set-ItemProperty -Path $fileInfo.FullName -Name "Product Name" -Value "owlcms Control Panel"
-        Set-ItemProperty -Path $fileInfo.FullName -Name "File Description" -Value "Control Panel for starting/stopping and updating owlcms"
-        Set-ItemProperty -Path $fileInfo.FullName -Name "File Version" -Value "1.9.1.102"
-        Set-ItemProperty -Path $fileInfo.FullName -Name "Product Version" -Value "1.9.1"
+        # Set version information using Set-ItemProperty
+          Set-ItemProperty -Path $exePath -Name "VersionInfo" -Value @{
+              Title = "owlcms Control Panel"
+              Company = "Jean-François Lamy"
+              Copyright = "Copyright (C) 2024 Jean-François Lamy"
+              ProductName = "owlcms Control Panel" # Note: ProductName, not Product Name
+              FileDescription = "Control Panel for starting/stopping and updating owlcms"
+              FileVersion = "1.9.1.102"
+              ProductVersion = "1.9.1102"
+          }
 
         # Verification
         (Get-Item $exePath).VersionInfo | Format-List *

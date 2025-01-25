@@ -51,8 +51,8 @@ sed -e "s/{{VERSION}}/$VERSION/g" \
 sed -i "s/^AppVersion=.*/AppVersion=$ISS_VERSION/" dist/setup.iss
 sed -i "s/^VersionInfoVersion=.*/VersionInfoVersion=$ISS_VERSION/" dist/setup.iss
 
-# Update release.yaml with version placeholders
-sed -i "/SetInfo(\"File Version\",/ s/SetInfo(\"File Version\",.*/SetInfo(\"File Version\", \"$MAJOR.$MINOR.$PATCH.$FOURTH_NUM\")/" .github/workflows/release.yaml
-sed -i "/SetInfo(\"Product Version\",/ s/SetInfo(\"Product Version\",.*/SetInfo(\"Product Version\", \"$MAJOR.$MINOR.$PATCH\")/" .github/workflows/release.yaml
+# Update release.yaml with version information
+sed -i "s/\(FileVersion = \).*/\1\"$MAJOR.$MINOR.$PATCH.$FOURTH_NUM\"/" .github/workflows/release.yaml
+sed -i "s/\(ProductVersion = \).*/\1\"$MAJOR.$MINOR.$PATCH$FOURTH_NUM\"/" .github/workflows/release.yaml
 
 echo "Updated release.yaml and setup.iss with version $VERSION (build number: $FOURTH_NUM, ISS version: $ISS_VERSION)"
