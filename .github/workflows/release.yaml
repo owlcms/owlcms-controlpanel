@@ -322,6 +322,7 @@ jobs:
           echo "PRERELEASE=true" >> $GITHUB_ENV
         else
           echo "PRERELEASE=false" >> $GITHUB_ENV
+        fi
 
     - name: Prepare release notes
       run: |
