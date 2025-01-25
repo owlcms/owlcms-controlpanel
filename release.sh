@@ -1,5 +1,5 @@
 #!/bin/bash -x
-export TAG=v1.9.0
+export TAG=v1.9.1-alpha01
 export DEB_TAG=${TAG#v}
 git pull
 dist/updateRc.sh ${DEB_TAG}

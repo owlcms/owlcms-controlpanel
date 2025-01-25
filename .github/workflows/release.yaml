@@ -1,7 +1,7 @@
 name: Release owlcms-controlpanel
 
 env:
-  BUILD_MAC: fakse
+  BUILD_MAC: false
   BUILD_WINDOWS: true
   BUILD_RASPBERRY: false
   BUILD_LINUX: false
