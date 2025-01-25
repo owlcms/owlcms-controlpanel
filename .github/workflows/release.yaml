@@ -1,11 +1,5 @@
 name: Release owlcms-controlpanel
 
-env:
-  BUILD_MAC: false
-  BUILD_WINDOWS: true
-  BUILD_RASPBERRY: false
-  BUILD_LINUX: false
-
 on:
   push:
     tags:
@@ -18,6 +12,11 @@ jobs:
   build_mac:
     if: ${{ env.BUILD_MAC == 'true' }}
     runs-on: macos-13
+    env:
+      BUILD_MAC: false
+      BUILD_WINDOWS: true
+      BUILD_RASPBERRY: false
+      BUILD_LINUX: false
 
     steps:
     - name: Checkout code
@@ -111,6 +110,11 @@ jobs:
   build_deb:
     runs-on: ubuntu-latest
     needs: build_mac
+    env:
+      BUILD_MAC: false
+      BUILD_WINDOWS: true
+      BUILD_RASPBERRY: false
+      BUILD_LINUX: false
 
     steps:
     - name: Checkout code
@@ -214,6 +218,11 @@ jobs:
     if: ${{ env.BUILD_WINDOWS == 'true' }}
     runs-on: windows-latest
     needs: build_deb
+    env:
+      BUILD_MAC: false
+      BUILD_WINDOWS: true
+      BUILD_RASPBERRY: false
+      BUILD_LINUX: false
 
     steps:
     - name: Checkout code
@@ -252,6 +261,11 @@ jobs:
   create_release:
     runs-on: ubuntu-latest
     needs: [build_mac, build_deb, package_windows]
+    env:
+      BUILD_MAC: false
+      BUILD_WINDOWS: true
+      BUILD_RASPBERRY: false
+      BUILD_LINUX: false
 
     steps:
     - name: Create dist directory
