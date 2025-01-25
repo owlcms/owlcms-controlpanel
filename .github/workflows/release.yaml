@@ -210,7 +210,7 @@ jobs:
         mv owlcms-launcher_${DEB_TAG}_arm64.deb artifacts/Raspberry_Pi_arm64_Control_Panel_Installer.deb
 
     # Save artifacts for later steps
-    - name: Upload Raspberry Pi DEB package
+    - name: Upload build_crosscompile_artifacts
       uses: actions/upload-artifact@v4
       with:
         name: build_crosscompile_artifacts
@@ -249,8 +249,8 @@ jobs:
 
     - name: Modify EXE metadata
       run: |
-        cd dist
-        $exePath = "owlcms.exe"
+        dir dist
+        $exePath = "dist\owlcms.exe"
         $shell = New-Object -ComObject Shell.Application
         $folder = $shell.Namespace((Split-Path $exePath))
         $item = $folder.ParseName((Split-Path $exePath -Leaf))
@@ -268,7 +268,6 @@ jobs:
         $item.GetInfo("File Description")
         $item.GetInfo("File Version")
         $item.GetInfo("Product Version")
-        cd ..
       shell: powershell
 
     - name: Prepare Inno Setup directory
