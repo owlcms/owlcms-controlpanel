@@ -20,7 +20,7 @@ jobs:
     steps:
     - name: Checkout code
       if: ${{ env.BUILD_MAC == 'true' }}
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: Set up Go
       if: ${{ env.BUILD_MAC == 'true' }}
@@ -128,7 +128,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: Install GitHub CLI
       run: |
@@ -234,7 +234,7 @@ jobs:
     steps:
     - name: Checkout code
       if: ${{ env.BUILD_WINDOWS == 'true' }}
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: Install gh CLI
       if: ${{ env.BUILD_WINDOWS == 'true' }}
@@ -277,6 +277,9 @@ jobs:
     needs: [build_mac, build_crosscompile, package_windows]
 
     steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
     - name: Create dist directory
       run: mkdir -p dist
 
