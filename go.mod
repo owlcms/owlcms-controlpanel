@@ -3,7 +3,7 @@ module owlcms-launcher
 go 1.23.4
 
 require (
-	fyne.io/fyne/v2 v2.5.3 // Downgrade to v2.4.0
+	fyne.io/fyne/v2 v2.5.3
 	github.com/gofrs/flock v0.12.1
 	github.com/magiconair/properties v1.8.9
 	github.com/shirou/gopsutil v3.21.11+incompatible
