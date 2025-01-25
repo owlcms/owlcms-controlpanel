@@ -254,37 +254,21 @@ jobs:
         Set-Location dist
         Write-Host "Current directory: $(Get-Location)"
 
-        $exePath = "owlcms.exe"
-        if (!(Test-Path $exePath)) { # Check if the file exists
-          throw "File '$exePath' not found in '$(Get-Location)'."
-        }
-        Write-Host "File exists: $exePath"
+        # Use Get-Item to get the file info
+        $fileInfo = Get-Item $exePath
 
-        $shell = New-Object -ComObject Shell.Application
-        $folder = $shell.Namespace(".")
-        if ($folder -eq $null) {
-            throw "Could not get folder object"
-        }
-        $item = $folder.ParseName($exePath)
-        if ($item -eq $null) {
-            throw "Could not get file item"
-        }
-        Write-Host "File item found"
+        # Use Set-ItemProperty to set the properties directly
+        Set-ItemProperty -Path $fileInfo.FullName -Name "Title" -Value "owlcms Control Panel"
+        Set-ItemProperty -Path $fileInfo.FullName -Name "Company" -Value "Jean-François Lamy"
+        Set-ItemProperty -Path $fileInfo.FullName -Name "Copyright" -Value "Copyright (C) 2024 Jean-François Lamy"
+        Set-ItemProperty -Path $fileInfo.FullName -Name "Product Name" -Value "owlcms Control Panel"
+        Set-ItemProperty -Path $fileInfo.FullName -Name "File Description" -Value "Control Panel for starting/stopping and updating owlcms"
+        Set-ItemProperty -Path $fileInfo.FullName -Name "File Version" -Value "1.9.1.102"
+        Set-ItemProperty -Path $fileInfo.FullName -Name "Product Version" -Value "1.9.1"
 
-        $item.SetInfo("Title", "owlcms Control Panel")
-        $item.SetInfo("Company", "Jean-François Lamy")
-        $item.SetInfo("Copyright", "Copyright (C) 2024 Jean-François Lamy")
-        $item.SetInfo("Product Name", "owlcms Control Panel")
-        $item.SetInfo("File Description", "Control Panel for starting/stopping and updating owlcms")
-        $item.SetInfo("File Version", "1.9.1.102")
-        $item.SetInfo("Product Version", "1.9.1")
-        $item.GetInfo("Title")
-        $item.GetInfo("Company")
-        $item.GetInfo("Copyright")
-        $item.GetInfo("Product Name")
-        $item.GetInfo("File Description")
-        $item.GetInfo("File Version")
-        $item.GetInfo("Product Version")
+        # Verification
+        (Get-Item $exePath).VersionInfo | Format-List *
+        Write-Host "Metadata update complete."
       shell: powershell
 
     - name: Prepare Inno Setup directory
