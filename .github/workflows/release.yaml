@@ -206,7 +206,6 @@ jobs:
 
     # Save artifacts for later steps
     - name: Upload Raspberry Pi DEB package
-      if: ${{ env.BUILD_RASPBERRY == 'true' }}
       uses: actions/upload-artifact@v4
       with:
         name: build_crosscompile_artifacts
