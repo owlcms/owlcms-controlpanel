@@ -266,7 +266,7 @@ jobs:
         dir
         cd ..
         mkdir artifacts
-        mv dist/owlcms-Panel-installer.exe artifacts/Windows_Control_Panel_Installer.exe
+        mv dist\owlcms-Panel-installer_windows.exe artifacts\Windows_Control_Panel_Installer.exe
 
     - name: Save package_windows_artifacts
       if: ${{ env.BUILD_WINDOWS == 'true' }}
