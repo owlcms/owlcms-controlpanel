@@ -158,7 +158,7 @@ jobs:
       run: |
         fyne-cross windows -arch amd64 -app-id app.owlcms.owlcms-launcher -name owlcms -debug
         mkdir -p artifacts
-        mv fyne-cross/bin/windows-amd64/owlcms-launcher.exe artifacts/owlcms.exe
+        mv fyne-cross/bin/windows-amd64/owlcms.exe artifacts/owlcms.exe
 
     # Linux and Raspberry Pi preparation
     - name: Install Ruby
