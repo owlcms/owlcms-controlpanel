@@ -285,7 +285,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Windows_Control_Panel_Installer.exe
-        path: dist/owlcms-Panel-installer_windows.exe
+        path: owlcms-Panel-installer_windows.exe
 
   create_release:
     runs-on: ubuntu-latest
@@ -308,15 +308,6 @@ jobs:
 
     - name: Create dist directory
       run: mkdir -p dist
-
-    - name: Determine if prerelease
-      id: prerelease_check
-      run: |
-        if [[ "${TAG}" == *"-alpha"* ]]; then
-          echo "PRERELEASE=true" >> $GITHUB_ENV
-        else
-          echo "PRERELEASE=false" >> $GITHUB_ENV
-        fi
 
     - name: Prepare release notes
       run: |
@@ -363,7 +354,7 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       shell: bash
       run: |
-        if [ "${{ env.PRERELEASE }}" = "true" ]; then
+        if [[ "${TAG}" == *"-"* ]]; then
           gh release create ${{ env.TAG }} \
             --title "owlcms Control Panel ${{ env.TAG }}" \
             --notes-file ./dist/RELEASE.md \
