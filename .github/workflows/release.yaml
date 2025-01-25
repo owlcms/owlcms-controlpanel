@@ -249,11 +249,11 @@ jobs:
 
     - name: Modify EXE metadata
       run: |
-        dir dist
-        $exePath = "dist\owlcms.exe"
+        Set-Location dist
+        $exePath = "owlcms.exe"
         $shell = New-Object -ComObject Shell.Application
-        $folder = $shell.Namespace((Split-Path $exePath))
-        $item = $folder.ParseName((Split-Path $exePath -Leaf))
+        $folder = $shell.Namespace(".")
+        $item = $folder.ParseName($exePath)
         $item.SetInfo("Title", "owlcms Control Panel")
         $item.SetInfo("Company", "Jean-François Lamy")
         $item.SetInfo("Copyright", "Copyright (C) 2024 Jean-François Lamy")
