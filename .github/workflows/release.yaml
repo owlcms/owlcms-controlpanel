@@ -255,7 +255,7 @@ jobs:
         Write-Host "Current directory: $(Get-Location)"
 
         # Use Get-Item to get the file info
-        $fileInfo = Get-Item $exePath
+        $fileInfo = Get-Item "owlcms.exe"
 
         # Use Set-ItemProperty to set the properties directly
         Set-ItemProperty -Path $fileInfo.FullName -Name "Title" -Value "owlcms Control Panel"
