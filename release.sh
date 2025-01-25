@@ -2,6 +2,7 @@
 export TAG=v1.9.0
 export DEB_TAG=${TAG#v}
 git pull
+dist/updateRc.sh ${DEB_TAG}
 git commit -am "owlcms-launcher $TAG"
 git push
 git tag -a ${TAG} -m "owlcms-launcher $TAG"

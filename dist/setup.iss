@@ -1,6 +1,17 @@
 [Setup]
 AppName=owlcms Control Panel
-AppVersion=1.0
+AppVersion=1.9.1301
+AppPublisher=Jean-François Lamy
+AppPublisherURL=https://owlcms.jflamy.dev
+AppSupportURL=https://groups.google.com/g/owlcms
+AppUpdatesURL=https://github.com/owlcms/owlcms-controlpanel
+VersionInfoVersion=1.9.1301
+VersionInfoCompany=owlcms
+VersionInfoDescription=owlcms Control Panel Installer
+VersionInfoCopyright=© 2024 Jean-François Lamy
+MinVersion=10.0
+Compression=lzma2/ultra64
+SolidCompression=yes
 DefaultDirName={userappdata}\owlcms Control Panel
 OutputDir=.
 OutputBaseFilename=owlcms-Panel-installer_windows
