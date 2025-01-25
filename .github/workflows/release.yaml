@@ -300,6 +300,12 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
+    - name: Extract tag
+      id: extract_tag
+      run: |
+        echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+        echo "DEB_TAG=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
     - name: Create dist directory
       run: mkdir -p dist
 
@@ -350,7 +356,7 @@ jobs:
     - name: Prepare release notes
       run: |
         cp RELEASE.md ./dist/RELEASE.md
-        sed -i '' "s/_TAG_/${TAG}/g" ./dist/RELEASE.md
+        sed -i "s/_TAG_/${TAG}/g" ./dist/RELEASE.md
 
     - name: Create GitHub Release
       env:
