@@ -48,9 +48,9 @@ sed -e "s/{{VERSION}}/$VERSION/g" \
     dist/resource.rc.template > dist/resource.rc
 
 # Generate Windows resource syso file
-cd dist
-rsrc -manifest resource.rc -o ../resource.syso
-cd ..
+# cd dist
+# rsrc -manifest resource.rc -o ../resource.syso
+# cd ..
 
 # Update setup.iss version with three-part version number
 sed -i "s/^AppVersion=.*/AppVersion=$ISS_VERSION/" dist/setup.iss
