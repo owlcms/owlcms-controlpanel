@@ -174,7 +174,7 @@ jobs:
         sed -i "s/_TAG_/${TAG}/g" config.go
 
     - name: Build for Windows
-      run: fyne-cross windows -arch amd64 -app-id app.owlcms.owlcms-launcher -icon Icon.png -name owlcms
+      run: fyne-cross windows -arch amd64 -app-id app.owlcms.owlcms-launcher -icon Icon.png -name owlcms -release
 
     - name: Build for Linux amd64
       run: fyne-cross linux -arch amd64 -app-id app.owlcms.owlcms-launcher -icon Icon.png -name owlcms
