@@ -30,24 +30,10 @@ jobs:
       run: |
         echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
 
-    - name: Determine if prerelease
-      id: prerelease_check
-      run: |
-        if [[ "${TAG}" == *"-alpha"* ]]; then
-          echo "PRERELEASE=true" >> $GITHUB_ENV
-        else
-          echo "PRERELEASE=false" >> $GITHUB_ENV
-        fi
-
     - name: Substitute tag in config.go
       run: |
         # use this approach because we can't easily set ldflags in fyne-cross
         sed -i '' "s/_TAG_/${TAG}/g" config.go
-
-    - name: Prepare release notes
-      run: |
-        cp RELEASE.md ./dist/RELEASE.md
-        sed -i '' "s/_TAG_/${TAG}/g" ./dist/RELEASE.md
 
     - name: Install fyne
       run: go install fyne.io/fyne/v2/cmd/fyne@latest
@@ -79,6 +65,12 @@ jobs:
         pwd
         appdmg dist/appdmg_arm64.json dist/darwin-arm64/owlcms-launcher_${{ env.TAG }}_mac_arm64.dmg
 
+    - name: Upload macOS arm64 DMG
+      uses: actions/upload-artifact@v4
+      with:
+        name: macOS_Apple_M-series_Control_Panel_Installer.dmg
+        path: dist/darwin-arm64/owlcms-launcher_${{ env.TAG }}_mac_arm64.dmg
+
     - name: Build for macOS amd64
       run: |
         rm -f owlcms
@@ -103,34 +95,11 @@ jobs:
         pwd
         appdmg dist/appdmg_amd64.json dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_intel.dmg
 
-    - name: Create GitHub Release
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        if [ "${{ env.PRERELEASE }}" = "true" ]; then
-          gh release create ${{ env.TAG }} \
-            --title "owlcms Control Panel ${{ env.TAG }}" \
-            --notes-file ./dist/RELEASE.md \
-            --prerelease
-        else
-          gh release create ${{ env.TAG }} \
-            --title "owlcms Control Panel ${{ env.TAG }}" \
-            --notes-file ./dist/RELEASE.md
-        fi
-
-    - name: Upload macOS arm64 DMG
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        mv dist/darwin-arm64/owlcms-launcher_${{ env.TAG }}_mac_arm64.dmg dist/darwin-arm64/macOS_Apple_M-series_Control_Panel_Installer.dmg
-        gh release upload ${{ env.TAG }} dist/darwin-arm64/macOS_Apple_M-series_Control_Panel_Installer.dmg
-
     - name: Upload macOS amd64 DMG
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        mv dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_intel.dmg dist/darwin-amd64/macOS_Intel_Control_Panel_Installer.dmg
-        gh release upload ${{ env.TAG }} dist/darwin-amd64/macOS_Intel_Control_Panel_Installer.dmg
+      uses: actions/upload-artifact@v4
+      with:
+        name: macOS_Intel_Control_Panel_Installer.dmg
+        path: dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_intel.dmg
 
   build_deb:
     runs-on: ubuntu-latest
@@ -194,18 +163,16 @@ jobs:
         mv owlcms-launcher_${DEB_TAG}_arm64.deb owlcms-launcher_${DEB_TAG}_pi.deb
 
     - name: Upload Raspberry Pi DEB package
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        mv owlcms-launcher_${{ env.DEB_TAG }}_pi.deb Raspberry_Pi_arm64_Control_Panel_Installer.deb
-        gh release upload ${{ env.TAG }} Raspberry_Pi_arm64_Control_Panel_Installer.deb
+      uses: actions/upload-artifact@v4
+      with:
+        name: Raspberry_Pi_arm64_Control_Panel_Installer.deb
+        path: owlcms-launcher_${DEB_TAG}_pi.deb
 
     - name: Upload Linux Intel DEB package
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        mv owlcms-launcher_${{ env.DEB_TAG }}_amd64.deb Linux_Intel_Control_Panel_Installer.deb
-        gh release upload ${{ env.TAG }} Linux_Intel_Control_Panel_Installer.deb
+      uses: actions/upload-artifact@v4
+      with:
+        name: Linux_Intel_Control_Panel_Installer.deb
+        path: owlcms-launcher_${DEB_TAG}_amd64.deb
 
     - name: Create Windows artifact
       uses: actions/upload-artifact@v4
@@ -246,14 +213,108 @@ jobs:
         dir
 
     - name: Upload Windows installer
+      uses: actions/upload-artifact@v4
+      with:
+        name: Windows_Control_Panel_Installer.exe
+        path: dist/owlcms-Panel-installer_windows.exe
+
+  create_release:
+    runs-on: ubuntu-latest
+    needs: [build_mac, build_deb, package_windows]
+
+    steps:
+    - name: Create dist directory
+      run: mkdir -p dist
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: Raspberry_Pi_arm64_Control_Panel_Installer.deb
+        path: ./dist
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: Linux_Intel_Control_Panel_Installer.deb
+        path: ./dist
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: Windows_Control_Panel_Installer.exe
+        path: ./dist
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: macOS_Apple_M-series_Control_Panel_Installer.dmg
+        path: ./dist
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: macOS_Intel_Control_Panel_Installer.dmg
+        path: ./dist
+
+    - name: Determine if prerelease
+      id: prerelease_check
+      run: |
+        if [[ "${TAG}" == *"-alpha"* ]]; then
+          echo "PRERELEASE=true" >> $GITHUB_ENV
+        else
+          echo "PRERELEASE=false" >> $GITHUB_ENV
+        fi
+
+    - name: Prepare release notes
+      run: |
+        cp RELEASE.md ./dist/RELEASE.md
+        sed -i '' "s/_TAG_/${TAG}/g" ./dist/RELEASE.md
+
+    - name: Create GitHub Release
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        GITHUB_REF: ${{ github.ref }}
       shell: bash
       run: |
-        sh -x
-        TAG=${GITHUB_REF#refs/tags/}
-        mv dist/owlcms-Panel-installer_windows.exe Windows_Control_Panel_Installer.exe
-        gh release upload $TAG Windows_Control_Panel_Installer.exe
-        sh +x
+        if [ "${{ env.PRERELEASE }}" = "true" ]; then
+          gh release create ${{ env.TAG }} \
+            --title "owlcms Control Panel ${{ env.TAG }}" \
+            --notes-file ./dist/RELEASE.md \
+            --prerelease
+        else
+          gh release create ${{ env.TAG }} \
+            --title "owlcms Control Panel ${{ env.TAG }}" \
+            --notes-file ./dist/RELEASE.md
+        fi
+
+    - name: Upload macOS arm64 DMG
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        mv dist/darwin-arm64/owlcms-launcher_${{ env.TAG }}_mac_arm64.dmg dist/darwin-arm64/macOS_Apple_M-series_Control_Panel_Installer.dmg
+        gh release upload ${{ env.TAG }} dist/darwin-arm64/macOS_Apple_M-series_Control_Panel_Installer.dmg
+
+    - name: Upload macOS amd64 DMG
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        mv dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_intel.dmg dist/darwin-amd64/macOS_Intel_Control_Panel_Installer.dmg
+        gh release upload ${{ env.TAG }} dist/darwin-amd64/macOS_Intel_Control_Panel_Installer.dmg
+
+    - name: Upload Raspberry Pi DEB package
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release upload ${{ env.TAG }} dist/Raspberry_Pi_arm64_Control_Panel_Installer.deb
+
+    - name: Upload Linux Intel DEB package
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release upload ${{ env.TAG }} dist/Linux_Intel_Control_Panel_Installer.deb
+
+    - name: Upload Windows installer
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release upload ${{ env.TAG }} dist/Windows_Control_Panel_Installer.exe
 
