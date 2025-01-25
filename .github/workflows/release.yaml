@@ -245,6 +245,12 @@ jobs:
       if: ${{ env.BUILD_WINDOWS == 'true' }}
       uses: actions/checkout@v4
 
+    - name: Extract tag
+      id: extract_tag
+      run: |
+        echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+        echo "DEB_TAG=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+
     - name: Install gh CLI
       if: ${{ env.BUILD_WINDOWS == 'true' }}
       run: choco install gh
