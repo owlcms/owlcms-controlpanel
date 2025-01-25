@@ -47,13 +47,12 @@ sed -e "s/{{VERSION}}/$VERSION/g" \
     -e "s/{{VERSION_COMMA}}/$VERSION_COMMA/g" \
     dist/resource.rc.template > dist/resource.rc
 
-# Generate Windows resource syso file
-# cd dist
-# rsrc -manifest resource.rc -o ../resource.syso
-# cd ..
-
 # Update setup.iss version with three-part version number
 sed -i "s/^AppVersion=.*/AppVersion=$ISS_VERSION/" dist/setup.iss
 sed -i "s/^VersionInfoVersion=.*/VersionInfoVersion=$ISS_VERSION/" dist/setup.iss
 
-echo "Updated resource.rc and setup.iss with version $VERSION (build number: $FOURTH_NUM, ISS version: $ISS_VERSION)"
+# Update release.yaml with version placeholders
+sed -i "/SetInfo(\"File Version\",/ s/SetInfo(\"File Version\",.*/SetInfo(\"File Version\", \"$MAJOR.$MINOR.$PATCH.$FOURTH_NUM\")/" .github/workflows/release.yaml
+sed -i "/SetInfo(\"Product Version\",/ s/SetInfo(\"Product Version\",.*/SetInfo(\"Product Version\", \"$MAJOR.$MINOR.$PATCH\")/" .github/workflows/release.yaml
+
+echo "Updated release.yaml and setup.iss with version $VERSION (build number: $FOURTH_NUM, ISS version: $ISS_VERSION)"

@@ -1,5 +1,5 @@
 #!/bin/bash -x
-export TAG=v1.9.1-alpha01
+export TAG=v1.9.1-alpha02
 BUILD_MAC=false
 BUILD_WINDOWS=true
 BUILD_RASPBERRY=false

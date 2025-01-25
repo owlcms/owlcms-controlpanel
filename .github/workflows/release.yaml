@@ -247,6 +247,30 @@ jobs:
         name: build_crosscompile_artifacts
         path: ./dist
 
+    - name: Modify EXE metadata
+      run: |
+        cd dist
+        $exePath = "owlcms.exe"
+        $shell = New-Object -ComObject Shell.Application
+        $folder = $shell.Namespace((Split-Path $exePath))
+        $item = $folder.ParseName((Split-Path $exePath -Leaf))
+        $item.SetInfo("Title", "owlcms Control Panel")
+        $item.SetInfo("Company", "Jean-François Lamy")
+        $item.SetInfo("Copyright", "Copyright (C) 2024 Jean-François Lamy")
+        $item.SetInfo("Product Name", "owlcms Control Panel")
+        $item.SetInfo("File Description", "Control Panel for starting/stopping and updating owlcms")
+        $item.SetInfo("File Version", "1.9.1.102")
+        $item.SetInfo("Product Version", "1.9.1")
+        $item.GetInfo("Title")
+        $item.GetInfo("Company")
+        $item.GetInfo("Copyright")
+        $item.GetInfo("Product Name")
+        $item.GetInfo("File Description")
+        $item.GetInfo("File Version")
+        $item.GetInfo("Product Version")
+        cd ..
+      shell: powershell
+
     - name: Prepare Inno Setup directory
       if: ${{ env.BUILD_WINDOWS == 'true' }}
       run: |
