@@ -155,7 +155,10 @@ jobs:
     # Windows build steps
     - name: Build for Windows
       if: ${{ env.BUILD_WINDOWS == 'true' }}
-      run: fyne-cross windows -arch amd64 -app-id app.owlcms.owlcms-launcher -name owlcms -debug
+      run: |
+        fyne-cross windows -arch amd64 -app-id app.owlcms.owlcms-launcher -name owlcms -debug
+        mkdir -p artifacts
+        mv fyne-cross/bin/windows-amd64/owlcms-launcher.exe artifacts/owlcms.exe
 
     # Linux and Raspberry Pi preparation
     - name: Install Ruby
@@ -184,6 +187,7 @@ jobs:
           --after-install ./dist/after_install.sh \
           --after-remove ./dist/after_remove.sh \
           ./fyne-cross/dist/linux-amd64/owlcms.tar.xz
+        mkdir -p artifacts
         mv owlcms-launcher_${DEB_TAG}_arm64.deb artifacts/Linux_Intel_Control_Panel_Installer.deb
 
     # Raspberry Pi steps
@@ -202,6 +206,7 @@ jobs:
           --after-install ./dist/after_install.sh \
           --after-remove ./dist/after_remove.sh \
           ./fyne-cross/dist/linux-arm64/owlcms.tar.xz
+        mkdir -p artifacts
         mv owlcms-launcher_${DEB_TAG}_arm64.deb artifacts/Raspberry_Pi_arm64_Control_Panel_Installer.deb
 
     # Save artifacts for later steps
