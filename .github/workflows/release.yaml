@@ -259,7 +259,7 @@ jobs:
 
         # Use Set-ItemProperty to set the properties directly
         # Set version information using Set-ItemProperty
-          Set-ItemProperty -Path $exePath -Name "VersionInfo" -Value @{
+          Set-ItemProperty -Path $fileInfo.FullName -Name "VersionInfo" -Value @{
               Title = "owlcms Control Panel"
               Company = "Jean-François Lamy"
               Copyright = "Copyright (C) 2024 Jean-François Lamy"
