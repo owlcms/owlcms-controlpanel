@@ -309,6 +309,20 @@ jobs:
     - name: Create dist directory
       run: mkdir -p dist
 
+    - name: Determine if prerelease
+      id: prerelease_check
+      run: |
+        if [[ "${TAG}" == *"-alpha"* ]]; then
+          echo "PRERELEASE=true" >> $GITHUB_ENV
+        else
+          echo "PRERELEASE=false" >> $GITHUB_ENV
+        fi
+
+    - name: Prepare release notes
+      run: |
+        cp RELEASE.md ./dist/RELEASE.md
+        sed -i "s/_TAG_/${TAG}/g" ./dist/RELEASE.md
+
     - name: Download Raspberry artifacts
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
       uses: actions/download-artifact@v4
@@ -344,20 +358,6 @@ jobs:
         name: macOS_Intel_Control_Panel_Installer.dmg
         path: ./dist
 
-    - name: Determine if prerelease
-      id: prerelease_check
-      run: |
-        if [[ "${TAG}" == *"-alpha"* ]]; then
-          echo "PRERELEASE=true" >> $GITHUB_ENV
-        else
-          echo "PRERELEASE=false" >> $GITHUB_ENV
-        fi
-
-    - name: Prepare release notes
-      run: |
-        cp RELEASE.md ./dist/RELEASE.md
-        sed -i "s/_TAG_/${TAG}/g" ./dist/RELEASE.md
-
     - name: Create GitHub Release
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -372,6 +372,7 @@ jobs:
           gh release create ${{ env.TAG }} \
             --title "owlcms Control Panel ${{ env.TAG }}" \
             --notes-file ./dist/RELEASE.md
+        fi
 
     - name: Upload macOS arm64 DMG
       if: ${{ env.BUILD_MAC == 'true' }}
