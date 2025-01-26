@@ -183,12 +183,15 @@ jobs:
     - name: Create Linux Intel DEB package
       if: ${{ env.BUILD_LINUX == 'true' }}
       run: |
+        sh -x
         fpm -s tar -t deb -n owlcms-launcher -v ${DEB_TAG} -a amd64 --prefix / \
           --after-install ./dist/after_install.sh \
           --after-remove ./dist/after_remove.sh \
           ./fyne-cross/dist/linux-amd64/owlcms.tar.xz
         mkdir -p artifacts
-        mv owlcms-launcher_${DEB_TAG}_arm64.deb artifacts/Linux_Intel_Control_Panel_Installer.deb
+        dir
+        mv owlcms-launcher_arm64.deb artifacts/Linux_Intel_Control_Panel_Installer.deb
+        sh +x
 
     # Raspberry Pi steps
     - name: Build for Linux arm64
@@ -207,7 +210,8 @@ jobs:
           --after-remove ./dist/after_remove.sh \
           ./fyne-cross/dist/linux-arm64/owlcms.tar.xz
         mkdir -p artifacts
-        mv owlcms-launcher_${DEB_TAG}_arm64.deb artifacts/Raspberry_Pi_arm64_Control_Panel_Installer.deb
+        dir
+        mv owlcms-launcher_arm64.deb artifacts/Raspberry_Pi_arm64_Control_Panel_Installer.deb
 
     # Save artifacts for later steps
     - name: Upload build_crosscompile_artifacts
