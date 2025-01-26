@@ -2,7 +2,7 @@
 export TAG=v1.9.2
 git tag -d ${TAG}
 git push origin --delete ${TAG}
-gh delete release ${TAG} --yes
+gh release delete ${TAG} --yes
 
 BUILD_MAC=true
 BUILD_WINDOWS=true
