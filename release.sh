@@ -1,5 +1,8 @@
 #!/bin/bash -x
 export TAG=v1.9.1
+git tag -d ${TAG}
+git push origin --delete ${TAG}
+
 BUILD_MAC=true
 BUILD_WINDOWS=true
 BUILD_RASPBERRY=true
