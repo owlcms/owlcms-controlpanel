@@ -366,20 +366,25 @@ func main() {
 		w.Canvas().Refresh(mainContent)
 
 		w.SetCloseIntercept(func() {
-			dialog.ShowConfirm(
-				"Confirm Exit",
-				"This will stop the owlcms server for all the users. Are you sure?",
-				func(confirm bool) {
-					if confirm {
-						log.Println("Closing OWLCMS Launcher")
-						if currentProcess != nil {
+			if currentProcess != nil {
+				confirmDialog := dialog.NewConfirm(
+					"Confirm Exit",
+					"The server is running. This will stop the owlcms server for all the users. Are you sure you want to exit?",
+					func(confirm bool) {
+						if !confirm {
+							log.Println("Closing OWLCMS Launcher")
 							stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+							w.Close()
 						}
-						w.Close()
-					}
-				},
-				w,
-			)
+					},
+					w,
+				)
+				confirmDialog.SetConfirmText("Don't Stop owlcms")
+				confirmDialog.SetDismissText("Stop owlcms and Exit")
+				confirmDialog.Show()
+			} else {
+				w.Close()
+			}
 		})
 
 		log.Println("setup done.")
