@@ -347,7 +347,6 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        mv dist/darwin-arm64/owlcms-launcher_${{ env.TAG }}_mac_arm64.dmg dist/darwin-arm64/macOS_Apple_M-series_Control_Panel_Installer.dmg
         gh release upload ${{ env.TAG }} dist/macOS_Apple_M-series_Control_Panel_Installer.dmg
 
     - name: Release macOS amd64 DMG
@@ -355,7 +354,6 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        mv dist/darwin-amd64/owlcms-launcher_${{ env.TAG }}_mac_intel.dmg dist/darwin-amd64/macOS_Intel_Control_Panel_Installer.dmg
         gh release upload ${{ env.TAG }} dist/macOS_Intel_Control_Panel_Installer.dmg
 
     - name: Release Raspberry Pi DEB package
