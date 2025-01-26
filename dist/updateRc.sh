@@ -62,7 +62,7 @@ sed -i "s/^Version = .*/Version = \"$MAJOR.$MINOR.$PATCH\"/" FyneApp.toml
 sed -i "s/^Build = .*/Build = $PATCH$FOURTH_NUM/" FyneApp.toml
 
 # Generate .syso file with rsrc
-rsrc -manifest dist/resource.rc -o owlcms.syso
+# rsrc -manifest dist/resource.rc -o owlcms.syso
 
 echo "Updated release.yaml, setup.iss, and FyneApp.toml with version $VERSION (build number: $FOURTH_NUM, ISS version: $ISS_VERSION)"
 
