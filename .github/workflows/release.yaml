@@ -247,33 +247,6 @@ jobs:
         name: build_crosscompile_artifacts
         path: ./dist
 
-    - name: Modify EXE metadata
-      run: |
-        dir dist\owlcms.exe
-
-        Set-Location dist
-        Write-Host "Current directory: $(Get-Location)"
-
-        # Use Get-Item to get the file info
-        $fileInfo = Get-Item "owlcms.exe"
-
-        # Use Set-ItemProperty to set the properties directly
-        # Set version information using Set-ItemProperty
-          Set-ItemProperty -Path $fileInfo.FullName -Name "VersionInfo" -Value @{
-              Title = "owlcms Control Panel"
-              Company = "Jean-François Lamy"
-              Copyright = "Copyright (C) 2024 Jean-François Lamy"
-              ProductName = "owlcms Control Panel" # Note: ProductName, not Product Name
-              FileDescription = "Control Panel for starting/stopping and updating owlcms"
-              FileVersion = "1.9.1.102"
-              ProductVersion = "1.9.1102"
-          }
-
-        # Verification
-        (Get-Item $exePath).VersionInfo | Format-List *
-        Write-Host "Metadata update complete."
-      shell: powershell
-
     - name: Prepare Inno Setup directory
       if: ${{ env.BUILD_WINDOWS == 'true' }}
       run: |

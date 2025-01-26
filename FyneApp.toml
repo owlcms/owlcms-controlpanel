@@ -1,2 +1,9 @@
 [Details]
-  Build = 138
+  Icon = "Icon.png"
+  Name = "owlcms"
+  ID = "app.owlcms.controlpanel"
+  Version = "1.9.2102"
+  Build = 2105
+
+[Development]
+  Copyright = "Copyright © 2025-Present Jean-François Lamy"

@@ -6,8 +6,10 @@ if [ $# -ne 1 ]; then
     exit 1
 fi
 
+# Remove leading 'v' if present
+VERSION=${1#v}
+
 # Split version into parts
-VERSION=$1
 BASE_VERSION=$(echo $VERSION | cut -d'-' -f1)
 PRE_RELEASE=$(echo $VERSION | cut -s -d'-' -f2)
 
@@ -53,6 +55,15 @@ sed -i "s/^VersionInfoVersion=.*/VersionInfoVersion=$ISS_VERSION/" dist/setup.is
 
 # Update release.yaml with version information
 sed -i "s/\(FileVersion = \).*/\1\"$MAJOR.$MINOR.$PATCH.$FOURTH_NUM\"/" .github/workflows/release.yaml
-sed -i "s/\(ProductVersion = \).*/\1\"$MAJOR.$MINOR.$PATCH$FOURTH_NUM\"/" .github/workflows/release.yaml
+sed -i "s/\(ProductVersion = \).*/\1\"$MAJOR.$MINOR.$PATCH\"/" .github/workflows/release.yaml
 
-echo "Updated release.yaml and setup.iss with version $VERSION (build number: $FOURTH_NUM, ISS version: $ISS_VERSION)"
+# Update FyneApp.toml with the new version
+sed -i "s/^Version = .*/Version = \"$MAJOR.$MINOR.$PATCH\"/" FyneApp.toml
+sed -i "s/^Build = .*/Build = $PATCH$FOURTH_NUM/" FyneApp.toml
+
+# Generate .syso file with rsrc
+rsrc -manifest dist/resource.rc -o owlcms.syso
+
+echo "Updated release.yaml, setup.iss, and FyneApp.toml with version $VERSION (build number: $FOURTH_NUM, ISS version: $ISS_VERSION)"
+
+
