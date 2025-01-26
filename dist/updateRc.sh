@@ -58,8 +58,8 @@ sed -i "s/\(FileVersion = \).*/\1\"$MAJOR.$MINOR.$PATCH.$FOURTH_NUM\"/" .github/
 sed -i "s/\(ProductVersion = \).*/\1\"$MAJOR.$MINOR.$PATCH\"/" .github/workflows/release.yaml
 
 # Update FyneApp.toml with the new version
-sed -i "s/^Version = .*/Version = \"$MAJOR.$MINOR.$PATCH\"/" FyneApp.toml
-sed -i "s/^Build = .*/Build = $PATCH$FOURTH_NUM/" FyneApp.toml
+sed -i "s/Version = .*/Version = \"$MAJOR.$MINOR.$PATCH\"/" FyneApp.toml
+sed -i "s/Build = .*/Build = $PATCH$FOURTH_NUM/" FyneApp.toml
 
 # Generate .syso file with rsrc
 # rsrc -manifest dist/resource.rc -o owlcms.syso

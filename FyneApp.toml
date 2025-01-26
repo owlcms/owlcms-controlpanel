@@ -2,8 +2,6 @@
   Icon = "Icon.png"
   Name = "owlcms"
   ID = "app.owlcms.controlpanel"
-  Version = "1.9.2102"
-  Build = 2105
+  Version = "1.9.1"
+  Build = 1400
 
-[Development]
-  Copyright = "Copyright © 2025-Present Jean-François Lamy"

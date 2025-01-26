@@ -22,6 +22,10 @@ The control panel is installed once. It will automatically download the current 
   2. Use Open File to run the Installer, or go to your Downloads area and run it.
      - You may still get warnings about Windows protecting you. Use the "More Information"  and "Run Anyway" options to allow execution (only needed once)
   3. After installation, there will be an Icon on your Desktop, and an entry in the start menu.
+
+> It is possible that you will prevented from downloading the installer because Windows thinks there is a virus (it's a false alarm), and is only triggered by the installer
+> - If that happens, please download the actual program `owlcms-controlpanel.exe` and move it to your desktop.  Double-clicking on the icon will open the control panel.
+
 - For Mac
   1. For a recent Mac (M1/M2/...), download the `.dmg`  file that is starts with `macOS_Apple`  
      For an older Intel mac, download the `macOS_Intel` file
