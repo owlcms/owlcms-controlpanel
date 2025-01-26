@@ -1,7 +1,8 @@
 #!/bin/bash -x
-export TAG=v1.9.1
+export TAG=v1.9.2
 git tag -d ${TAG}
 git push origin --delete ${TAG}
+gh delete release ${TAG} --yes
 
 BUILD_MAC=true
 BUILD_WINDOWS=true
