@@ -1,8 +1,8 @@
 #!/bin/bash -x
 export TAG=v1.9.1
-BUILD_MAC=false
+BUILD_MAC=true
 BUILD_WINDOWS=true
-BUILD_RASPBERRY=false
+BUILD_RASPBERRY=true
 BUILD_LINUX=false
 
 # Pull the latest changes

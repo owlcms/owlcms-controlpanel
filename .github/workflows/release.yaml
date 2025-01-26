@@ -12,9 +12,9 @@ jobs:
   build_mac:
     runs-on: macos-13
     env:
-      BUILD_MAC: false
+      BUILD_MAC: true
       BUILD_WINDOWS: true
-      BUILD_RASPBERRY: false
+      BUILD_RASPBERRY: true
       BUILD_LINUX: false
 
     steps:
@@ -118,9 +118,9 @@ jobs:
   build_crosscompile:
     runs-on: ubuntu-latest
     env:
-      BUILD_MAC: false
+      BUILD_MAC: true
       BUILD_WINDOWS: true
-      BUILD_RASPBERRY: false
+      BUILD_RASPBERRY: true
       BUILD_LINUX: false
 
     steps:
@@ -220,9 +220,9 @@ jobs:
     runs-on: windows-latest
     needs: build_crosscompile
     env:
-      BUILD_MAC: false
+      BUILD_MAC: true
       BUILD_WINDOWS: true
-      BUILD_RASPBERRY: false
+      BUILD_RASPBERRY: true
       BUILD_LINUX: false
 
     steps:
@@ -267,7 +267,8 @@ jobs:
         cd ..
         mkdir artifacts
         mv dist\owlcms-Panel-installer_windows.exe artifacts\Windows_Control_Panel_Installer.exe
-
+        cp dist\owlcms.exe artifacts\owlcms_controlpanel.exe
+        
     - name: Save package_windows_artifacts
       if: ${{ env.BUILD_WINDOWS == 'true' }}
       uses: actions/upload-artifact@v4
@@ -279,9 +280,9 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build_mac, build_crosscompile, package_windows]
     env:
-      BUILD_MAC: false
+      BUILD_MAC: true
       BUILD_WINDOWS: true
-      BUILD_RASPBERRY: false
+      BUILD_RASPBERRY: true
       BUILD_LINUX: false
 
     steps:
@@ -382,6 +383,5 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        cp dist/owlcms.exe dist/owlcms_controlpanel.exe
         gh release upload ${{ env.TAG }} dist/owlcms_controlpanel.exe
 

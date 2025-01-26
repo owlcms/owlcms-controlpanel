@@ -8,7 +8,7 @@ The control panel is installed once. It will automatically download the current 
 
 ### Change Log for version _TAG_
 
-- 1.9.1: Adding Windows application properties to control panel app and the installer, to reduce the risk of false positives by malware detection software
+- 1.9.1: Now copy the windows executable as well as the installer, due to virus false detection on Windows.
 - 1.9.1: The build process is now conditional for the various platforms
 - 1.9.0: The `env.properties` file is now reloaded before launching owlcms, at every launch
 - 1.9.0: Added a "Check for Updates" entry in the help menu.
