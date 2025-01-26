@@ -15,7 +15,7 @@ jobs:
       BUILD_MAC: true
       BUILD_WINDOWS: true
       BUILD_RASPBERRY: true
-      BUILD_LINUX: false
+      BUILD_LINUX: true
 
     steps:
     - name: Checkout code
@@ -121,7 +121,7 @@ jobs:
       BUILD_MAC: true
       BUILD_WINDOWS: true
       BUILD_RASPBERRY: true
-      BUILD_LINUX: false
+      BUILD_LINUX: true
 
     steps:
     - name: Checkout code
@@ -223,7 +223,7 @@ jobs:
       BUILD_MAC: true
       BUILD_WINDOWS: true
       BUILD_RASPBERRY: true
-      BUILD_LINUX: false
+      BUILD_LINUX: true
 
     steps:
     - name: Checkout code
@@ -283,7 +283,7 @@ jobs:
       BUILD_MAC: true
       BUILD_WINDOWS: true
       BUILD_RASPBERRY: true
-      BUILD_LINUX: false
+      BUILD_LINUX: true
 
     steps:
     - name: Checkout code

@@ -3,7 +3,7 @@ export TAG=v1.9.1
 BUILD_MAC=true
 BUILD_WINDOWS=true
 BUILD_RASPBERRY=true
-BUILD_LINUX=false
+BUILD_LINUX=true
 
 # Pull the latest changes
 git pull
