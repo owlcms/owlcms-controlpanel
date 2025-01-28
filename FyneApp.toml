@@ -1,2 +1,7 @@
 [Details]
-  Build = 138
+  Icon = "Icon.png"
+  Name = "owlcms"
+  ID = "app.owlcms.controlpanel"
+  Version = "1.9.2"
+  Build = 2400
+
