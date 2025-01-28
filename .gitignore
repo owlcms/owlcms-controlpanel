@@ -15,4 +15,5 @@ tmp-pkg/usr/local/share/pixmaps/owlcms-launcher.png
 *.deb
 dist/RELEASE.md
 dist/darwin-amd64
+/owlcms.app
 
