@@ -6,7 +6,7 @@ Owlcms-launcher is a control panel for owlcms.  The control panel is used to
 
 The control panel is installed once. It will automatically download the current version of owlcms and the correct version of Java when used for the first time.
 
-### Change Log for version v1.9.2
+### Change Log
 
 - 1.9.3: Single installer for macOS.
 - 1.9.2: Ask for confirmation if closing the window while owlcms is running since this will stop owlcms
