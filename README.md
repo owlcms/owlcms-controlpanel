@@ -8,12 +8,10 @@ and providing the same user experience on all platforms. The program allows
 
 Currently supported: Windows, macOS, Raspberry Pi, Linux on Intel<br>
 
-![image](https://github.com/user-attachments/assets/6baca710-a65a-4491-a1e5-5ff678bf88f7)
-
+![image](https://github.com/user-attachments/assets/ebd48d70-000c-496b-8c67-f43b222e711a)
 
 ### Usage
-1. go to the Releases page and download the owlcms launcher for your type of computer
-2. install the launcher and run it.
+1. go to the Releases page and download the installer or program for your type of computer
 3. If there is no version of OWLCMS installed, the latest one will be downloaded
 4. Click Launch to start OWLCMS
    - This will create a folder called java17 the first time
