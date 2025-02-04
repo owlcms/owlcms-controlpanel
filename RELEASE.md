@@ -21,12 +21,11 @@ The control panel is installed once. It will automatically download the current 
 > When downloading the following files, some browsers may give you warnings about "rarely downloaded files".   You may have to select "Keep" one or more times to download the file.
 
 - For Windows, 
-  1. Download the Windows owlcms_controlpanel.exe executable from the Assets section below
+  1. Download the Windows `owlcms_controlpanel.exe` executable from the Assets section below
   2. Drag the file from the Downloads area to your Desktop. 
   3. The first time you run the program, you may get warnings in a blue dialog box.  Select "More Info" and "Run Anyway"
 - For Mac
-  1. For a recent Mac (M1/M2/...), download the `.dmg`  file that is starts with `macOS_Apple`  
-     For an older Intel mac, download the `macOS_Intel` file
+  1. Download the macOS `.dmg`  file
   4. Execute the `.dmg` file.  Drag the application to the Application folder, or drag the application to your desktop
   5. The first time you use the program, you **must** *Right-click on the application and use Open.*  This is only needed once, to allow execution.
 - For Raspberry Pi
