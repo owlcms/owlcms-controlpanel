@@ -52,33 +52,36 @@ jobs:
       if: ${{ env.BUILD_MAC == 'true' }}
       run: npm install -g appdmg
 
-    - name: Build for macOS arm64
-      if: ${{ env.BUILD_MAC == 'true' }}
-      run: |
-        export GOOS=darwin
-        export GOARCH=arm64
-        export CGO_ENABLED=1
-        go build -o owlcms .
+    # - name: Build for macOS arm64
+    #   if: ${{ env.BUILD_MAC == 'true' }}
+    #   run: |
+    #     export GOOS=darwin
+    #     export GOARCH=arm64
+    #     export CGO_ENABLED=1
+    #     go build -o owlcms .
 
-    - name: Package for macOS arm64
-      if: ${{ env.BUILD_MAC == 'true' }}
-      run: |
-        rm -rf owlcms.app
-        fyne package -os darwin -icon Icon.png -name owlcms -executable owlcms
+    # - name: Package for macOS arm64
+    #   if: ${{ env.BUILD_MAC == 'true' }}
+    #   run: |
+    #     export GOOS=darwin
+    #     export GOARCH=arm64
+    #     export CGO_ENABLED=1
+    #     rm -rf owlcms.app
+    #     fyne package -os darwin -icon Icon.png -name owlcms -executable owlcms
 
-    - name: Move macOS arm64 app to dist directory
-      if: ${{ env.BUILD_MAC == 'true' }}
-      run: |
-        rm -rf dist/darwin-arm64
-        mkdir -p dist/darwin-arm64
-        mv owlcms.app dist/darwin-arm64/
-        ls -l dist/darwin-arm64
+    # - name: Move macOS arm64 app to dist directory
+    #   if: ${{ env.BUILD_MAC == 'true' }}
+    #   run: |
+    #     rm -rf dist/darwin-arm64
+    #     mkdir -p dist/darwin-arm64
+    #     mv owlcms.app dist/darwin-arm64/
+    #     ls -l dist/darwin-arm64
 
-    - name: Create DMG for macOS arm64
-      if: ${{ env.BUILD_MAC == 'true' }}
-      run: |
-        mkdir -p artifacts
-        appdmg dist/appdmg_arm64.json artifacts/macOS_Apple_M-series_Control_Panel_Installer.dmg
+    # - name: Create DMG for macOS arm64
+    #   if: ${{ env.BUILD_MAC == 'true' }}
+    #   run: |
+    #     mkdir -p artifacts
+    #     appdmg dist/appdmg_arm64.json artifacts/macOS_Apple_M-series_Control_Panel_Installer.dmg
 
     - name: Build for macOS amd64
       if: ${{ env.BUILD_MAC == 'true' }}
@@ -106,7 +109,7 @@ jobs:
       if: ${{ env.BUILD_MAC == 'true' }}
       run: |
         mkdir -p artifacts
-        appdmg dist/appdmg_amd64.json artifacts/macOS_Intel_Control_Panel_Installer.dmg
+        appdmg dist/appdmg_amd64.json artifacts/macOS_Control_Panel_Installer.dmg
 
     - name: Upload macOS amd64 DMG
       if: ${{ env.BUILD_MAC == 'true' }}
@@ -188,7 +191,7 @@ jobs:
           --after-remove ./dist/after_remove.sh \
           ./fyne-cross/dist/linux-amd64/owlcms.tar.xz
         mkdir -p artifacts
-        mv owlcms-launcher_${DEB_TAG}_amd64.deb artifacts/Linux_Intel_Control_Panel_Installer.deb
+        mv owlcms-launcher_${DEB_TAG}_amd64.deb artifacts/Linux_Control_Panel_Installer.deb
         sh +x
 
     # Raspberry Pi steps
@@ -342,19 +345,19 @@ jobs:
             --notes-file ./dist/RELEASE.md
         fi
 
-    - name: Release macOS arm64 DMG
-      if: ${{ env.BUILD_MAC == 'true' }}
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        gh release upload ${{ env.TAG }} dist/macOS_Apple_M-series_Control_Panel_Installer.dmg
+    # - name: Release macOS arm64 DMG
+    #   if: ${{ env.BUILD_MAC == 'true' }}
+    #   env:
+    #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #   run: |
+    #     gh release upload ${{ env.TAG }} dist/macOS_Apple_M-series_Control_Panel_Installer.dmg
 
     - name: Release macOS amd64 DMG
       if: ${{ env.BUILD_MAC == 'true' }}
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh release upload ${{ env.TAG }} dist/macOS_Intel_Control_Panel_Installer.dmg
+        gh release upload ${{ env.TAG }} dist/macOS_Control_Panel_Installer.dmg
 
     - name: Release Raspberry Pi DEB package
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
@@ -368,7 +371,7 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh release upload ${{ env.TAG }} dist/Linux_Intel_Control_Panel_Installer.deb
+        gh release upload ${{ env.TAG }} dist/Linux_Control_Panel_Installer.deb
 
     - name: Release Windows installer
       if: ${{ env.BUILD_WINDOWS == 'true' }}
