@@ -8,6 +8,7 @@ The control panel is installed once. It will automatically download the current 
 
 ### Change Log for version v1.9.2
 
+- 1.9.3: Single installer for macOS.
 - 1.9.2: Ask for confirmation if closing the window while owlcms is running since this will stop owlcms
 - 1.9.2: Removed the Windows installer, due to virus false detection on Windows.  Instructions for owlcms now refer to using the executable directly.
 - 1.9.1: Now copy the windows executable as well as the installer

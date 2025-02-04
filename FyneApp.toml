@@ -2,6 +2,6 @@
   Icon = "Icon.png"
   Name = "owlcms"
   ID = "app.owlcms.controlpanel"
-  Version = "1.9.2"
-  Build = 2400
+  Version = "1.9.3"
+  Build = 3400
 
