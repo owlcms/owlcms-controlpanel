@@ -4,16 +4,16 @@ __debug*
 6*
 7*
 8*
-owlcms*.zip
-owlcms*.tar.gz
-owlcms*.tar.xz
+firmata*.zip
+firmata*.tar.gz
+firmata*.tar.xz
 java17
-owlcms-launcher
+firmata-launcher
 tmp-pkg/Makefile
-tmp-pkg/usr/local/share/applications/owlcms-launcher.desktop
-tmp-pkg/usr/local/share/pixmaps/owlcms-launcher.png
+tmp-pkg/usr/local/share/applications/firmata-launcher.desktop
+tmp-pkg/usr/local/share/pixmaps/firmata-launcher.png
 *.deb
 dist/RELEASE.md
 dist/darwin-amd64
-/owlcms.app
+/firmata.app
 

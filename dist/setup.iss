@@ -1,20 +1,20 @@
 [Setup]
-AppName=owlcms Control Panel
+AppName=firmata Control Panel
 AppVersion=1.9.3400
 AppPublisher=Jean-François Lamy
-AppPublisherURL=https://owlcms.jflamy.dev
-AppSupportURL=https://groups.google.com/g/owlcms
-AppUpdatesURL=https://github.com/owlcms/owlcms-controlpanel
+AppPublisherURL=https://firmata.jflamy.dev
+AppSupportURL=https://groups.google.com/g/firmata
+AppUpdatesURL=https://github.com/owlcms-firmata/firmata-controlpanel
 VersionInfoVersion=1.9.3400
-VersionInfoCompany=owlcms
-VersionInfoDescription=owlcms Control Panel Installer
+VersionInfoCompany=firmata
+VersionInfoDescription=firmata Control Panel Installer
 VersionInfoCopyright=© 2024 Jean-François Lamy
 MinVersion=10.0
 Compression=lzma2/ultra64
 SolidCompression=yes
-DefaultDirName={userappdata}\owlcms Control Panel
+DefaultDirName={userappdata}\firmata Control Panel
 OutputDir=.
-OutputBaseFilename=owlcms-Panel-installer_windows
+OutputBaseFilename=firmata-Panel-installer_windows
 SetupIconFile=installer.ico
 UninstallDisplayIcon={app}\installer.ico
 PrivilegesRequired=lowest
@@ -23,14 +23,14 @@ DisableProgramGroupPage=yes
 DisableStartupPrompt=yes
 
 [Files]
-Source: "iss\owlcms.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "iss\owlcms.ico"; DestDir: "{app}"; Flags: ignoreversion
+Source: "iss\firmata.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "iss\firmata.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "iss\installer.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\owlcms Control Panel"; Filename: "{app}\owlcms.exe"; IconFilename: "{app}\owlcms.ico"
-Name: "{userdesktop}\owlcms Control Panel"; Filename: "{app}\owlcms.exe"; IconFilename: "{app}\owlcms.ico"
-Name: "{group}\Uninstall owlcms Control Panel"; Filename: "{uninstallexe}"; IconFilename: "{app}\installer.ico"
+Name: "{group}\firmata Control Panel"; Filename: "{app}\firmata.exe"; IconFilename: "{app}\firmata.ico"
+Name: "{userdesktop}\firmata Control Panel"; Filename: "{app}\firmata.exe"; IconFilename: "{app}\firmata.ico"
+Name: "{group}\Uninstall firmata Control Panel"; Filename: "{uninstallexe}"; IconFilename: "{app}\installer.ico"
 
 [Run]
-Filename: "{app}\owlcms.exe"; Description: "Launch owlcms Control Panel"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\firmata.exe"; Description: "Launch firmata Control Panel"; Flags: nowait postinstall skipifsilent

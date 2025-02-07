@@ -1,4 +1,4 @@
-name: Release owlcms-controlpanel
+name: Release firmata-controlpanel
 
 on:
   push:
@@ -58,7 +58,7 @@ jobs:
     #     export GOOS=darwin
     #     export GOARCH=arm64
     #     export CGO_ENABLED=1
-    #     go build -o owlcms .
+    #     go build -o firmata .
 
     # - name: Package for macOS arm64
     #   if: ${{ env.BUILD_MAC == 'true' }}
@@ -66,15 +66,15 @@ jobs:
     #     export GOOS=darwin
     #     export GOARCH=arm64
     #     export CGO_ENABLED=1
-    #     rm -rf owlcms.app
-    #     fyne package -os darwin -icon Icon.png -name owlcms -executable owlcms
+    #     rm -rf firmata.app
+    #     fyne package -os darwin -icon Icon.png -name firmata -executable firmata
 
     # - name: Move macOS arm64 app to dist directory
     #   if: ${{ env.BUILD_MAC == 'true' }}
     #   run: |
     #     rm -rf dist/darwin-arm64
     #     mkdir -p dist/darwin-arm64
-    #     mv owlcms.app dist/darwin-arm64/
+    #     mv firmata.app dist/darwin-arm64/
     #     ls -l dist/darwin-arm64
 
     # - name: Create DMG for macOS arm64
@@ -86,24 +86,24 @@ jobs:
     - name: Build for macOS amd64
       if: ${{ env.BUILD_MAC == 'true' }}
       run: |
-        rm -f owlcms
+        rm -f firmata
         export GOOS=darwin
         export GOARCH=amd64
         export CGO_ENABLED=1
-        go build -o owlcms .
+        go build -o firmata .
 
     - name: Package for macOS amd64
       if: ${{ env.BUILD_MAC == 'true' }}
       run: |
-        rm -rf owlcms.app
-        fyne package -os darwin -icon Icon.png -name owlcms -executable owlcms
+        rm -rf firmata.app
+        fyne package -os darwin -icon Icon.png -name firmata -executable firmata
 
     - name: Move macOS amd64 app to dist directory
       if: ${{ env.BUILD_MAC == 'true' }}
       run: |
         rm -rf dist/darwin-amd64
         mkdir -p dist/darwin-amd64
-        mv owlcms.app dist/darwin-amd64/
+        mv firmata.app dist/darwin-amd64/
 
     - name: Create DMG for macOS amd64
       if: ${{ env.BUILD_MAC == 'true' }}
@@ -159,9 +159,9 @@ jobs:
     - name: Build for Windows
       if: ${{ env.BUILD_WINDOWS == 'true' }}
       run: |
-        fyne-cross windows -arch amd64 -app-id app.owlcms.owlcms-launcher -name owlcms -debug
+        fyne-cross windows -arch amd64 -app-id app.owlcmx.firmata-launcher -name firmata -debug
         mkdir -p artifacts
-        mv fyne-cross/bin/windows-amd64/owlcms.exe artifacts/owlcms.exe
+        mv fyne-cross/bin/windows-amd64/firmata.exe artifacts/firmata.exe
 
     # Linux and Raspberry Pi preparation
     - name: Install Ruby
@@ -177,41 +177,41 @@ jobs:
     # Linux Intel steps
     - name: Build for Linux amd64
       if: ${{ env.BUILD_LINUX == 'true' }}
-      run: fyne-cross linux -arch amd64 -app-id app.owlcms.owlcms-launcher -icon Icon.png -name owlcms
+      run: fyne-cross linux -arch amd64 -app-id app.owlcmx.firmata-launcher -icon Icon.png -name firmata
 
     - name: Copy Linux binary
       if: ${{ env.BUILD_LINUX == 'true' }}
-      run: cp fyne-cross/bin/linux-amd64/owlcms-launcher fyne-cross/bin/linux-amd64/owlcms-linux
+      run: cp fyne-cross/bin/linux-amd64/firmata-launcher fyne-cross/bin/linux-amd64/firmata-linux
 
     - name: Create Linux Intel DEB package
       if: ${{ env.BUILD_LINUX == 'true' }}
       run: |
-        fpm -s tar -t deb -n owlcms-launcher -v ${DEB_TAG} -a amd64 --prefix / \
+        fpm -s tar -t deb -n firmata-launcher -v ${DEB_TAG} -a amd64 --prefix / \
           --after-install ./dist/after_install.sh \
           --after-remove ./dist/after_remove.sh \
-          ./fyne-cross/dist/linux-amd64/owlcms.tar.xz
+          ./fyne-cross/dist/linux-amd64/firmata.tar.xz
         mkdir -p artifacts
-        mv owlcms-launcher_${DEB_TAG}_amd64.deb artifacts/Linux_Control_Panel_Installer.deb
+        mv firmata-launcher_${DEB_TAG}_amd64.deb artifacts/Linux_Control_Panel_Installer.deb
         sh +x
 
     # Raspberry Pi steps
     - name: Build for Linux arm64
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
-      run: fyne-cross linux -arch arm64 -app-id app.owlcms.owlcms-launcher -icon Icon.png -name owlcms
+      run: fyne-cross linux -arch arm64 -app-id app.owlcmx.firmata-launcher -icon Icon.png -name firmata
 
     - name: Copy Raspberry Pi binary
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
-      run: cp fyne-cross/bin/linux-arm64/owlcms-launcher fyne-cross/bin/linux-arm64/owlcms-pi
+      run: cp fyne-cross/bin/linux-arm64/firmata-launcher fyne-cross/bin/linux-arm64/firmata-pi
 
     - name: Create Raspberry Pi DEB package
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
       run: |
-        fpm -s tar -t deb -n owlcms-launcher -v ${DEB_TAG} -a arm64 --prefix / \
+        fpm -s tar -t deb -n firmata-launcher -v ${DEB_TAG} -a arm64 --prefix / \
           --after-install ./dist/after_install.sh \
           --after-remove ./dist/after_remove.sh \
-          ./fyne-cross/dist/linux-arm64/owlcms.tar.xz
+          ./fyne-cross/dist/linux-arm64/firmata.tar.xz
         mkdir -p artifacts
-        mv owlcms-launcher_${DEB_TAG}_arm64.deb artifacts/Raspberry_Pi_arm64_Control_Panel_Installer.deb
+        mv firmata-launcher_${DEB_TAG}_arm64.deb artifacts/Raspberry_Pi_arm64_Control_Panel_Installer.deb
 
     # Save artifacts for later steps
     - name: Upload build_crosscompile_artifacts
@@ -255,7 +255,7 @@ jobs:
       if: ${{ env.BUILD_WINDOWS == 'true' }}
       run: |
         mkdir dist/iss
-        cp dist/owlcms.exe dist/iss/
+        cp dist/firmata.exe dist/iss/
         cp dist/*.ico dist/iss/
 
     - name: Install Inno Setup
@@ -270,8 +270,8 @@ jobs:
         dir
         cd ..
         mkdir artifacts
-        mv dist\owlcms-Panel-installer_windows.exe artifacts\Windows_Control_Panel_Installer.exe
-        cp dist\owlcms.exe artifacts\owlcms_controlpanel.exe
+        mv dist\firmata-Panel-installer_windows.exe artifacts\Windows_Control_Panel_Installer.exe
+        cp dist\firmata.exe artifacts\owlcms_controlpanel.exe
         
     - name: Save package_windows_artifacts
       if: ${{ env.BUILD_WINDOWS == 'true' }}
@@ -336,12 +336,12 @@ jobs:
       run: |
         if [[ "${TAG}" == *"-"* ]]; then
           gh release create ${{ env.TAG }} \
-            --title "owlcms Control Panel ${{ env.TAG }}" \
+            --title "firmata Control Panel ${{ env.TAG }}" \
             --notes-file ./dist/RELEASE.md \
             --prerelease
         else
           gh release create ${{ env.TAG }} \
-            --title "owlcms Control Panel ${{ env.TAG }}" \
+            --title "firmata Control Panel ${{ env.TAG }}" \
             --notes-file ./dist/RELEASE.md
         fi
 

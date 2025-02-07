@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	"owlcms-launcher/downloadUtils"
-	"owlcms-launcher/javacheck"
+	"firmata-launcher/downloadUtils"
+	"firmata-launcher/javacheck"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -65,13 +65,13 @@ func (m myTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) colo
 func getInstallDir() string {
 	switch downloadUtils.GetGoos() {
 	case "windows":
-		return filepath.Join(os.Getenv("APPDATA"), "owlcms")
+		return filepath.Join(os.Getenv("APPDATA"), "firmata")
 	case "darwin":
-		return filepath.Join(os.Getenv("HOME"), "Library", "Application Support", "owlcms")
+		return filepath.Join(os.Getenv("HOME"), "Library", "Application Support", "firmata")
 	case "linux":
-		return filepath.Join(os.Getenv("HOME"), ".local", "share", "owlcms")
+		return filepath.Join(os.Getenv("HOME"), ".local", "share", "firmata")
 	default:
-		return "./owlcms"
+		return "./firmata"
 	}
 }
 
@@ -114,8 +114,8 @@ func computeVersionScrollHeight(numVersions int) float32 {
 func removeAllVersions() {
 	entries, err := os.ReadDir(owlcmsInstallDir)
 	if err != nil {
-		log.Printf("Failed to read owlcms directory: %v\n", err)
-		dialog.ShowError(fmt.Errorf("failed to read owlcms directory: %w", err), fyne.CurrentApp().Driver().AllWindows()[0])
+		log.Printf("Failed to read firmata directory: %v\n", err)
+		dialog.ShowError(fmt.Errorf("failed to read firmata directory: %w", err), fyne.CurrentApp().Driver().AllWindows()[0])
 		return
 	}
 
@@ -173,10 +173,10 @@ func removeJava() {
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	log.Println("Starting OWLCMS Launcher")
-	a := app.NewWithID("app.owlcms.owlcms-launcher")
+	log.Println("Starting owlcms-firmata Launcher")
+	a := app.NewWithID("app.owlcmx.firmata-launcher")
 	a.Settings().SetTheme(newMyTheme())
-	w := a.NewWindow("OWLCMS Control Panel")
+	w := a.NewWindow("owlcms-firmata Control Panel")
 	w.Resize(fyne.NewSize(800, 400)) // Larger initial window size
 
 	// Create stop button and status label
@@ -216,7 +216,7 @@ func main() {
 	stopContainer.Hide()
 
 	mainContent := container.NewVBox(
-		// widget.NewLabelWithStyle("OWLCMS Launcher", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		// widget.NewLabelWithStyle("owlcms-firmata Launcher", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 		stopContainer,
 		versionContainer,
 		downloadContainer, // Use downloadGroup here
@@ -272,12 +272,12 @@ func main() {
 		updateTitle.Hide()
 		releaseDropdown.Hide() // Hide the dropdown initially
 
-		// Create checkbox for showing prereleases
-		prereleaseCheckbox = widget.NewCheck("Show Prereleases", func(checked bool) {
-			showPrereleases = checked
-			populateReleaseSelect(releaseSelect) // Repopulate the dropdown when the checkbox is changed
-		})
-		prereleaseCheckbox.Hide() // Hide the checkbox initially
+		// // Create checkbox for showing prereleases
+		// prereleaseCheckbox = widget.NewCheck("Show Prereleases", func(checked bool) {
+		// 	showPrereleases = checked
+		// 	populateReleaseSelect(releaseSelect) // Repopulate the dropdown when the checkbox is changed
+		// })
+		// prereleaseCheckbox.Hide() // Hide the checkbox initially
 
 		if len(allReleases) > 0 {
 			downloadContainer.Objects = []fyne.CanvasObject{
@@ -285,7 +285,7 @@ func main() {
 				singleOrMultiVersionLabel,
 				downloadButtonTitle,
 				releaseDropdown,
-				prereleaseCheckbox,
+				// prereleaseCheckbox,
 			}
 		} else {
 			downloadContainer.Objects = []fyne.CanvasObject{
@@ -321,7 +321,7 @@ func main() {
 		)
 		helpMenu := fyne.NewMenu("Help",
 			fyne.NewMenuItem("Documentation", func() {
-				linkURL, _ := url.Parse("https://owlcms.github.io/owlcms4-prerelease/#/LocalControlPanel")
+				linkURL, _ := url.Parse("https://firmata.github.io/owlcms4-prerelease/#/LocalControlPanel")
 				link := widget.NewHyperlink("Control Panel Documentation", linkURL)
 				dialog.ShowCustom("Documentation", "Close", link, w)
 			}),
@@ -329,7 +329,7 @@ func main() {
 				checkForUpdates(w)
 			}),
 			fyne.NewMenuItem("About", func() {
-				dialog.ShowInformation("About", "OWLCMS Launcher version "+launcherVersion, w)
+				dialog.ShowInformation("About", "owlcms-firmata Launcher version "+launcherVersion, w)
 			}),
 		)
 		menu := fyne.NewMainMenu(fileMenu, killMenu, helpMenu)
@@ -342,7 +342,7 @@ func main() {
 		populateReleaseSelect(releaseSelect) // Populate the dropdown with the releases
 		updateTitle.Show()
 		releaseDropdown.Hide()
-		prereleaseCheckbox.Hide() // Show the checkbox once releases are fetched
+		// prereleaseCheckbox.Hide() // Show the checkbox once releases are fetched
 		log.Printf("Fetched %d releases\n", len(releases))
 
 		// If no version is installed, get the latest stable version
@@ -350,6 +350,7 @@ func main() {
 			for _, release := range allReleases {
 				if !containsPreReleaseTag(release) {
 					// Automatically download and install the latest stable version
+					log.Printf("Downloading and installing latest stable version %s\n", release)
 					downloadAndInstallVersion(release, w)
 					break
 				}
@@ -369,18 +370,18 @@ func main() {
 			if currentProcess != nil {
 				confirmDialog := dialog.NewConfirm(
 					"Confirm Exit",
-					"The server is running. This will stop the owlcms server for all the users. Are you sure you want to exit?",
+					"The server is running. This will stop the firmata server for all the users. Are you sure you want to exit?",
 					func(confirm bool) {
 						if !confirm {
-							log.Println("Closing OWLCMS Launcher")
+							log.Println("Closing owlcms-firmata Launcher")
 							stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
 							w.Close()
 						}
 					},
 					w,
 				)
-				confirmDialog.SetConfirmText("Don't Stop owlcms")
-				confirmDialog.SetDismissText("Stop owlcms and Exit")
+				confirmDialog.SetConfirmText("Don't Stop firmata")
+				confirmDialog.SetDismissText("Stop firmata and Exit")
 				confirmDialog.Show()
 			} else {
 				w.Close()
@@ -411,39 +412,39 @@ func main() {
 		os.Exit(0)
 	}()
 
-	log.Println("Showing OWLCMS Launcher")
+	log.Println("Showing owlcms-firmata Launcher")
 	w.ShowAndRun()
 }
 
 func HideDownloadables() {
 	downloadsShown = false
 	releaseDropdown.Hide()
-	prereleaseCheckbox.Hide()
+	// prereleaseCheckbox.Hide()
 	downloadContainer.Refresh()
 }
 
 func ShowDownloadables() {
 	downloadsShown = true
 	releaseDropdown.Show()
-	prereleaseCheckbox.Show()
+	// prereleaseCheckbox.Show()
 	downloadContainer.Refresh()
 }
 
 func downloadAndInstallVersion(version string, w fyne.Window) {
 	var urlPrefix string
 	if containsPreReleaseTag(version) {
-		urlPrefix = "https://github.com/owlcms/owlcms4-prerelease/releases/download"
+		urlPrefix = "https://github.com/jflamy/owlcms-firmata/releases/download"
 	} else {
-		urlPrefix = "https://github.com/owlcms/owlcms4/releases/download"
+		urlPrefix = "https://github.com/jflamy/owlcms-firmata/releases/download"
 	}
-	fileName := fmt.Sprintf("owlcms_%s.zip", version)
+	fileName := "owlcms-firmata.jar"
 	zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, version, fileName)
 
-	// Ensure the owlcms directory exists
+	// Ensure the firmata directory exists
 	owlcmsDir := owlcmsInstallDir
 	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(owlcmsDir, 0755); err != nil {
-			dialog.ShowError(fmt.Errorf("creating owlcms directory: %w", err), w)
+			dialog.ShowError(fmt.Errorf("creating firmata directory: %w", err), w)
 			return
 		}
 	}
@@ -453,7 +454,7 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 
 	// Show progress dialog
 	progressDialog := dialog.NewCustom(
-		"Installing OWLCMS",
+		"Installing owlcms-firmata",
 		"Please wait...",
 		widget.NewLabel("Downloading and extracting files..."),
 		w)
@@ -469,14 +470,14 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 			return
 		}
 
-		// Extract the ZIP file to version-specific subdirectory
-		log.Printf("Extracting ZIP file to: %s\n", extractPath)
-		err = downloadUtils.ExtractZip(zipPath, extractPath)
-		if err != nil {
-			progressDialog.Hide()
-			dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
-			return
-		}
+		// // Extract the ZIP file to version-specific subdirectory
+		// log.Printf("Extracting ZIP file to: %s\n", extractPath)
+		// err = downloadUtils.ExtractZip(zipPath, extractPath)
+		// if err != nil {
+		// 	progressDialog.Hide()
+		// 	dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
+		// 	return
+		// }
 
 		// Log when extraction is done
 		log.Println("Extraction completed")
@@ -487,7 +488,7 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 
 		// Show success panel with installation details
 		message := fmt.Sprintf(
-			"Successfully installed OWLCMS version %s\n\n"+
+			"Successfully installed owlcms-firmata version %s\n\n"+
 				"Location: %s\n\n"+
 				"The program files have been extracted to the above directory.",
 			version, extractPath)
@@ -528,7 +529,7 @@ func checkForNewerVersion() {
 						log.Printf("Found newer version: %s\n", releaseVersion)
 						var releaseURL string
 						if containsPreReleaseTag(release) {
-							releaseURL = fmt.Sprintf("https://github.com/owlcms/owlcms4-prerelease/releases/tag/%s", release)
+							releaseURL = fmt.Sprintf("https://github.com/jflamy/owlcms-firmata/releases/tag/%s", release)
 							if containsPreReleaseTag(latestInstalled) {
 								updateTitle.ParseMarkdown(fmt.Sprintf("**A more recent prerelease version %s is available.** [Release Notes](%s)", releaseVersion, releaseURL))
 								updateTitle.Refresh()
@@ -536,7 +537,7 @@ func checkForNewerVersion() {
 								return
 							}
 						} else {
-							releaseURL = fmt.Sprintf("https://github.com/owlcms/owlcms4/releases/tag/%s", release)
+							releaseURL = fmt.Sprintf("https://github.com/jflamy/owlcms-firmata/releases/tag/%s", release)
 							updateTitle.ParseMarkdown(fmt.Sprintf("**A more recent stable version %s is available.** [Release Notes](%s)", releaseVersion, releaseURL))
 							updateTitle.Refresh()
 							updateTitle.Show()
@@ -553,15 +554,15 @@ func checkForNewerVersion() {
 
 			var releaseURL string
 			if containsPreReleaseTag(latestInstalled) {
-				stableURL := fmt.Sprintf("https://github.com/owlcms/owlcms4/releases/tag/%s", latestStable)
-				prereleaseURL := fmt.Sprintf("https://github.com/owlcms/owlcms4-prerelease/releases/tag/%s", latestInstalled)
+				stableURL := fmt.Sprintf("https://github.com/jflamy/owlcms-firmata/releases/tag/%s", latestStable)
+				prereleaseURL := fmt.Sprintf("https://github.com/jflamy/owlcms-firmata/releases/tag/%s", latestInstalled)
 				updateTitle.ParseMarkdown(fmt.Sprintf(
 					`**The latest installed version is pre-release %s** [Release Notes](%s)
 					
 The latest stable version is %s. [Release Notes](%s)`,
 					latestInstalled, prereleaseURL, latestStable, stableURL))
 			} else {
-				releaseURL = fmt.Sprintf("https://github.com/owlcms/owlcms4/releases/tag/%s", latestInstalled)
+				releaseURL = fmt.Sprintf("https://github.com/jflamy/owlcms-firmata/releases/tag/%s", latestInstalled)
 				updateTitle.ParseMarkdown(fmt.Sprintf("**The latest stable version is installed.** [Release Notes](%s)", releaseURL))
 			}
 			updateTitle.Refresh()
@@ -570,9 +571,9 @@ The latest stable version is %s. [Release Notes](%s)`,
 			if releaseDropdown != nil {
 				releaseDropdown.Hide()
 			}
-			if prereleaseCheckbox != nil {
-				prereleaseCheckbox.Hide()
-			}
+			// if prereleaseCheckbox != nil {
+			// 	prereleaseCheckbox.Hide()
+			// }
 			updateTitle.Show()
 			downloadButtonTitle.Show()
 			if downloadContainer != nil {

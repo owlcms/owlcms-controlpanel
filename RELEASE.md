@@ -1,19 +1,19 @@
-Owlcms-launcher is a control panel for owlcms.  The control panel is used to
+firmata-launcher is a control panel for firmata.  The control panel is used to
 
-- Start and Stop owlcms
+- Start and Stop firmata
 - Install updates
 - Have multiple versions at once for testing purposes, with the ability to copy data from one to the other.
 
-The control panel is installed once. It will automatically download the current version of owlcms and the correct version of Java when used for the first time.
+The control panel is installed once. It will automatically download the current version of firmata and the correct version of Java when used for the first time.
 
 ### Change Log
 
 - 1.9.3: Single installer for macOS.
-- 1.9.2: Ask for confirmation if closing the window while owlcms is running since this will stop owlcms
-- 1.9.2: Removed the Windows installer, due to virus false detection on Windows.  Instructions for owlcms now refer to using the executable directly.
+- 1.9.2: Ask for confirmation if closing the window while firmata is running since this will stop firmata
+- 1.9.2: Removed the Windows installer, due to virus false detection on Windows.  Instructions for firmata now refer to using the executable directly.
 - 1.9.1: Now copy the windows executable as well as the installer
 - 1.9.1: The build process is now conditional for the various platforms
-- 1.9.0: The `env.properties` file is now reloaded before launching owlcms, at every launch
+- 1.9.0: The `env.properties` file is now reloaded before launching firmata, at every launch
 - 1.9.0: Added a "Check for Updates" entry in the help menu.
 
 ### Installing the Control Panel
@@ -37,8 +37,8 @@ The control panel is installed once. It will automatically download the current 
   2. Start a terminal window and go to `~/Downloads`
   6. Use `sudo apt install ./Linux*.deb` (replacing the name with the actual name of the .deb file)
 
-If you do not wish to use the package install, or lack privileges to do so, you may also copy the owlcms-pi or owlcms-linux binary file directly to your machine, but then there will be no icons.
+If you do not wish to use the package install, or lack privileges to do so, you may also copy the firmata-pi or firmata-linux binary file directly to your machine, but then there will be no icons.
 
 ### Using the Control Panel
 
-- See the instructions at https://owlcms.github.io/owlcms4/#/LocalControlPanel
+- See the instructions at https://firmata.github.io/owlcms4/#/LocalControlPanel

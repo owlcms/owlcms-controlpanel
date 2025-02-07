@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"owlcms-launcher/downloadUtils"
+	"firmata-launcher/downloadUtils"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -39,8 +39,7 @@ var (
 
 func fetchReleases() ([]string, error) {
 	urls := []string{
-		"https://api.github.com/repos/owlcms/owlcms4-prerelease/releases",
-		"https://api.github.com/repos/owlcms/owlcms4/releases",
+		"https://api.github.com/repos/jflamy/owlcms-firmata/releases",
 	}
 
 	var allReleases []Release
@@ -134,18 +133,18 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 	selectWidget := widget.NewSelect([]string{}, func(selected string) {
 		var urlPrefix string
 		if containsPreReleaseTag(selected) {
-			urlPrefix = "https://github.com/owlcms/owlcms4-prerelease/releases/download"
+			urlPrefix = "https://github.com/jflamy/owlcms-firmata/releases/download"
 		} else {
-			urlPrefix = "https://github.com/owlcms/owlcms4/releases/download"
+			urlPrefix = "https://github.com/jflamy/owlcms-firmata/releases/download"
 		}
 		fileName := fmt.Sprintf("owlcms_%s.zip", selected)
 		zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, selected, fileName)
 
-		// Ensure the owlcms directory exists
+		// Ensure the firmata directory exists
 		owlcmsDir := owlcmsInstallDir
 		if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
 			if err := os.MkdirAll(owlcmsDir, 0755); err != nil {
-				dialog.ShowError(fmt.Errorf("creating owlcms directory: %w", err), w)
+				dialog.ShowError(fmt.Errorf("creating firmata directory: %w", err), w)
 				return
 			}
 		}
@@ -154,7 +153,7 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 		extractPath := filepath.Join(owlcmsDir, selected)
 
 		dialog.ShowConfirm("Confirm Download",
-			fmt.Sprintf("Do you want to download and install OWLCMS version %s?", selected),
+			fmt.Sprintf("Do you want to download and install owlcms-firmata version %s?", selected),
 			func(ok bool) {
 				if !ok {
 					return
@@ -162,7 +161,7 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 
 				// Show progress dialog
 				progressDialog := dialog.NewCustom(
-					"Installing OWLCMS",
+					"Installing owlcms-firmata",
 					"Please wait...",
 					widget.NewLabel("Downloading and extracting files..."),
 					w)
@@ -198,7 +197,7 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 
 					// Show success panel with installation details
 					message := fmt.Sprintf(
-						"Successfully installed OWLCMS version %s\n\n"+
+						"Successfully installed owlcms-firmata version %s\n\n"+
 							"Location: %s\n\n"+
 							"The program files have been extracted to the above directory.",
 						selected, extractPath)

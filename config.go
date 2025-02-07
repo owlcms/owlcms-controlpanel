@@ -34,7 +34,7 @@ func GetPort() string {
 	if environment == nil {
 		return "8080"
 	}
-	port, ok := environment.Get("OWLCMS_PORT")
+	port, ok := environment.Get("FIRMATA_PORT")
 	if !ok {
 		return "8080"
 	}
@@ -46,8 +46,8 @@ func InitEnv() {
 	props := properties.NewProperties()
 	envFilePath := filepath.Join(owlcmsInstallDir, "env.properties")
 	if _, err := os.Stat(envFilePath); os.IsNotExist(err) {
-		// Create env.properties file with entry "OWLCMS_PORT=8080"
-		props.Set("OWLCMS_PORT", "8080")
+		// Create env.properties file with entry "FIRMATA_PORT=8080"
+		props.Set("FIRMATA_PORT", "8080")
 		file, err := os.Create(envFilePath)
 		if err != nil {
 			log.Fatalf("Failed to create env.properties file: %v", err)
@@ -58,12 +58,12 @@ func InitEnv() {
 		}
 		// Add commented-out entries
 		rawString := `# Add any environment variable you need. (remove the leading # to uncomment)
-#OWLCMS_INITIALDATA=LARGEGROUP_DEMO
-#OWLCMS_RESETMODE=true
-#OWLCMS_MEMORYMODE=true
+#FIRMATA_INITIALDATA=LARGEGROUP_DEMO
+#FIRMATA_RESETMODE=true
+#FIRMATA_MEMORYMODE=true
 
 # this overrides all the feature toggles in the database (remove the leading # to uncomment)
-#OWLCMS_FEATURESWITCHES=interimScores
+#FIRMATA_FEATURESWITCHES=interimScores
 
 # java options can be set with this variable (remove the leading # to uncomment)
 #JAVA_OPTIONS=-Xmx512m -Xmx512m`
@@ -101,7 +101,7 @@ func loadProperties(envFilePath string) {
 }
 
 func checkForUpdates(win fyne.Window) {
-	const repoURL = "https://api.github.com/repos/owlcms/owlcms-controlpanel/releases/latest"
+	const repoURL = "https://api.github.com/repos/firmata/firmata-controlpanel/releases/latest"
 	resp, err := http.Get(repoURL)
 	if err != nil {
 		log.Printf("Failed to check for updates: %v", err)

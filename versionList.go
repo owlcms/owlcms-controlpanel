@@ -1,11 +1,11 @@
 package main
 
 import (
+	"firmata-launcher/downloadUtils"
 	"fmt"
 	"io"
 	"log"
 	"os"
-	"owlcms-launcher/downloadUtils"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -284,7 +284,7 @@ func createRemoveButton(version string, w fyne.Window, buttonContainer *fyne.Con
 	removeButton := widget.NewButton("Remove", nil)
 	removeButton.OnTapped = func() {
 		dialog.ShowConfirm("Confirm Remove",
-			fmt.Sprintf("Do you want to remove OWLCMS version %s?", version),
+			fmt.Sprintf("Do you want to remove owlcms-firmata version %s?", version),
 			func(ok bool) {
 				if !ok {
 					return
@@ -292,7 +292,7 @@ func createRemoveButton(version string, w fyne.Window, buttonContainer *fyne.Con
 
 				err := os.RemoveAll(filepath.Join(owlcmsInstallDir, version))
 				if err != nil {
-					dialog.ShowError(fmt.Errorf("failed to remove OWLCMS %s: %w", version, err), w)
+					dialog.ShowError(fmt.Errorf("failed to remove owlcms-firmata %s: %w", version, err), w)
 					return
 				}
 
@@ -329,7 +329,7 @@ func createLaunchButton(w fyne.Window, version string, stopButton *widget.Button
 	launchButton.SetText("Launch")
 	launchButton.OnTapped = func() {
 		if currentProcess != nil {
-			dialog.ShowError(fmt.Errorf("OWLCMS is already running"), w)
+			dialog.ShowError(fmt.Errorf("owlcms-firmata is already running"), w)
 			return
 		}
 
@@ -391,9 +391,9 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	// Download and extract the version given by string
 	var urlPrefix string
 	if containsPreReleaseTag(targetVersion) {
-		urlPrefix = "https://github.com/owlcms/owlcms4-prerelease/releases/download"
+		urlPrefix = "https://github.com/jflamy/owlcms-firmata/releases/download"
 	} else {
-		urlPrefix = "https://github.com/owlcms/owlcms4/releases/download"
+		urlPrefix = "https://github.com/jflamy/owlcms-firmata/releases/download"
 	}
 	fileName := fmt.Sprintf("owlcms_%s.zip", targetVersion)
 	zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, targetVersion, fileName)
@@ -401,7 +401,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	extractPath := filepath.Join(owlcmsInstallDir, targetVersion)
 
 	progressDialog := dialog.NewCustom(
-		"Updating OWLCMS",
+		"Updating owlcms-firmata",
 		"Please wait...",
 		widget.NewLabel("Downloading and extracting files..."),
 		w)

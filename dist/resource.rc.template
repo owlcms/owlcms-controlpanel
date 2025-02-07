@@ -11,13 +11,13 @@ BEGIN
     BEGIN
         BLOCK "040904b0"
         BEGIN
-            VALUE "CompanyName", "owlcms"
-            VALUE "FileDescription", "owlcms Control Panel"
+            VALUE "CompanyName", "firmata"
+            VALUE "FileDescription", "firmata Control Panel"
             VALUE "FileVersion", "{{VERSION}}"
-            VALUE "InternalName", "owlcms"
+            VALUE "InternalName", "firmata"
             VALUE "LegalCopyright", "© 2024 Jean-François Lamy"
-            VALUE "OriginalFilename", "owlcms.exe"
-            VALUE "ProductName", "owlcms Control Panel"
+            VALUE "OriginalFilename", "firmata.exe"
+            VALUE "ProductName", "firmata Control Panel"
             VALUE "ProductVersion", "{{VERSION}}"
         END
     END

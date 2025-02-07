@@ -1,6 +1,6 @@
 {
-    "title": "OWLCMS Installer",
-    "icon": "darwin-arm64/owlcms.app/Contents/Resources/icon.icns",
+    "title": "owlcms-firmata Installer",
+    "icon": "darwin-arm64/firmata.app/Contents/Resources/icon.icns",
     "background": "dmgBackground.png",
     "window": {
         "size": {
@@ -19,7 +19,7 @@
             "x": 68,
             "y": 110, 
             "type": "file",
-            "path": "darwin-arm64/owlcms.app"
+            "path": "darwin-arm64/firmata.app"
         }
     ]
 }

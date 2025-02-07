@@ -23,7 +23,7 @@ sed -i "s/BUILD_RASPBERRY: .*/BUILD_RASPBERRY: ${BUILD_RASPBERRY}/" .github/work
 sed -i "s/BUILD_LINUX: .*/BUILD_LINUX: ${BUILD_LINUX}/" .github/workflows/release.yaml
 
 # Commit and push the changes
-git commit -am "owlcms-launcher $TAG"
+git commit -am "firmata-launcher $TAG"
 git push
-git tag -a ${TAG} -m "owlcms-launcher $TAG"
+git tag -a ${TAG} -m "firmata-launcher $TAG"
 git push origin --tags

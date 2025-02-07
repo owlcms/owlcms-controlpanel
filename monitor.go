@@ -1,12 +1,12 @@
 package main
 
 import (
+	"firmata-launcher/downloadUtils"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/exec"
-	"owlcms-launcher/downloadUtils"
 	"syscall"
 	"time"
 
@@ -67,8 +67,8 @@ func monitorProcess(cmd *exec.Cmd) chan error {
 }
 
 func stopProcess(currentProcess *exec.Cmd, currentVersion string, stopButton *widget.Button, downloadGroup, versionContainer *fyne.Container, statusLabel *widget.Label, w fyne.Window) {
-	log.Printf("Stopping OWLCMS %s...\n", currentVersion)
-	statusLabel.SetText(fmt.Sprintf("Stopping OWLCMS %s...", currentVersion))
+	log.Printf("Stopping owlcms-firmata %s...\n", currentVersion)
+	statusLabel.SetText(fmt.Sprintf("Stopping owlcms-firmata %s...", currentVersion))
 
 	if currentProcess == nil || currentProcess.Process == nil {
 		return
@@ -84,17 +84,17 @@ func stopProcess(currentProcess *exec.Cmd, currentVersion string, stopButton *wi
 	}
 
 	if err != nil {
-		log.Printf("Failed to send interrupt signal to OWLCMS %s (PID: %d): %v\n", currentVersion, pid, err)
+		log.Printf("Failed to send interrupt signal to owlcms-firmata %s (PID: %d): %v\n", currentVersion, pid, err)
 		err = currentProcess.Process.Kill()
 		if err != nil {
 			killedByUs = false
-			dialog.ShowError(fmt.Errorf("failed to stop OWLCMS %s (PID: %d): %w", currentVersion, pid, err), w)
+			dialog.ShowError(fmt.Errorf("failed to stop owlcms-firmata %s (PID: %d): %w", currentVersion, pid, err), w)
 			return
 		}
 	}
 
-	log.Printf("OWLCMS %s (PID: %d) has been stopped\n", currentVersion, pid)
-	statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) has been stopped", currentVersion, pid))
+	log.Printf("owlcms-firmata %s (PID: %d) has been stopped\n", currentVersion, pid)
+	statusLabel.SetText(fmt.Sprintf("owlcms-firmata %s (PID: %d) has been stopped", currentVersion, pid))
 	currentProcess = nil
 	stopButton.Hide()
 	urlLink.Hide() // Hide the URL when stopping

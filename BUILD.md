@@ -18,7 +18,7 @@
   ```
   or, to create a binary
   ```
-  go build -o owlcms .
+  go build -o firmata .
   ```
 
 - On WSL2 you can use fyne-cross to generate the pi and Windows binaries for testing
@@ -31,9 +31,9 @@
   
   - Cross-compile
      ```
-     fyne-cross windows --app-id app.owlcms.owlcms-launcher -name owlcms
-     fyne-cross linux -arch arm64 --app-id app.owlcms.owlcms-launcher -name owlcms-pi
-     fyne-cross linux -arch amd64 --app-id app.owlcms.owlcms-launcher -name owlcms-linux
+     fyne-cross windows --app-id app.owlcmx.firmata-launcher -name firmata
+     fyne-cross linux -arch arm64 --app-id app.owlcmx.firmata-launcher -name firmata-pi
+     fyne-cross linux -arch amd64 --app-id app.owlcmx.firmata-launcher -name firmata-linux
 
 ### Releasing
 - decide on a tag number

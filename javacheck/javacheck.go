@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	"owlcms-launcher/downloadUtils"
+	"firmata-launcher/downloadUtils"
 
 	"fyne.io/fyne/v2/widget"
 )
@@ -149,10 +149,10 @@ func CheckJava(statusLabel *widget.Label) error {
 		}
 	}
 
-	// Ensure the owlcms directory exists
+	// Ensure the firmata directory exists
 	if _, err := os.Stat(owlcmsInstallDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(owlcmsInstallDir, 0755); err != nil {
-			return fmt.Errorf("creating owlcms directory: %w", err)
+			return fmt.Errorf("creating firmata directory: %w", err)
 		}
 	}
 
@@ -219,7 +219,7 @@ func findLatestTemurinRelease() (string, error) {
 	}
 
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("User-Agent", "owlcms-launcher")
+	req.Header.Set("User-Agent", "firmata-launcher")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -266,7 +266,7 @@ func getTemurinDownloadURL() (string, error) {
 
 	// Add headers required by GitHub API
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("User-Agent", "owlcms-launcher")
+	req.Header.Set("User-Agent", "firmata-launcher")
 
 	// Make the request
 	client := &http.Client{}
