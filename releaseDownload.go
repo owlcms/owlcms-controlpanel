@@ -131,14 +131,16 @@ func populateReleaseSelect(selectWidget *widget.Select) {
 
 func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 	selectWidget := widget.NewSelect([]string{}, func(selected string) {
+		// Extract clean version from selected string
+		version := extractSemverTag(selected)
 		var urlPrefix string
-		if containsPreReleaseTag(selected) {
+		if containsPreReleaseTag(version) {
 			urlPrefix = "https://github.com/jflamy/owlcms-firmata/releases/download"
 		} else {
 			urlPrefix = "https://github.com/jflamy/owlcms-firmata/releases/download"
 		}
-		fileName := fmt.Sprintf("owlcms_%s.zip", selected)
-		zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, selected, fileName)
+		fileName := "owlcms-firmata.jar"
+		zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, version, fileName)
 
 		// Ensure the firmata directory exists
 		owlcmsDir := owlcmsInstallDir
@@ -149,8 +151,7 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 			}
 		}
 
-		zipPath := filepath.Join(owlcmsDir, fileName)
-		extractPath := filepath.Join(owlcmsDir, selected)
+		// zipPath := filepath.Join(owlcmsDir, fileName)
 
 		dialog.ShowConfirm("Confirm Download",
 			fmt.Sprintf("Do you want to download and install owlcms-firmata version %s?", selected),
@@ -168,23 +169,27 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 				progressDialog.Show()
 
 				go func() {
+					extractPath := filepath.Join(owlcmsDir, version)
+					os.Mkdir(extractPath, 0755)
+					extractPath = filepath.Join(extractPath, fileName)
+
 					// Download the ZIP file using downloadUtils
 					log.Printf("Starting download from URL: %s\n", zipURL)
-					err := downloadUtils.DownloadArchive(zipURL, zipPath)
+					err := downloadUtils.DownloadArchive(zipURL, extractPath)
 					if err != nil {
 						progressDialog.Hide()
 						dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
 						return
 					}
 
-					// Extract the ZIP file to version-specific subdirectory
-					log.Printf("Extracting ZIP file to: %s\n", extractPath)
-					err = downloadUtils.ExtractZip(zipPath, extractPath)
-					if err != nil {
-						progressDialog.Hide()
-						dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
-						return
-					}
+					// // Extract the ZIP file to version-specific subdirectory
+					// log.Printf("Extracting ZIP file to: %s\n", extractPath)
+					// err = downloadUtils.ExtractZip(zipPath, extractPath)
+					// if err != nil {
+					// 	progressDialog.Hide()
+					// 	dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
+					// 	return
+					// }
 
 					// Log when extraction is done
 					log.Println("Extraction completed")

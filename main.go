@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"sync"
 
 	"firmata-launcher/downloadUtils"
@@ -348,10 +349,11 @@ func main() {
 		// If no version is installed, get the latest stable version
 		if len(getAllInstalledVersions()) == 0 {
 			for _, release := range allReleases {
-				if !containsPreReleaseTag(release) {
+				version := extractSemverTag(release)
+				if !containsPreReleaseTag(version) {
 					// Automatically download and install the latest stable version
-					log.Printf("Downloading and installing latest stable version %s\n", release)
-					downloadAndInstallVersion(release, w)
+					log.Printf("Downloading and installing latest stable version %s\n", version)
+					downloadAndInstallVersion(version, w)
 					break
 				}
 			}
@@ -449,8 +451,7 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 		}
 	}
 
-	zipPath := filepath.Join(owlcmsDir, fileName)
-	extractPath := filepath.Join(owlcmsDir, version)
+	// zipPath := filepath.Join(owlcmsDir, fileName)
 
 	// Show progress dialog
 	progressDialog := dialog.NewCustom(
@@ -461,9 +462,13 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 	progressDialog.Show()
 
 	go func() {
-		// Download the ZIP file using downloadUtils
+		extractPath := filepath.Join(owlcmsDir, version)
+		os.Mkdir(extractPath, 0755)
+		extractPath = filepath.Join(extractPath, fileName)
+
+		// Download the file using downloadUtils
 		log.Printf("Starting download from URL: %s\n", zipURL)
-		err := downloadUtils.DownloadArchive(zipURL, zipPath)
+		err := downloadUtils.DownloadArchive(zipURL, extractPath)
 		if err != nil {
 			progressDialog.Hide()
 			dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
@@ -634,4 +639,15 @@ func updateExplanation() {
 	singleOrMultiVersionLabel.Wrapping = fyne.TextWrapWord
 	singleOrMultiVersionLabel.Show()
 	singleOrMultiVersionLabel.Refresh()
+}
+
+func extractSemverTag(s string) string {
+	re := regexp.MustCompile(`(v?\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+)?)$`)
+	if match := re.FindString(s); match != "" {
+		if match[0] == 'v' {
+			return match[1:]
+		}
+		return match
+	}
+	return s
 }

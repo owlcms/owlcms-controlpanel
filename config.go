@@ -32,11 +32,11 @@ func init() {
 // GetPort returns the configured port from env.properties, defaulting to "8080"
 func GetPort() string {
 	if environment == nil {
-		return "8080"
+		return "8091"
 	}
 	port, ok := environment.Get("FIRMATA_PORT")
 	if !ok {
-		return "8080"
+		return "8091"
 	}
 	return port
 }
@@ -58,13 +58,6 @@ func InitEnv() {
 		}
 		// Add commented-out entries
 		rawString := `# Add any environment variable you need. (remove the leading # to uncomment)
-#FIRMATA_INITIALDATA=LARGEGROUP_DEMO
-#FIRMATA_RESETMODE=true
-#FIRMATA_MEMORYMODE=true
-
-# this overrides all the feature toggles in the database (remove the leading # to uncomment)
-#FIRMATA_FEATURESWITCHES=interimScores
-
 # java options can be set with this variable (remove the leading # to uncomment)
 #JAVA_OPTIONS=-Xmx512m -Xmx512m`
 
