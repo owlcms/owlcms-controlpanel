@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"regexp"
 	"sync"
 
 	"firmata-launcher/downloadUtils"
@@ -518,79 +517,41 @@ func min(a, b int) int {
 
 func checkForNewerVersion() {
 	latestInstalled := findLatestInstalled()
-
-	// Set the single or multi version label
 	updateExplanation()
 
 	if latestInstalled != "" {
-		latestStable, _ := semver.NewVersion("0.0.0")
 		latestInstalledVersion, err := semver.NewVersion(latestInstalled)
 		if err == nil {
 			log.Printf("Latest installed version: %s\n", latestInstalledVersion)
-			for _, release := range allReleases {
-				releaseVersion, err := semver.NewVersion(release)
-				if err == nil {
-					if releaseVersion.GreaterThan(latestInstalledVersion) {
-						log.Printf("Found newer version: %s\n", releaseVersion)
-						var releaseURL string
-						if containsPreReleaseTag(release) {
-							releaseURL = fmt.Sprintf("https://github.com/jflamy/owlcms-firmata/releases/tag/%s", release)
-							if containsPreReleaseTag(latestInstalled) {
-								updateTitle.ParseMarkdown(fmt.Sprintf("**A more recent prerelease version %s is available.** [Release Notes](%s)", releaseVersion, releaseURL))
-								updateTitle.Refresh()
-								updateTitle.Show()
-								return
-							}
-						} else {
-							releaseURL = fmt.Sprintf("https://github.com/jflamy/owlcms-firmata/releases/tag/%s", release)
-							updateTitle.ParseMarkdown(fmt.Sprintf("**A more recent stable version %s is available.** [Release Notes](%s)", releaseVersion, releaseURL))
-							updateTitle.Refresh()
-							updateTitle.Show()
-							return
-						}
-					}
-					if (releaseVersion.GreaterThan(latestStable)) && !containsPreReleaseTag(release) {
-						latestStable = releaseVersion
-					}
+			latestStableString, stableErr := getMostRecentStableRelease()
+			if stableErr == nil {
+				stableVersion, _ := semver.NewVersion(latestStableString)
+				// Compare installed version with latest stable
+				if stableVersion.GreaterThan(latestInstalledVersion) {
+					releaseURL := fmt.Sprintf("https://github.com/jflamy/owlcms-firmata/releases/tag/%s", latestStableString)
+					updateTitle.ParseMarkdown(fmt.Sprintf("**A more recent stable version %s is available.** [Release Notes](%s)", latestStableString, releaseURL))
+					updateTitle.Refresh()
+					updateTitle.Show()
+					return
 				}
 			}
-			updateTitle.Show()
-			downloadButtonTitle.Show()
 
-			var releaseURL string
+			// If we get here, no newer version was found
+			releaseURL := fmt.Sprintf("https://github.com/jflamy/owlcms-firmata/releases/tag/%s", latestInstalled)
 			if containsPreReleaseTag(latestInstalled) {
-				stableURL := fmt.Sprintf("https://github.com/jflamy/owlcms-firmata/releases/tag/%s", latestStable)
-				prereleaseURL := fmt.Sprintf("https://github.com/jflamy/owlcms-firmata/releases/tag/%s", latestInstalled)
-				updateTitle.ParseMarkdown(fmt.Sprintf(
-					`**The latest installed version is pre-release %s** [Release Notes](%s)
-					
-The latest stable version is %s. [Release Notes](%s)`,
-					latestInstalled, prereleaseURL, latestStable, stableURL))
+				updateTitle.ParseMarkdown(fmt.Sprintf("**You are using pre-release %s** [Release Notes](%s)", latestInstalled, releaseURL))
 			} else {
-				releaseURL = fmt.Sprintf("https://github.com/jflamy/owlcms-firmata/releases/tag/%s", latestInstalled)
-				updateTitle.ParseMarkdown(fmt.Sprintf("**The latest stable version is installed.** [Release Notes](%s)", releaseURL))
+				updateTitle.ParseMarkdown(fmt.Sprintf("**You are using stable version %s** [Release Notes](%s)", latestInstalled, releaseURL))
 			}
 			updateTitle.Refresh()
-
-			downloadButtonTitle.Refresh()
+			updateTitle.Show()
+			downloadButtonTitle.Show()
 			if releaseDropdown != nil {
 				releaseDropdown.Hide()
 			}
-			// if prereleaseCheckbox != nil {
-			// 	prereleaseCheckbox.Hide()
-			// }
-			updateTitle.Show()
-			downloadButtonTitle.Show()
 			if downloadContainer != nil {
 				downloadContainer.Refresh()
 			}
-		}
-	} else {
-		updateTitle.ParseMarkdown("**No version installed. Select a version to download below.**")
-		updateTitle.Refresh()
-		updateTitle.Show()
-		if downloadContainer != nil {
-			downloadContainer.Refresh()
 		}
 	}
 }
@@ -639,15 +600,4 @@ func updateExplanation() {
 	singleOrMultiVersionLabel.Wrapping = fyne.TextWrapWord
 	singleOrMultiVersionLabel.Show()
 	singleOrMultiVersionLabel.Refresh()
-}
-
-func extractSemverTag(s string) string {
-	re := regexp.MustCompile(`(v?\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+)?)$`)
-	if match := re.FindString(s); match != "" {
-		if match[0] == 'v' {
-			return match[1:]
-		}
-		return match
-	}
-	return s
 }

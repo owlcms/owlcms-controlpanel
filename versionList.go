@@ -75,33 +75,25 @@ func findLatestInstalled() string {
 	return versions[0].String()
 }
 
-func findLatestStableInstalled() string {
-	owlcmsDir := owlcmsInstallDir
-	entries, err := os.ReadDir(owlcmsDir)
-	if err != nil {
-		return ""
-	}
-
-	versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+$`)
-	var versions []*semver.Version
-	for _, entry := range entries {
-		if entry.IsDir() && versionPattern.MatchString(entry.Name()) {
-			v, err := semver.NewVersion(entry.Name())
-			if err == nil {
-				versions = append(versions, v)
+func findLatestStableInstalledVersion() string {
+	var latestStable *semver.Version
+	for _, dir := range getAllInstalledVersions() {
+		// Clean the version string before processing
+		version := extractSemverTag(dir)
+		v, err := semver.NewVersion(version)
+		if err == nil && !containsPreReleaseTag(version) {
+			if latestStable == nil || v.GreaterThan(latestStable) {
+				latestStable = v
 			}
 		}
 	}
-
-	if len(versions) == 0 {
-		return ""
+	if latestStable != nil {
+		return latestStable.String()
 	}
-
-	sort.Sort(sort.Reverse(semver.Collection(versions)))
-	return versions[0].String()
+	return ""
 }
 
-func findLatestPrereleaseInstalled() string {
+func findLatestPrereleaseInstalledVersion() string {
 	owlcmsDir := owlcmsInstallDir
 	entries, err := os.ReadDir(owlcmsDir)
 	if err != nil {
@@ -252,8 +244,8 @@ func createUpdateButton(version string, w fyne.Window, buttonContainer *fyne.Con
 
 	latestStable, stableErr := getMostRecentStableRelease()
 	latestPrerelease, preErr := getMostRecentPrerelease()
-	latestStableInstalled := findLatestStableInstalled()
-	latestPrereleaseInstalled := findLatestPrereleaseInstalled()
+	latestStableInstalled := findLatestStableInstalledVersion()
+	latestPrereleaseInstalled := findLatestPrereleaseInstalledVersion()
 
 	if (!containsPreReleaseTag(latestStableInstalled) && stableErr == nil && latestStableInstalled == latestStable) ||
 		(containsPreReleaseTag(latestPrereleaseInstalled) && preErr == nil && latestPrereleaseInstalled == latestPrerelease) {
@@ -267,7 +259,6 @@ func createUpdateButton(version string, w fyne.Window, buttonContainer *fyne.Con
 		if err == nil {
 			adjustUpdateButton(mostRecent, version, updateButton, buttonContainer, w)
 		} else {
-			log.Printf("failed to get most recent stable release: %v", err)
 		}
 	} else {
 		mostRecent, err = getMostRecentPrerelease()

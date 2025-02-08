@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -85,6 +86,25 @@ func fetchReleases() ([]string, error) {
 		}
 		return v1.GreaterThan(v2)
 	})
+
+	// After sorting releases but before returning, log the latest versions
+	var latestStable, latestPrerelease string
+	for _, release := range releaseNames {
+		version := extractSemverTag(release)
+		if !containsPreReleaseTag(version) {
+			latestStable = version
+			break // First one is latest since they're sorted
+		}
+	}
+	for _, release := range releaseNames {
+		version := extractSemverTag(release)
+		if containsPreReleaseTag(version) {
+			latestPrerelease = version
+			break // First one is latest since they're sorted
+		}
+	}
+	log.Printf("Available from GitHub - Latest stable: %s, Latest prerelease: %s\n",
+		latestStable, latestPrerelease)
 
 	return releaseNames, nil
 }
@@ -237,11 +257,12 @@ func containsPreReleaseTag(version string) bool {
 func getMostRecentStableRelease() (string, error) {
 	var mostRecentStable *semver.Version
 	for _, release := range allReleases {
-		releaseVersion, err := semver.NewVersion(release)
+		version := extractSemverTag(release) // Clean the version string first
+		releaseVersion, err := semver.NewVersion(version)
 		if err != nil {
 			continue
 		}
-		if !containsPreReleaseTag(release) {
+		if !containsPreReleaseTag(version) {
 			if mostRecentStable == nil || releaseVersion.GreaterThan(mostRecentStable) {
 				mostRecentStable = releaseVersion
 			}
@@ -256,11 +277,12 @@ func getMostRecentStableRelease() (string, error) {
 func getMostRecentPrerelease() (string, error) {
 	var mostRecentPrerelease *semver.Version
 	for _, release := range allReleases {
-		releaseVersion, err := semver.NewVersion(release)
+		version := extractSemverTag(release) // Clean the version string first
+		releaseVersion, err := semver.NewVersion(version)
 		if err != nil {
 			continue
 		}
-		if containsPreReleaseTag(release) {
+		if containsPreReleaseTag(version) {
 			if mostRecentPrerelease == nil || releaseVersion.GreaterThan(mostRecentPrerelease) {
 				mostRecentPrerelease = releaseVersion
 			}
@@ -271,3 +293,16 @@ func getMostRecentPrerelease() (string, error) {
 	}
 	return mostRecentPrerelease.String(), nil
 }
+
+func extractSemverTag(s string) string {
+	re := regexp.MustCompile(`(v?\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+)?)$`)
+	if match := re.FindString(s); match != "" {
+		if match[0] == 'v' {
+			return match[1:]
+		}
+		return match
+	}
+	return s
+}
+
+// ...existing code...
