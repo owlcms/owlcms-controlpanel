@@ -32,11 +32,11 @@ func init() {
 // GetPort returns the configured port from env.properties, defaulting to "8080"
 func GetPort() string {
 	if environment == nil {
-		return "8091"
+		return "8090"
 	}
 	port, ok := environment.Get("FIRMATA_PORT")
 	if !ok {
-		return "8091"
+		return "8090"
 	}
 	return port
 }
@@ -46,8 +46,8 @@ func InitEnv() {
 	props := properties.NewProperties()
 	envFilePath := filepath.Join(owlcmsInstallDir, "env.properties")
 	if _, err := os.Stat(envFilePath); os.IsNotExist(err) {
-		// Create env.properties file with entry "FIRMATA_PORT=8080"
-		props.Set("FIRMATA_PORT", "8080")
+		// Create env.properties file with entry "FIRMATA_PORT=8090"
+		props.Set("FIRMATA_PORT", "8090")
 		file, err := os.Create(envFilePath)
 		if err != nil {
 			log.Fatalf("Failed to create env.properties file: %v", err)
