@@ -25,6 +25,6 @@ sed -i "s/BUILD_LINUX: .*/BUILD_LINUX: ${BUILD_LINUX}/" .github/workflows/releas
 
 # Commit and push the changes
 git commit -am "firmata-launcher $TAG"
-git push
+git push ${REMOTE} HEAD:main
 git tag -a ${TAG} -m "firmata-launcher $TAG"
 git push ${REMOTE} --tags
