@@ -1,6 +1,6 @@
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION     0,9,0,100
-PRODUCTVERSION  0,9,0,100
+FILEVERSION     0,9,0,400
+PRODUCTVERSION  0,9,0,400
 FILEFLAGSMASK   0x3fL
 FILEFLAGS      0
 FILEOS         0x40004L
@@ -13,12 +13,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "firmata"
             VALUE "FileDescription", "firmata Control Panel"
-            VALUE "FileVersion", "0.9.0-alpha00"
+            VALUE "FileVersion", "0.9.0"
             VALUE "InternalName", "firmata"
             VALUE "LegalCopyright", "© 2024 Jean-François Lamy"
             VALUE "OriginalFilename", "firmata.exe"
             VALUE "ProductName", "firmata Control Panel"
-            VALUE "ProductVersion", "0.9.0-alpha00"
+            VALUE "ProductVersion", "0.9.0"
         END
     END
     BLOCK "VarFileInfo"

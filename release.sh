@@ -1,6 +1,6 @@
 #!/bin/bash -x
-export TAG=v0.9.0-alpha00
-export REMOTE=new
+export TAG=v0.9.0
+export REMOTE=firmata-controlpanel
 git tag -d ${TAG}
 git push ${REMOTE} --delete ${TAG}
 gh release delete ${TAG} --yes

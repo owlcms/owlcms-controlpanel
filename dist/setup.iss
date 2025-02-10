@@ -1,11 +1,11 @@
 [Setup]
 AppName=firmata Control Panel
-AppVersion=0.9.0100
+AppVersion=0.9.0400
 AppPublisher=Jean-François Lamy
 AppPublisherURL=https://firmata.jflamy.dev
 AppSupportURL=https://groups.google.com/g/firmata
 AppUpdatesURL=https://github.com/owlcms-firmata/firmata-controlpanel
-VersionInfoVersion=0.9.0100
+VersionInfoVersion=0.9.0400
 VersionInfoCompany=firmata
 VersionInfoDescription=firmata Control Panel Installer
 VersionInfoCopyright=© 2024 Jean-François Lamy

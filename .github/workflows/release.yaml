@@ -187,6 +187,7 @@ jobs:
       if: ${{ env.BUILD_LINUX == 'true' }}
       run: |
         fpm -s tar -t deb -n firmata-launcher -v ${DEB_TAG} -a amd64 --prefix / \
+          --deb-no-default-config-files \
           --after-install ./dist/after_install.sh \
           --after-remove ./dist/after_remove.sh \
           ./fyne-cross/dist/linux-amd64/firmata.tar.xz
@@ -207,6 +208,7 @@ jobs:
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
       run: |
         fpm -s tar -t deb -n firmata-launcher -v ${DEB_TAG} -a arm64 --prefix / \
+          --deb-no-default-config-files \
           --after-install ./dist/after_install.sh \
           --after-remove ./dist/after_remove.sh \
           ./fyne-cross/dist/linux-arm64/firmata.tar.xz
@@ -271,7 +273,7 @@ jobs:
         cd ..
         mkdir artifacts
         mv dist\firmata-Panel-installer_windows.exe artifacts\Windows_Control_Panel_Installer.exe
-        cp dist\firmata.exe artifacts\owlcms_controlpanel.exe
+        cp dist\firmata.exe artifacts\firmata_controlpanel.exe
         
     - name: Save package_windows_artifacts
       if: ${{ env.BUILD_WINDOWS == 'true' }}
@@ -385,5 +387,5 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh release upload ${{ env.TAG }} dist/owlcms_controlpanel.exe
+        gh release upload ${{ env.TAG }} dist/firmata_controlpanel.exe
 

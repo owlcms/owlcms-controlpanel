@@ -3,5 +3,5 @@
   Name = "firmata"
   ID = "app.owlcmx.controlpanel"
   Version = "0.9.0"
-  Build = 0100
+  Build = 0400
 
