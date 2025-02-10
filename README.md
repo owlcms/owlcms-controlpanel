@@ -19,3 +19,8 @@ Currently supported: Windows, macOS, Raspberry Pi, Linux on Intel<br>
    - Starting the program takes 10 to 20 seconds depending on your laptop, the time it takes to read in and process the various configuration files and read in the database
 5. You can hide the window until you need to stop the program.
    - You can either use the Stop button or the stop icon (X or red dot) at the top of the program
+
+### Device Configuration
+
+> Note: the configuration files are located in the `config` subdirectory of the installation
+> - Use the `Files` button for the version to reach it.

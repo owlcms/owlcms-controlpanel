@@ -191,8 +191,8 @@ jobs:
         rm -f firmata.tar.xz Makefile
         fpm -s dir -t deb -n firmata-launcher -v ${DEB_TAG} -a amd64 --prefix / \
           --deb-no-default-config-files \
-          --after-install ../../dist/after_install.sh \
-          --after-remove ../../dist/after_remove.sh \
+          --after-install ../../../dist/after_install.sh \
+          --after-remove ../../../dist/after_remove.sh \
           .
         cd -
         mkdir -p artifacts
@@ -216,8 +216,8 @@ jobs:
         rm -f firmata.tar.xz Makefile
         fpm -s dir -t deb -n firmata-launcher -v ${DEB_TAG} -a arm64 --prefix / \
           --deb-no-default-config-files \
-          --after-install ../../dist/after_install.sh \
-          --after-remove ../../dist/after_remove.sh \
+          --after-install ../../../dist/after_install.sh \
+          --after-remove ../../../dist/after_remove.sh \
           .
         cd -
         mkdir -p artifacts
