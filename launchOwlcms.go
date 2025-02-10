@@ -177,7 +177,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 	// }
 
 	// Start the Java process
-	cmd := exec.Command(localJava, "-jar", "owlcms-firmata.jar", "--port", GetPort(), "--device-configs", "../config")
+	cmd := exec.Command(localJava, "-jar", "owlcms-firmata.jar", "--port", GetPort(), "--device-configs", "./config")
 	cmd.Env = env
 	log.Printf("Starting owlcms-firmata %s with command: %v\n", version, cmd.Args)
 	if err := cmd.Start(); err != nil {

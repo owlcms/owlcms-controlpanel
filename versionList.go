@@ -314,10 +314,12 @@ func createFilesButton(version string, w fyne.Window, buttonContainer *fyne.Cont
 }
 
 func createLaunchButton(w fyne.Window, version string, stopButton *widget.Button, buttonContainer *fyne.Container) {
+	// launchButton := widget.Button{
+	// 	Text:       "Success Button",
+	// 	Importance: widget.SuccessImportance,
+	// }
+
 	launchButton := widget.NewButton("Launch", nil)
-	launchButton.Resize(fyne.NewSize(80, 25))
-	launchButton.Importance = widget.HighImportance
-	launchButton.SetText("Launch")
 	launchButton.OnTapped = func() {
 		if currentProcess != nil {
 			dialog.ShowError(fmt.Errorf("owlcms-firmata is already running"), w)
@@ -335,6 +337,7 @@ func createLaunchButton(w fyne.Window, version string, stopButton *widget.Button
 			return
 		}
 	}
+	launchButton.Importance = widget.SuccessImportance
 	buttonContainer.Add(container.NewPadded(launchButton))
 }
 

@@ -50,16 +50,22 @@ func newMyTheme() *myTheme {
 }
 
 func (m myTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
-	if name == theme.ColorNameBackground {
+	switch name {
+	case theme.ColorNameSuccess:
+		// Darker green color (forest green)
+		return color.RGBA{R: 34, G: 139, B: 34, A: 255}
+	// case theme.ColorNameForegroundOnSuccess:
+	// 	// Black text
+	// 	return color.Black
+	case theme.ColorNameBackground:
 		return color.White
-	}
-	if name == theme.ColorNameForeground {
+	case theme.ColorNameForeground:
 		return color.Black
-	}
-	if name == theme.ColorNameShadow {
+	case theme.ColorNameShadow:
 		return color.NRGBA{R: 0, G: 0, B: 0, A: 40}
+	default:
+		return m.Theme.Color(name, variant)
 	}
-	return m.Theme.Color(name, variant)
 }
 
 func getInstallDir() string {
@@ -96,9 +102,6 @@ func checkJava(statusLabel *widget.Label) error {
 }
 
 func goBackToMainScreen() {
-	// Implement the logic to go back to the main screen
-	// This might involve setting the visibility of certain UI elements
-	// or navigating to a different screen in your application.
 	stopButton.Hide()
 	stopContainer.Hide()
 	downloadContainer.Show()
@@ -180,8 +183,8 @@ func main() {
 	w.Resize(fyne.NewSize(800, 400)) // Larger initial window size
 
 	// Create stop button and status label
-	stopButton = widget.NewButton("Stop", nil)
-	stopButton.Importance = widget.HighImportance // Make the stop button important
+	stopButton = widget.NewButtonWithIcon("Stop", theme.CancelIcon(), nil)
+	stopButton.Importance = widget.DangerImportance // This makes it red
 	statusLabel = widget.NewLabel("")
 	statusLabel.Wrapping = fyne.TextWrapWord // Allow status messages to wrap
 
@@ -216,7 +219,6 @@ func main() {
 	stopContainer.Hide()
 
 	mainContent := container.NewVBox(
-		// widget.NewLabelWithStyle("owlcms-firmata Launcher", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 		stopContainer,
 		versionContainer,
 		downloadContainer, // Use downloadGroup here
@@ -232,8 +234,7 @@ func main() {
 		javaAvailable = err == nil && javaLoc != ""
 
 		// Check for internet connection before anything else
-		internetAvailable := CheckForInternet() //&& false
-		// log.Printf("javaloc %s err %v javaAvailable %t internetAvailable %t", javaLoc, err, javaAvailable, internetAvailable)
+		internetAvailable := CheckForInternet()
 		if internetAvailable && !javaAvailable {
 			// Check for Java before anything else
 			if err := checkJava(statusLabel); err != nil {
@@ -272,20 +273,12 @@ func main() {
 		updateTitle.Hide()
 		releaseDropdown.Hide() // Hide the dropdown initially
 
-		// // Create checkbox for showing prereleases
-		// prereleaseCheckbox = widget.NewCheck("Show Prereleases", func(checked bool) {
-		// 	showPrereleases = checked
-		// 	populateReleaseSelect(releaseSelect) // Repopulate the dropdown when the checkbox is changed
-		// })
-		// prereleaseCheckbox.Hide() // Hide the checkbox initially
-
 		if len(allReleases) > 0 {
 			downloadContainer.Objects = []fyne.CanvasObject{
 				updateTitle,
 				singleOrMultiVersionLabel,
 				downloadButtonTitle,
 				releaseDropdown,
-				// prereleaseCheckbox,
 			}
 		} else {
 			downloadContainer.Objects = []fyne.CanvasObject{
@@ -342,7 +335,6 @@ func main() {
 		populateReleaseSelect(releaseSelect) // Populate the dropdown with the releases
 		updateTitle.Show()
 		releaseDropdown.Hide()
-		// prereleaseCheckbox.Hide() // Show the checkbox once releases are fetched
 		log.Printf("Fetched %d releases\n", len(releases))
 
 		// If no version is installed, get the latest stable version
@@ -420,14 +412,12 @@ func main() {
 func HideDownloadables() {
 	downloadsShown = false
 	releaseDropdown.Hide()
-	// prereleaseCheckbox.Hide()
 	downloadContainer.Refresh()
 }
 
 func ShowDownloadables() {
 	downloadsShown = true
 	releaseDropdown.Show()
-	// prereleaseCheckbox.Show()
 	downloadContainer.Refresh()
 }
 
@@ -450,8 +440,6 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 		}
 	}
 
-	// zipPath := filepath.Join(owlcmsDir, fileName)
-
 	// Show progress dialog
 	progressDialog := dialog.NewCustom(
 		"Installing owlcms-firmata",
@@ -473,15 +461,6 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 			dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
 			return
 		}
-
-		// // Extract the ZIP file to version-specific subdirectory
-		// log.Printf("Extracting ZIP file to: %s\n", extractPath)
-		// err = downloadUtils.ExtractZip(zipPath, extractPath)
-		// if err != nil {
-		// 	progressDialog.Hide()
-		// 	dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
-		// 	return
-		// }
 
 		// Log when extraction is done
 		log.Println("Extraction completed")
@@ -600,4 +579,56 @@ func updateExplanation() {
 	singleOrMultiVersionLabel.Wrapping = fyne.TextWrapWord
 	singleOrMultiVersionLabel.Show()
 	singleOrMultiVersionLabel.Refresh()
+}
+
+// Update the function signature to remove unused parameters
+func startVersion(version string, statusLabel *widget.Label, w fyne.Window) {
+	versionPath := filepath.Join(owlcmsInstallDir, version)
+	jarPath := filepath.Join(versionPath, "owlcms-firmata.jar")
+
+	// Find Java runtime
+	javaPath, err := javacheck.FindLocalJava()
+	if err != nil {
+		log.Printf("Error finding Java: %v", err)
+		dialog.ShowError(fmt.Errorf("could not find Java runtime: %w", err), w)
+		goBackToMainScreen()
+		return
+	}
+
+	// Build the command
+	cmd := exec.Command(javaPath, "-jar", jarPath)
+	cmd.Dir = versionPath
+
+	// Store the current process and version globally
+	currentProcess = cmd
+	currentVersion = version
+
+	// Start the process
+	if err := cmd.Start(); err != nil {
+		log.Printf("Error starting process: %v", err)
+		dialog.ShowError(fmt.Errorf("failed to start version %s: %w", version, err), w)
+		currentProcess = nil
+		currentVersion = ""
+		goBackToMainScreen()
+		return
+	}
+
+	// Update status
+	statusLabel.SetText(fmt.Sprintf("Version %s is running", version))
+	statusLabel.Refresh()
+
+	// Wait for process in goroutine
+	go func() {
+		err := cmd.Wait()
+		if err != nil {
+			log.Printf("Process exited with error: %v", err)
+		}
+
+		// Only update UI if this is still the current process
+		if currentProcess == cmd {
+			currentProcess = nil
+			currentVersion = ""
+			goBackToMainScreen()
+		}
+	}()
 }
