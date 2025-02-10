@@ -2,7 +2,7 @@ firmata-launcher is a control panel for firmata.  The control panel is used to
 
 - Start and Stop firmata
 - Install updates
-- Have multiple versions at once for testing purposes, with the ability to copy data from one to the other.
+- Have multiple versions at once for testing purposes
 
 The control panel is installed once. It will automatically download the current version of firmata and the correct version of Java when used for the first time.
 
@@ -22,6 +22,7 @@ The control panel is installed once. It will automatically download the current 
   1. Download the macOS `.dmg`  file
   4. Execute the `.dmg` file.  Drag the application to the Application folder, or drag the application to your desktop
   5. The first time you use the program, you **must** *Right-click on the application and use Open.*  This is only needed once, to allow execution.
+    -- for Sequoia, you will need to go to the Privacy Settings > Security to enable the application.
 - For Raspberry Pi
   1. Download the `.deb` file that starts with `Raspberry`.
   2. Go to your Downloads directory, *right-click on the downloaded file and select `Package Install`.*
@@ -34,5 +35,11 @@ The control panel is installed once. It will automatically download the current 
 If you do not wish to use the package install, or lack privileges to do so, you may also copy the firmata-pi or firmata-linux binary file directly to your machine, but then there will be no icons.
 
 ### Using the Control Panel
+
 Same process as for owlcms
 - See the instructions at https://owlcms.github.io/owlcms4/#/LocalControlPanel
+
+### Device Configuration
+
+> Note: the configuration files are located in the `config` subdirectory of the installation
+> - Use the `Files` button for the version to reach it.
