@@ -309,14 +309,14 @@ jobs:
 
     # one single download for each of the job needs, in the same order
     - name: Download build_mac_artifacts
-      if: ${{ env.BUILD_RASPBERRY == 'true' }}
+      if: ${{ env.BUILD_MAC == 'true' }}
       uses: actions/download-artifact@v4
       with:
         name: build_mac_artifacts
         path: ./dist
 
     - name: Download build_crosscompile_artifacts
-      if: ${{ env.BUILD_LINUX == 'true' }}
+      if: ${{ env.BUILD_RASPBERRY == 'true' || env.BUILD_LINUX == 'true' }}
       uses: actions/download-artifact@v4
       with:
         name: build_crosscompile_artifacts
