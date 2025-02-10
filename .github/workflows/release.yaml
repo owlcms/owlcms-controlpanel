@@ -186,7 +186,7 @@ jobs:
     - name: Create Linux Intel DEB package
       if: ${{ env.BUILD_LINUX == 'true' }}
       run: |
-        tar -C ./fyne-cross/dist/linux-arm64/ -xf ./fyne-cross/dist/linux-amd64/firmata.tar.xz
+        tar -C ./fyne-cross/dist/linux-amd64/ -xf ./fyne-cross/dist/linux-amd64/firmata.tar.xz
         rm -f ./fyne-cross/dist/linux-amd4/firmata.tar.xz ./fyne-cross/dist/linux-amd64/Makefile
         fpm -s dir -t deb -n firmata-launcher -v ${DEB_TAG} -a amd64 --prefix / \
           --deb-no-default-config-files \
