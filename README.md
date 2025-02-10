@@ -1,6 +1,9 @@
-## Portable Control Panel for firmata Server
+## Portable Control Panel for owlcms-firmata Server
 
-This provides a small compiled binary to launch firmata, removing the need for an installer
+[owlcms-firmata]([url](https://github.com/jflamy/owlcms-firmata)) it a software program to control refereeing/jury/timekeeper/announcer devices and interact with an owlcms server.
+owlcms-firmata is installed on the computers where the devices are plugged in.
+
+This provides a small compiled binary to launch owlcms-firmata, removing the need for an installer
 and providing the same user experience on all platforms. The program allows
 
 - easy updating from a version to the current one
