@@ -8,20 +8,14 @@ The control panel is installed once. It will automatically download the current 
 
 ### Change Log
 
-- 1.9.3: Single installer for macOS.
-- 1.9.2: Ask for confirmation if closing the window while firmata is running since this will stop firmata
-- 1.9.2: Removed the Windows installer, due to virus false detection on Windows.  Instructions for firmata now refer to using the executable directly.
-- 1.9.1: Now copy the windows executable as well as the installer
-- 1.9.1: The build process is now conditional for the various platforms
-- 1.9.0: The `env.properties` file is now reloaded before launching firmata, at every launch
-- 1.9.0: Added a "Check for Updates" entry in the help menu.
+- 0.9.0: first experimental release
 
 ### Installing the Control Panel
 
 > When downloading the following files, some browsers may give you warnings about "rarely downloaded files".   You may have to select "Keep" one or more times to download the file.
 
 - For Windows, 
-  1. Download the Windows `owlcms_controlpanel.exe` executable from the Assets section below
+  1. Download the Windows `firmata_controlpanel.exe` executable from the Assets section below
   2. Drag the file from the Downloads area to your Desktop. 
   3. The first time you run the program, you may get warnings in a blue dialog box.  Select "More Info" and "Run Anyway"
 - For Mac
@@ -40,5 +34,5 @@ The control panel is installed once. It will automatically download the current 
 If you do not wish to use the package install, or lack privileges to do so, you may also copy the firmata-pi or firmata-linux binary file directly to your machine, but then there will be no icons.
 
 ### Using the Control Panel
-
-- See the instructions at https://firmata.github.io/owlcms4/#/LocalControlPanel
+Same process as for owlcms
+- See the instructions at https://owlcms.github.io/owlcms4/#/LocalControlPanel
