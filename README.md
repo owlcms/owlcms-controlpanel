@@ -7,9 +7,12 @@ and providing the same user experience on all platforms. The program allows
 - launching the program (downloading Java if needed)
 - having several versions at once and copying configurations and data
 
-Currently supported: Windows, macOS, Raspberry Pi, Linux on Intel<br>
+Currently supported: Windows, Raspberry Pi, Linux on Intel<br>
+Contact us if willing to test on Mac.
 
-![image](https://github.com/user-attachments/assets/ebd48d70-000c-496b-8c67-f43b222e711a)
+![image](https://github.com/user-attachments/assets/245a8b2f-1116-499f-ab43-63e654913559)
+
+
 
 ### Usage
 1. go to the Releases page and download the installer or program for your type of computer
