@@ -12,7 +12,7 @@ jobs:
   build_mac:
     runs-on: macos-13
     env:
-      BUILD_MAC: true
+      BUILD_MAC: false
       BUILD_WINDOWS: true
       BUILD_RASPBERRY: true
       BUILD_LINUX: true
@@ -121,7 +121,7 @@ jobs:
   build_crosscompile:
     runs-on: ubuntu-latest
     env:
-      BUILD_MAC: true
+      BUILD_MAC: false
       BUILD_WINDOWS: true
       BUILD_RASPBERRY: true
       BUILD_LINUX: true
@@ -159,7 +159,7 @@ jobs:
     - name: Build for Windows
       if: ${{ env.BUILD_WINDOWS == 'true' }}
       run: |
-        fyne-cross windows -arch amd64 -app-id app.owlcmx.firmata-launcher -name firmata -debug
+        fyne-cross windows -arch amd64 -app-id app.owlcms.firmata-launcher -name firmata -debug
         mkdir -p artifacts
         mv fyne-cross/bin/windows-amd64/firmata.exe artifacts/firmata.exe
 
@@ -177,7 +177,7 @@ jobs:
     # Linux Intel steps
     - name: Build for Linux amd64
       if: ${{ env.BUILD_LINUX == 'true' }}
-      run: fyne-cross linux -arch amd64 -app-id app.owlcmx.firmata-launcher -icon Icon.png -name firmata
+      run: fyne-cross linux -arch amd64 -app-id app.owlcms.firmata-launcher -icon Icon.png -name firmata
 
     - name: Copy Linux binary
       if: ${{ env.BUILD_LINUX == 'true' }}
@@ -197,7 +197,7 @@ jobs:
     # Raspberry Pi steps
     - name: Build for Linux arm64
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
-      run: fyne-cross linux -arch arm64 -app-id app.owlcmx.firmata-launcher -icon Icon.png -name firmata
+      run: fyne-cross linux -arch arm64 -app-id app.owlcms.firmata-launcher -icon Icon.png -name firmata
 
     - name: Copy Raspberry Pi binary
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
@@ -224,7 +224,7 @@ jobs:
     runs-on: windows-latest
     needs: build_crosscompile
     env:
-      BUILD_MAC: true
+      BUILD_MAC: false
       BUILD_WINDOWS: true
       BUILD_RASPBERRY: true
       BUILD_LINUX: true
@@ -284,7 +284,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build_mac, build_crosscompile, package_windows]
     env:
-      BUILD_MAC: true
+      BUILD_MAC: false
       BUILD_WINDOWS: true
       BUILD_RASPBERRY: true
       BUILD_LINUX: true

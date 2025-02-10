@@ -1,10 +1,11 @@
 #!/bin/bash -x
-export TAG=v1.9.3
+export TAG=v0.9.0-alpha00
+export REMOTE=new
 git tag -d ${TAG}
-git push origin --delete ${TAG}
+git push ${REMOTE} --delete ${TAG}
 gh release delete ${TAG} --yes
 
-BUILD_MAC=true
+BUILD_MAC=false
 BUILD_WINDOWS=true
 BUILD_RASPBERRY=true
 BUILD_LINUX=true
@@ -26,4 +27,4 @@ sed -i "s/BUILD_LINUX: .*/BUILD_LINUX: ${BUILD_LINUX}/" .github/workflows/releas
 git commit -am "firmata-launcher $TAG"
 git push
 git tag -a ${TAG} -m "firmata-launcher $TAG"
-git push origin --tags
+git push ${REMOTE} --tags

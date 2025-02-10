@@ -2,6 +2,6 @@
   Icon = "Icon.png"
   Name = "firmata"
   ID = "app.owlcmx.controlpanel"
-  Version = "1.9.3"
-  Build = 3400
+  Version = "0.9.0"
+  Build = 0100
 
