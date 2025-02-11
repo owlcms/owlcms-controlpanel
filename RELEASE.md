@@ -8,6 +8,7 @@ The control panel is installed once. It will automatically download the current 
 
 ### Change Log
 
+- 0.9.1: fix update and import behavior, fixed infomation about installed versions
 - 0.9.0: first experimental release
 
 ### Installing the Control Panel

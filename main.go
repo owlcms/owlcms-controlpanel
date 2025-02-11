@@ -464,7 +464,6 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 
 		// Log when extraction is done
 		log.Println("Extraction completed")
-		updateExplanation()
 
 		// Hide progress dialog
 		progressDialog.Hide()
@@ -496,7 +495,6 @@ func min(a, b int) int {
 
 func checkForNewerVersion() {
 	latestInstalled = findLatestInstalled()
-	updateExplanation()
 
 	if latestInstalled != "" {
 		latestInstalledVersion, err := semver.NewVersion(latestInstalled)
@@ -537,50 +535,4 @@ func checkForNewerVersion() {
 		updateTitle.Refresh()
 		updateTitle.Show()
 	}
-}
-
-func updateExplanation() {
-	if len(allReleases) == 0 {
-		downloadContainer.Objects = []fyne.CanvasObject{
-			widget.NewLabel("You are not connected to the Internet. Available updates cannot be shown."),
-		}
-		downloadContainer.Show()
-		downloadContainer.Refresh()
-		return
-	}
-	log.Printf("len(allReleases) = %d\n", len(allReleases))
-	x := getAllInstalledVersions()
-	log.Printf("Updating explanation %d\n", len(x))
-	if len(x) == 0 {
-		downloadContainer.Remove(singleOrMultiVersionLabel)
-		downloadContainer.Refresh()
-	} else if len(x) == 1 {
-		latestStable, stableErr := getMostRecentStableRelease()
-		latestPrerelease, preErr := getMostRecentPrerelease()
-
-		// Remove the label from the container first
-		downloadContainer.Remove(singleOrMultiVersionLabel)
-
-		if containsPreReleaseTag(x[0]) {
-			if preErr == nil && x[0] == latestPrerelease {
-				// It's the latest prerelease; do not re-insert the label
-			} else {
-				// Not the latest; re-insert singleOrMultiVersionLabel as second item
-				downloadContainer.Objects = append(downloadContainer.Objects[:1], append([]fyne.CanvasObject{singleOrMultiVersionLabel}, downloadContainer.Objects[1:]...)...)
-				singleOrMultiVersionLabel.SetText("Use the Update button above to install the latest version. The current database will be copied to the new version, as well as local changes made to the configuration since the previous installation.")
-			}
-		} else {
-			if stableErr == nil && x[0] == latestStable {
-				// It's the latest stable; do not re-insert the label
-			} else {
-				downloadContainer.Objects = append(downloadContainer.Objects[:1], append([]fyne.CanvasObject{singleOrMultiVersionLabel}, downloadContainer.Objects[1:]...)...)
-				singleOrMultiVersionLabel.SetText("Use the Update button above to install the latest version. The current database will be copied to the new version, as well as local changes made to the configuration since the previous installation.")
-			}
-		}
-	} else {
-		singleOrMultiVersionLabel.SetText("You have several versions installed. Use the Import button if you wish to copy the database and local configuration changes from a previous version.")
-	}
-	singleOrMultiVersionLabel.Wrapping = fyne.TextWrapWord
-	singleOrMultiVersionLabel.Show()
-	singleOrMultiVersionLabel.Refresh()
 }

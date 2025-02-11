@@ -226,11 +226,13 @@ func createImportButton(versions []string, version string, w fyne.Window, button
 				if err := copyFiles(filepath.Join(sourceDir, "database"), filepath.Join(destDir, "database"), true); err != nil {
 					log.Printf("No database files to copy from %s\n", sourceDir)
 				}
-				// Copy local files if they are newer
-				if err := copyFiles(filepath.Join(sourceDir, "local"), filepath.Join(destDir, "local"), false); err != nil {
+				// Copy local files
+				if err := copyFiles(filepath.Join(sourceDir, "local"), filepath.Join(destDir, "local"), true); err != nil {
 					log.Printf("No local files to copy from %s\n", sourceDir)
-					dialog.ShowError(fmt.Errorf("failed to copy local files: %w", err), w)
-					return
+				}
+				// Copy local files
+				if err := copyFiles(filepath.Join(sourceDir, "config"), filepath.Join(destDir, "config"), true); err != nil {
+					log.Printf("No local files to copy from %s\n", sourceDir)
 				}
 
 				dialog.ShowInformation("Import Complete", fmt.Sprintf("Successfully imported data and config from version %s to version %s", sourceVersion, version), w)
@@ -369,25 +371,6 @@ func adjustUpdateButton(mostRecent string, version string, updateButton *widget.
 func updateVersion(existingVersion string, targetVersion string, w fyne.Window) {
 	// Note the timestamp of the current version's top-level directory
 	currentVersionDir := filepath.Join(owlcmsInstallDir, existingVersion)
-	modTime, err := os.Stat(currentVersionDir)
-	if err != nil {
-		dialog.ShowError(fmt.Errorf("failed to get info for current version directory: %w", err), w)
-		return
-	}
-
-	// Move the current version to a temporary directory in the installation area
-	tempDir := filepath.Join(owlcmsInstallDir, "temp")
-	err = os.Rename(currentVersionDir, tempDir)
-	if err != nil {
-		dialog.ShowError(fmt.Errorf("failed to move current version to temporary directory: %w", err), w)
-		return
-	}
-	// set the modification time of the directory to modTime
-	err = os.Chtimes(tempDir, modTime.ModTime(), modTime.ModTime())
-	if err != nil {
-		dialog.ShowError(fmt.Errorf("failed to set modification time of temporary directory: %w", err), w)
-		return
-	}
 
 	// Download and extract the version given by string
 	var urlPrefix string
@@ -396,10 +379,12 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	} else {
 		urlPrefix = "https://github.com/jflamy/owlcms-firmata/releases/download"
 	}
-	fileName := fmt.Sprintf("owlcms_%s.zip", targetVersion)
-	zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, targetVersion, fileName)
-	zipPath := filepath.Join(owlcmsInstallDir, fileName)
-	extractPath := filepath.Join(owlcmsInstallDir, targetVersion)
+	fileName := "owlcms-firmata.jar"
+	jarURL := fmt.Sprintf("%s/%s/%s", urlPrefix, targetVersion, fileName)
+
+	extractDir := filepath.Join(owlcmsInstallDir, targetVersion)
+	os.Mkdir(extractDir, 0755)
+	extractPath := filepath.Join(extractDir, fileName)
 
 	progressDialog := dialog.NewCustom(
 		"Updating owlcms-firmata",
@@ -410,40 +395,37 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 
 	defer progressDialog.Hide()
 
-	err = downloadUtils.DownloadArchive(zipURL, zipPath)
+	err := downloadUtils.DownloadArchive(jarURL, extractPath)
 	if err != nil {
 		dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
 		return
 	}
 
-	err = downloadUtils.ExtractZip(zipPath, extractPath)
+	// Copy the database from the original directory to the new version
+	err = copyFiles(filepath.Join(currentVersionDir, "database"), filepath.Join(extractDir, "database"), true)
 	if err != nil {
-		dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
-		return
+		log.Printf("No database files to copy from %s\n", currentVersionDir)
 	}
 
-	// Copy the database from the temporary directory to the new version
-	err = copyFiles(filepath.Join(tempDir, "database"), filepath.Join(extractPath, "database"), true)
+	// Copy local files newer than the source directory to the new version
+	err = copyFiles(filepath.Join(currentVersionDir, "local"), filepath.Join(extractDir, "local"), true)
 	if err != nil {
-		log.Printf("No database files to copy from %s\n", tempDir)
+		log.Printf("No local files to copy from %s\n", currentVersionDir)
 	}
 
-	// Copy files newer than the memorized timestamp from the temporary directory to the new version
-	err = copyFiles(filepath.Join(tempDir, "local"), filepath.Join(extractPath, "local"), false)
+	// Copy config files newer than the source directory to the new version
+	newConfig := filepath.Join(extractDir, "config")
+	oldConfig := filepath.Join(currentVersionDir, "config")
+	log.Printf("Copying config files from %s to %s\n", oldConfig, newConfig)
+	err = copyFiles(oldConfig, newConfig, true)
 	if err != nil {
-		log.Printf("No local files to copy from %s\n", tempDir)
-		dialog.ShowError(fmt.Errorf("failed to copy local files: %w", err), w)
-		return
-	}
-
-	// Remove the temporary directory
-	err = os.RemoveAll(tempDir)
-	if err != nil {
-		dialog.ShowError(fmt.Errorf("failed to remove temporary directory: %w", err), w)
-		return
+		log.Printf("No config files to copy from %s\n", currentVersionDir)
 	}
 
 	dialog.ShowInformation("Update Complete", fmt.Sprintf("Successfully updated to version %s", targetVersion), w)
+
+	// remove the prior version
+	// os.RemoveAll(currentVersionDir)
 
 	// Recompute the version list
 	recomputeVersionList(w)
@@ -451,7 +433,6 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	// Recompute the downloadTitle
 	latestInstalled = findLatestInstalled()
 	checkForNewerVersion()
-
 }
 
 func filterVersions(versions []string, currentVersion string) []string {
@@ -492,6 +473,7 @@ func copyFiles(srcDir, destDir string, alwaysCopy bool) error {
 		}
 
 		if !alwaysCopy {
+			log.Printf("Comparing file timestamps: %s %s %s %s\n", path, info.ModTime(), destPath, localDirModTime)
 			if info.ModTime().Before(localDirModTime) {
 				// Skip copying if the file is older than the local directory timestamp
 				return nil
@@ -545,4 +527,58 @@ func recomputeVersionList(w fyne.Window) {
 
 	// Recompute the explanation message
 	checkForNewerVersion()
+}
+
+func updateExplanation() {
+	if len(allReleases) == 0 {
+		downloadContainer.Objects = []fyne.CanvasObject{
+			widget.NewLabel("You are not connected to the Internet. Available updates cannot be shown."),
+		}
+		downloadContainer.Show()
+		downloadContainer.Refresh()
+		return
+	}
+	log.Printf("len(allReleases) = %d\n", len(allReleases))
+	x := getAllInstalledVersions()
+	log.Printf("Updating explanation %d\n", len(x))
+	if len(x) == 0 {
+		downloadContainer.Remove(singleOrMultiVersionLabel)
+		downloadContainer.Refresh()
+	} else if len(x) == 1 {
+		latestStable, stableErr := getMostRecentStableRelease()
+		latestPrerelease, preErr := getMostRecentPrerelease()
+
+		// Remove the label from the container first
+		downloadContainer.Remove(singleOrMultiVersionLabel)
+
+		if containsPreReleaseTag(x[0]) {
+			if preErr == nil && x[0] == latestPrerelease {
+				// It's the latest prerelease; do not re-insert the label
+			} else {
+				// Not the latest; re-insert singleOrMultiVersionLabel as second item
+				if len(downloadContainer.Objects) > 0 {
+					downloadContainer.Objects = append(downloadContainer.Objects[:1], append([]fyne.CanvasObject{singleOrMultiVersionLabel}, downloadContainer.Objects[1:]...)...)
+				} else {
+					downloadContainer.Objects = append([]fyne.CanvasObject{singleOrMultiVersionLabel}, downloadContainer.Objects...)
+				}
+				singleOrMultiVersionLabel.SetText("Use the Update button above to install the latest version. The current database will be copied to the new version, as well as local changes made to the configuration since the previous installation.")
+			}
+		} else {
+			if stableErr == nil && x[0] == latestStable {
+				// It's the latest stable; do not re-insert the label
+			} else {
+				if len(downloadContainer.Objects) > 0 {
+					downloadContainer.Objects = append(downloadContainer.Objects[:1], append([]fyne.CanvasObject{singleOrMultiVersionLabel}, downloadContainer.Objects[1:]...)...)
+				} else {
+					downloadContainer.Objects = append([]fyne.CanvasObject{singleOrMultiVersionLabel}, downloadContainer.Objects...)
+				}
+				singleOrMultiVersionLabel.SetText("Use the Update button above to install the latest version. The current database will be copied to the new version, as well as local changes made to the configuration since the previous installation.")
+			}
+		}
+	} else {
+		singleOrMultiVersionLabel.SetText("You have several versions installed. Use the Import button if you wish to copy the database and local configuration changes from a previous version.")
+	}
+	singleOrMultiVersionLabel.Wrapping = fyne.TextWrapWord
+	singleOrMultiVersionLabel.Show()
+	singleOrMultiVersionLabel.Refresh()
 }
