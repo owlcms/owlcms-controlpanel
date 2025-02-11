@@ -234,6 +234,7 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 					recomputeVersionList(w)
 
 					// Recompute the downloadTitle
+					latestInstalled = findLatestInstalled()
 					checkForNewerVersion()
 				}()
 			},

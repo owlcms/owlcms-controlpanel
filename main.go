@@ -495,7 +495,7 @@ func min(a, b int) int {
 }
 
 func checkForNewerVersion() {
-	latestInstalled := findLatestInstalled()
+	latestInstalled = findLatestInstalled()
 	updateExplanation()
 
 	if latestInstalled != "" {
@@ -532,6 +532,10 @@ func checkForNewerVersion() {
 				downloadContainer.Refresh()
 			}
 		}
+	} else {
+		updateTitle.ParseMarkdown("No version is installed.")
+		updateTitle.Refresh()
+		updateTitle.Show()
 	}
 }
 

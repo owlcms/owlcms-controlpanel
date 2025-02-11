@@ -19,7 +19,10 @@ import (
 	"github.com/Masterminds/semver/v3"
 )
 
-var versionList *widget.List
+var (
+	versionList     *widget.List
+	latestInstalled string
+)
 
 func getAllInstalledVersions() []string {
 	owlcmsDir := owlcmsInstallDir
@@ -281,6 +284,7 @@ func createRemoveButton(version string, w fyne.Window, buttonContainer *fyne.Con
 					return
 				}
 
+				log.Printf("Removing version %s\n", version)
 				err := os.RemoveAll(filepath.Join(owlcmsInstallDir, version))
 				if err != nil {
 					dialog.ShowError(fmt.Errorf("failed to remove owlcms-firmata %s: %w", version, err), w)
@@ -288,9 +292,12 @@ func createRemoveButton(version string, w fyne.Window, buttonContainer *fyne.Con
 				}
 
 				// Recompute the version list
+				log.Print("Reinitializing version list")
 				recomputeVersionList(w)
 
 				// Check if a more recent version is available
+				latestInstalled = findLatestInstalled()
+				log.Printf("latestInstalled: %s\n", latestInstalled)
 				checkForNewerVersion()
 				downloadContainer.Refresh()
 			},
@@ -313,13 +320,14 @@ func createFilesButton(version string, w fyne.Window, buttonContainer *fyne.Cont
 	return filesButton
 }
 
-func createLaunchButton(w fyne.Window, version string, stopButton *widget.Button, buttonContainer *fyne.Container) {
-	// launchButton := widget.Button{
-	// 	Text:       "Success Button",
-	// 	Importance: widget.SuccessImportance,
-	// }
+func NewGreenButton(label string, tapped func()) *widget.Button {
+	btn := widget.NewButton(label, tapped)
+	btn.Importance = widget.SuccessImportance
+	return btn
+}
 
-	launchButton := widget.NewButton("Launch", nil)
+func createLaunchButton(w fyne.Window, version string, stopButton *widget.Button, buttonContainer *fyne.Container) {
+	launchButton := NewGreenButton("Launch", nil)
 	launchButton.OnTapped = func() {
 		if currentProcess != nil {
 			dialog.ShowError(fmt.Errorf("owlcms-firmata is already running"), w)
@@ -337,7 +345,6 @@ func createLaunchButton(w fyne.Window, version string, stopButton *widget.Button
 			return
 		}
 	}
-	launchButton.Importance = widget.SuccessImportance
 	buttonContainer.Add(container.NewPadded(launchButton))
 }
 
@@ -442,6 +449,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	recomputeVersionList(w)
 
 	// Recompute the downloadTitle
+	latestInstalled = findLatestInstalled()
 	checkForNewerVersion()
 
 }
@@ -534,4 +542,7 @@ func recomputeVersionList(w fyne.Window) {
 	versionContainer.Add(versionScroll)
 
 	log.Println("Version list reinitialized")
+
+	// Recompute the explanation message
+	checkForNewerVersion()
 }
