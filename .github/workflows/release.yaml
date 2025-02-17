@@ -335,10 +335,9 @@ jobs:
         & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "setup.iss"
         dir
         cd ..
-        mkdir artifacts
+        New-Item -ItemType Directory -Path artifacts -Force
         mv dist\owlcms-Panel-installer_windows.exe artifacts\Windows_Control_Panel_Installer.exe
         cp dist\owlcms.exe artifacts\owlcms_controlpanel.exe
-
 
     - name: Save package_windows_artifacts
       if: ${{ env.BUILD_WINDOWS == 'true' }}
