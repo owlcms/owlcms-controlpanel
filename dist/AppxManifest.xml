@@ -34,11 +34,11 @@
           Square310x310Logo="Assets\Square310x310Logo.png"
           Square71x71Logo="Assets\Square71x71Logo.png" />
       </uap:VisualElements>
+      <uap:Capabilities>
+        <uap:Capability Name="internetClient" />
+        <uap:Capability Name="fileExplorerAccess" />
+        <uap:Capability Name="removableStorage" />
+      </uap:Capabilities>
     </Application>
   </Applications>
-  <Capabilities>
-      <Capability Name="internetClient" />
-      <Capability Name="fileExplorerAccess" />
-      <Capability Name="removableStorage" />
-    </Capabilities>
 </Package>
