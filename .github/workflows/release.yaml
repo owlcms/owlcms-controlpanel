@@ -283,12 +283,25 @@ jobs:
     - name: Create MSIX Package
       if: ${{ env.BUILD_WINDOWS == 'true' }}
       run: |
-        mkdir dist\msix
-        cp dist\owlcms.exe dist\msix\
-        cp -r dist\Assets dist\msix\
+        # Ensure directory exists and is empty
+        if (Test-Path dist\msix) {
+            Remove-Item -Path dist\msix -Recurse -Force
+        }
+        New-Item -ItemType Directory -Path dist\msix -Force
         
-        # Calculate the fourth version part
-        $version = $env:TAG.TrimStart('v')
+        # Copy required files
+        Copy-Item -Path dist\owlcms.exe -Destination dist\msix\
+        Copy-Item -Path dist\Assets -Destination dist\msix\ -Recurse
+        
+        # Get tag from environment and validate
+        $tagValue = [System.Environment]::GetEnvironmentVariable('TAG')
+        if (-not $tagValue) {
+            Write-Error "TAG environment variable is not set"
+            exit 1
+        }
+        
+        # Calculate version
+        $version = $tagValue.TrimStart('v')
         $fourthPart = "400"  # default for release version
         if ($version -match "-(alpha|beta|rc)(\d+)") {
             $prefix = $matches[1]
@@ -302,16 +315,27 @@ jobs:
         $version = $version -replace '-.*$', ''  # remove any pre-release suffix
         $fullVersion = "$version.$fourthPart"
         
-        # Update version in manifest
+        Write-Host "Using version: $fullVersion"
+        
+        # Update manifest
+        if (-not (Test-Path dist\AppxManifest.xml)) {
+            Write-Error "AppxManifest.xml not found in dist directory"
+            exit 1
+        }
         $manifestContent = Get-Content dist\AppxManifest.xml -Raw
         $manifestContent = $manifestContent -replace '_TAG_',$fullVersion
         $manifestContent | Set-Content dist\msix\AppxManifest.xml -Force
         
-        MakeAppx pack /d dist\msix /p artifacts\owlcms-Panel_windows_${{ env.TAG }}.msix
-        # Self-sign the package for testing
+        & MakeAppx pack /d dist\msix /p artifacts\owlcms-Panel_windows_$tagValue.msix
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "MakeAppx failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE
+        }
+        
+        # Signing
         New-SelfSignedCertificate -Type Custom -Subject "CN=OWLCMSDev, O=OWLCMS, C=CA" -KeyUsage DigitalSignature -FriendlyName "OWLCMS Development Certificate" -CertStoreLocation "Cert:\CurrentUser\My" -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}")
         $cert = (Get-ChildItem Cert:\CurrentUser\My | Where-Object {$_.FriendlyName -eq "OWLCMS Development Certificate"})
-        SignTool sign /fd SHA256 /a /f $cert artifacts\owlcms-Panel_windows_${{ env.TAG }}.msix
+        & SignTool sign /fd SHA256 /a /f $cert artifacts\owlcms-Panel_windows_$tagValue.msix
 
     - name: Save package_windows_artifacts
       if: ${{ env.BUILD_WINDOWS == 'true' }}
