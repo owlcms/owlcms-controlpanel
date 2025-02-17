@@ -236,9 +236,14 @@ jobs:
 
     - name: Extract tag
       id: extract_tag
+      shell: bash
+      if: ${{ env.BUILD_WINDOWS == 'true' }}
       run: |
-        echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-        echo "DEB_TAG=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+        # This creates the env var in a way that works for all shells
+        tag=${GITHUB_REF#refs/tags/}
+        echo "TAG=$tag" >> $GITHUB_ENV
+        echo "DEB_TAG=${tag#v}" >> $GITHUB_ENV
+        echo "Extracted TAG=$tag"
 
     - name: Install gh CLI
       if: ${{ env.BUILD_WINDOWS == 'true' }}
@@ -251,16 +256,7 @@ jobs:
         name: build_crosscompile_artifacts
         path: ./dist
 
-    - name: Prepare Inno Setup directory
-      if: ${{ env.BUILD_WINDOWS == 'true' }}
-      run: |
-        mkdir dist/iss
-        cp dist/owlcms.exe dist/iss/
-        cp dist/*.ico dist/iss/
 
-    - name: Install Inno Setup
-      if: ${{ env.BUILD_WINDOWS == 'true' }}
-      run: choco install innosetup
 
     - name: Install MakeAppx
       if: ${{ env.BUILD_WINDOWS == 'true' }}
@@ -269,19 +265,9 @@ jobs:
         start /wait sdksetup.exe /features OptionId.SigningTools /q
       shell: cmd
 
-    - name: Run Inno Setup
-      if: ${{ env.BUILD_WINDOWS == 'true' }}
-      run: |
-        cd dist
-        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "setup.iss"
-        dir
-        cd ..
-        mkdir artifacts
-        mv dist\owlcms-Panel-installer_windows.exe artifacts\Windows_Control_Panel_Installer.exe
-        cp dist\owlcms.exe artifacts\owlcms_controlpanel.exe
-
     - name: Create MSIX Package
       if: ${{ env.BUILD_WINDOWS == 'true' }}
+      shell: pwsh
       run: |
         # Ensure directory exists and is empty
         if (Test-Path dist\msix) {
@@ -336,6 +322,31 @@ jobs:
         New-SelfSignedCertificate -Type Custom -Subject "CN=OWLCMSDev, O=OWLCMS, C=CA" -KeyUsage DigitalSignature -FriendlyName "OWLCMS Development Certificate" -CertStoreLocation "Cert:\CurrentUser\My" -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}")
         $cert = (Get-ChildItem Cert:\CurrentUser\My | Where-Object {$_.FriendlyName -eq "OWLCMS Development Certificate"})
         & SignTool sign /fd SHA256 /a /f $cert artifacts\owlcms-Panel_windows_$tagValue.msix
+
+
+    - name: Prepare Inno Setup directory
+      if: ${{ env.BUILD_WINDOWS == 'true' }}
+      run: |
+        mkdir dist/iss
+        cp dist/owlcms.exe dist/iss/
+        cp dist/*.ico dist/iss/
+
+    - name: Install Inno Setup
+      if: ${{ env.BUILD_WINDOWS == 'true' }}
+      run: choco install innosetup
+      
+    - name: Run Inno Setup
+      if: ${{ env.BUILD_WINDOWS == 'true' }}
+      shell: pwsh
+      run: |
+        cd dist
+        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "setup.iss"
+        dir
+        cd ..
+        mkdir artifacts
+        mv dist\owlcms-Panel-installer_windows.exe artifacts\Windows_Control_Panel_Installer.exe
+        cp dist\owlcms.exe artifacts\owlcms_controlpanel.exe
+
 
     - name: Save package_windows_artifacts
       if: ${{ env.BUILD_WINDOWS == 'true' }}

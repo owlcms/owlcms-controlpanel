@@ -2,7 +2,7 @@
 export TAG=v1.9.4-alpha02
 git tag -d ${TAG}
 git push origin --delete ${TAG}
-gh release delete ${TAG} --yes
+gh release delete ${TAG} --repo owlcms/owlcms-controlpanel --yes
 
 BUILD_MAC=false
 BUILD_WINDOWS=true
