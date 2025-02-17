@@ -260,9 +260,8 @@ jobs:
       if: ${{ env.BUILD_WINDOWS == 'true' }}
       shell: pwsh
       run: |
-        curl -L -o sdksetup.exe https://go.microsoft.com/fwlink/?linkid=2286561
-        start /wait sdksetup.exe /features OptionId.SigningTools /q
-        Add-Content $env:GITHUB_PATH "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64"
+        Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2286561" -OutFile "sdksetup.exe"
+        Start-Process -FilePath "sdksetup.exe" -ArgumentList "/features OptionId.SigningTools /q" -NoNewWindow -Wait
 
     - name: Create MSIX Package
       if: ${{ env.BUILD_WINDOWS == 'true' }}
@@ -311,7 +310,7 @@ jobs:
         $manifestContent = $manifestContent -replace '_TAG_',$fullVersion
         $manifestContent | Set-Content dist\msix\AppxManifest.xml -Force
         
-        & MakeAppx pack /d dist\msix /p artifacts\owlcms-Panel_windows_$tagValue.msix
+        & "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\MakeAppx.exe" pack /d dist\msix /p "artifacts\owlcms-Panel_windows_$($tagValue).msix"
         if ($LASTEXITCODE -ne 0) {
             Write-Error "MakeAppx failed with exit code $LASTEXITCODE"
             exit $LASTEXITCODE
@@ -320,8 +319,7 @@ jobs:
         # Signing
         New-SelfSignedCertificate -Type Custom -Subject "CN=OWLCMSDev, O=OWLCMS, C=CA" -KeyUsage DigitalSignature -FriendlyName "OWLCMS Development Certificate" -CertStoreLocation "Cert:\CurrentUser\My" -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3", "2.5.29.19={text}")
         $cert = (Get-ChildItem Cert:\CurrentUser\My | Where-Object {$_.FriendlyName -eq "OWLCMS Development Certificate"})
-        & SignTool sign /fd SHA256 /a /f $cert artifacts\owlcms-Panel_windows_$tagValue.msix
-
+        & "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\SignTool.exe" sign /fd SHA256 /a /f $cert "artifacts\owlcms-Panel_windows_$($tagValue).msix"
 
     - name: Prepare Inno Setup directory
       if: ${{ env.BUILD_WINDOWS == 'true' }}
