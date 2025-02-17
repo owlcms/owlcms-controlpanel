@@ -22,8 +22,7 @@
     <Resource Language="en-us" />
   </Resources>
   <Applications>
-    <Application Id="OwlcmsControlPanel"
-      Executable="owlcms.exe">
+    <Application Id="OwlcmsControlPanel" Executable="owlcms.exe" EntryPoint="Windows.Universal">
       <uap:VisualElements
         DisplayName="owlcms controlpanel"
         Description="OWLCMS Control Panel"
@@ -37,4 +36,9 @@
       </uap:VisualElements>
     </Application>
   </Applications>
+  <Capabilities>
+      <Capability Name="internetClient" />
+      <Capability Name="fileExplorerAccess" />
+      <Capability Name="removableStorage" />
+    </Capabilities>
 </Package>
