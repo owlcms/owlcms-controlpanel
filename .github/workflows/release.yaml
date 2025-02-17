@@ -297,7 +297,7 @@ jobs:
             }
         }
         $version = $version -replace '-.*$', ''  # remove any pre-release suffix
-        $fullVersion = "$version$fourthPart"
+        $fullVersion = "$version$fourthPart.0"
         
         Write-Host "Using version: $fullVersion"
         
