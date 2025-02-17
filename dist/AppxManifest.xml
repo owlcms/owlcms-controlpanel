@@ -5,7 +5,7 @@
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities">
   <Identity
     Name="OWLCMS.ControlPanel"
-    Publisher="CN=OWLCMSDev, O=OWLCMS, C=CA"
+    Publisher="CN=OWLCMSDev, O=OWLCMS, C=CA, OID.1.3.6.1.4.1.54392.5.2927=test"
     Version="_TAG_" />
   <Properties>
     <DisplayName>OWLCMS Control Panel</DisplayName>
