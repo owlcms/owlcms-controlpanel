@@ -276,7 +276,7 @@ jobs:
     - name: Install MSIX Packaging Tools
       if: ${{ env.BUILD_WINDOWS == 'true' }}
       run: |
-        choco install msix -y
+        choco install msix-packaging -y
 
     - name: Create MSIX Package
       if: ${{ env.BUILD_WINDOWS == 'true' }}

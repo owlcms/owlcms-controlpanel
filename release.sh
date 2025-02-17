@@ -1,5 +1,5 @@
 #!/bin/bash -x
-export TAG=v1.9.4-alpha01
+export TAG=v1.9.4-alpha02
 git tag -d ${TAG}
 git push origin --delete ${TAG}
 gh release delete ${TAG} --yes
