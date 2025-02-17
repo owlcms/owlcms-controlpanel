@@ -1,7 +1,6 @@
 ## Portable Control Panel for owlcms Server
 
-This provides a small compiled binary to launch owlcms, removing the need for an installer
-and providing the same user experience on all platforms. The program allows
+This provides a small compiled binary to launch owlcms, providing the same user experience on all platforms. The program allows
 
 - easy updating from a version to the current one
 - launching the program (downloading Java if needed)

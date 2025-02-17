@@ -1,13 +1,13 @@
 #!/bin/bash -x
-export TAG=v1.9.3
+export TAG=v1.9.4-alpha01
 git tag -d ${TAG}
 git push origin --delete ${TAG}
 gh release delete ${TAG} --yes
 
-BUILD_MAC=true
+BUILD_MAC=false
 BUILD_WINDOWS=true
-BUILD_RASPBERRY=true
-BUILD_LINUX=true
+BUILD_RASPBERRY=false
+BUILD_LINUX=false
 
 # Pull the latest changes
 git pull
