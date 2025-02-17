@@ -262,6 +262,13 @@ jobs:
       if: ${{ env.BUILD_WINDOWS == 'true' }}
       run: choco install innosetup
 
+    - name: Install MakeAppx
+      if: ${{ env.BUILD_WINDOWS == 'true' }}
+      run: |
+        curl -L -o sdksetup.exe https://go.microsoft.com/fwlink/?linkid=2286561
+        start /wait sdksetup.exe /features OptionId.SigningTools /q
+      shell: cmd
+
     - name: Run Inno Setup
       if: ${{ env.BUILD_WINDOWS == 'true' }}
       run: |
@@ -272,11 +279,6 @@ jobs:
         mkdir artifacts
         mv dist\owlcms-Panel-installer_windows.exe artifacts\Windows_Control_Panel_Installer.exe
         cp dist\owlcms.exe artifacts\owlcms_controlpanel.exe
-
-    - name: Install MSIX Packaging Tools
-      if: ${{ env.BUILD_WINDOWS == 'true' }}
-      run: |
-        choco install msix-packaging -y
 
     - name: Create MSIX Package
       if: ${{ env.BUILD_WINDOWS == 'true' }}
