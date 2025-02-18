@@ -9,7 +9,7 @@
     Version="_TAG_" />
   <Properties>
     <DisplayName>OWLCMS Control Panel</DisplayName>
-    <PublisherDisplayName>owlcms controlpanel</PublisherDisplayName>
+    <PublisherDisplayName>owlcms</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
   <Dependencies>
