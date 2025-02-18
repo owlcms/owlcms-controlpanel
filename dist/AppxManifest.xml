@@ -8,7 +8,7 @@
     Publisher="CN=2C3516D7-9276-4C76-BCB8-E7011486C1C2"
     Version="_TAG_" />
   <Properties>
-    <DisplayName>OWLCMS Control Panel</DisplayName>
+    <DisplayName>owlcms controlpanel</DisplayName>
     <PublisherDisplayName>owlcms</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
