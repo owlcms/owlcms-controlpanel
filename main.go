@@ -18,6 +18,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/Masterminds/semver/v3"
@@ -126,7 +127,7 @@ func removeAllVersions() {
 				dirPath := filepath.Join(owlcmsInstallDir, entry.Name())
 				if err := os.RemoveAll(dirPath); err != nil {
 					log.Printf("Failed to remove directory %s: %v\n", dirPath, err)
-					dialog.ShowError(fmt.Errorf("failed to remove directory %s: %w", dirPath, err), fyne.CurrentApp().Driver().AllWindows()[0])
+					dialog.ShowError(fmt.Errorf("failed to remove directory %s: %w", err), fyne.CurrentApp().Driver().AllWindows()[0])
 					return
 				}
 			}
@@ -177,7 +178,7 @@ func main() {
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
 	a.Settings().SetTheme(newMyTheme())
 	w := a.NewWindow("OWLCMS Control Panel")
-	w.Resize(fyne.NewSize(800, 400)) // Larger initial window size
+	w.Resize(fyne.NewSize(800, 400)) // Set window size immediately
 
 	// Create stop button and status label
 	stopButton = widget.NewButton("Stop", nil)
@@ -221,35 +222,50 @@ func main() {
 		versionContainer,
 		downloadContainer, // Use downloadGroup here
 	)
-	statusLabel.SetText("Checking installation status...")
-	statusLabel.Refresh()
-	statusLabel.Show()
-	stopContainer.Show()
-	versionContainer.Show()
-	downloadContainer.Show()
-	mainContent.Show()
-	w.SetContent(mainContent)
-	w.Resize(fyne.NewSize(800, 400))
+	w.SetContent(mainContent) // Set content before hiding
 	w.Canvas().Refresh(mainContent)
 
-	var javaAvailable bool
 	go func() {
-		javaLoc, err := javacheck.FindLocalJava()
-		javaAvailable = err == nil && javaLoc != ""
+		// Hide all containers at startup
+		hideAllContainers := func() {
+			stopContainer.Hide()
+			versionContainer.Hide()
+			downloadContainer.Hide()
+			mainContent.Refresh()
+		}
+		hideAllContainers()
 
-		// Check for internet connection before anything else
-		internetAvailable := CheckForInternet() //&& false
-		// log.Printf("javaloc %s err %v javaAvailable %t internetAvailable %t", javaLoc, err, javaAvailable, internetAvailable)
-		if internetAvailable && !javaAvailable {
-			// Check for Java before anything else
+		// Check Java first, show feedback immediately
+		javaLoc, err := javacheck.FindLocalJava()
+		internetAvailable := CheckForInternet()
+
+		if err != nil || javaLoc == "" {
+			if !internetAvailable {
+				content := container.New(layout.NewCenterLayout(),
+					widget.NewLabel("Java is not installed and there is no internet connection.\nPlease connect and restart the program."))
+
+				dialog := dialog.NewCustom("No Internet Connection", "Exit", content, w)
+				dialog.SetOnClosed(func() {
+					a.Quit()
+				})
+				dialog.Show()
+				return
+			}
+
+			// Show Java download status immediately
+			statusLabel.SetText("Java runtime not found. Starting download...")
+			statusLabel.Show()
+			statusLabel.Refresh()
+
 			if err := checkJava(statusLabel); err != nil {
 				dialog.ShowError(fmt.Errorf("failed to fetch Java: %w", err), w)
+				return
 			}
 		}
 
-		var releases []string
+		// Get releases if internet is available
 		if internetAvailable {
-			releases, err = fetchReleases()
+			releases, err := fetchReleases()
 			if err == nil {
 				allReleases = releases
 			}
@@ -348,8 +364,8 @@ func main() {
 		populateReleaseSelect(releaseSelect) // Populate the dropdown with the releases
 		updateTitle.Show()
 		releaseDropdown.Hide()
-		prereleaseCheckbox.Hide() // Show the checkbox once releases are fetched
-		log.Printf("Fetched %d releases\n", len(releases))
+		prereleaseCheckbox.Hide()                             // Show the checkbox once releases are fetched
+		log.Printf("Fetched %d releases\n", len(allReleases)) // Use allReleases instead of releases
 
 		// If no version is installed, get the latest stable version
 		if len(getAllInstalledVersions()) == 0 {
