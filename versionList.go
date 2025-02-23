@@ -407,14 +407,27 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	// Create progress dialog with progress bar
 	progressBar := widget.NewProgressBar()
 	messageLabel := widget.NewLabel("Downloading update...")
-	progressContent := container.NewVBox(
+	content := container.NewVBox(
 		messageLabel,
 		progressBar,
 	)
-	progressDialog := dialog.NewCustom(
+
+	// Create a cancel channel
+	cancel := make(chan bool)
+
+	// Declare progressDialog here
+	var progressDialog dialog.Dialog
+
+	progressDialog = dialog.NewCustomConfirm(
 		"Updating OWLCMS",
-		"Please wait...",
-		progressContent,
+		"Cancel", // Set the cancel button text
+		"",       // Set the dismiss button text to empty string
+		content,
+		func(ok bool) { // Add the callback function
+			log.Println("Update cancelled by user")
+			close(cancel) // Signal cancellation
+			progressDialog.Hide()
+		},
 		w)
 	progressDialog.Show()
 	defer progressDialog.Hide()
@@ -428,8 +441,17 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		}
 	}
 
-	err = downloadUtils.DownloadArchive(zipURL, zipPath, progressCallback)
+	err = downloadUtils.DownloadArchive(zipURL, zipPath, progressCallback, cancel)
 	if err != nil {
+		if err.Error() == "download cancelled" {
+			// Handle cancellation
+			log.Println("Update cancelled by user")
+
+			// Clean up the incomplete zip file
+			os.Remove(zipPath)
+
+			return
+		}
 		dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
 		return
 	}

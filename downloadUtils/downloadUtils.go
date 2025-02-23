@@ -18,15 +18,20 @@ import (
 // ProgressCallback is a function type that receives download progress updates
 type ProgressCallback func(downloaded, total int64)
 
-// DownloadArchive downloads a file and reports progress through the callback
-func DownloadArchive(url, destPath string, progress ProgressCallback) error {
+// DownloadArchive downloads a file and reports progress through the callback. It also accepts a cancel channel.
+func DownloadArchive(url, destPath string, progress ProgressCallback, cancel <-chan bool) error {
 	log.Printf("Attempting to download from URL: %s\n", url)
 
 	client := &http.Client{
 		Timeout: 180 * time.Second,
 	}
 
-	resp, err := client.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to download from %s: %w", url, err)
 	}
@@ -46,6 +51,7 @@ func DownloadArchive(url, destPath string, progress ProgressCallback) error {
 	counter := &WriteCounter{
 		Total:    resp.ContentLength,
 		Progress: progress,
+		Cancel:   cancel, // Pass the cancel channel to the counter
 	}
 
 	_, err = io.Copy(out, io.TeeReader(resp.Body, counter))
@@ -62,22 +68,28 @@ type WriteCounter struct {
 	Downloaded int64
 	Total      int64
 	Progress   ProgressCallback
+	Cancel     <-chan bool // Add a cancel channel
 	lastReport time.Time
 }
 
 func (wc *WriteCounter) Write(p []byte) (int, error) {
-	n := len(p)
-	wc.Downloaded += int64(n)
+	select {
+	case <-wc.Cancel:
+		return 0, fmt.Errorf("download cancelled") // Check for cancellation
+	default:
+		n := len(p)
+		wc.Downloaded += int64(n)
 
-	// Report progress at most every 100ms to avoid overwhelming the UI
-	if time.Since(wc.lastReport) > 100*time.Millisecond {
-		if wc.Progress != nil {
-			wc.Progress(wc.Downloaded, wc.Total)
+		// Report progress at most every 100ms to avoid overwhelming the UI
+		if time.Since(wc.lastReport) > 100*time.Millisecond {
+			if wc.Progress != nil {
+				wc.Progress(wc.Downloaded, wc.Total)
+			}
+			wc.lastReport = time.Now()
 		}
-		wc.lastReport = time.Now()
-	}
 
-	return n, nil
+		return n, nil
+	}
 }
 
 // IsWSL checks if the program is running under Windows Subsystem for Linux.

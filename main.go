@@ -87,6 +87,7 @@ func checkJava(statusLabel *widget.Label) error {
 
 	err := javacheck.CheckJava(statusLabel)
 	if err != nil {
+		dialog.ShowError(fmt.Errorf("Could not install a Java runtime: %w", err), fyne.CurrentApp().Driver().AllWindows()[0])
 		statusLabel.SetText("Could not install a Java runtime.")
 		statusLabel.Refresh()
 		return err
@@ -126,8 +127,8 @@ func removeAllVersions() {
 			if err == nil {
 				dirPath := filepath.Join(owlcmsInstallDir, entry.Name())
 				if err := os.RemoveAll(dirPath); err != nil {
-					log.Printf("Failed to remove directory %s: %v\n", dirPath, err)
-					dialog.ShowError(fmt.Errorf("failed to remove directory %s: %w", err), fyne.CurrentApp().Driver().AllWindows()[0])
+					log.Printf("failed to remove directory %s: %v\n", dirPath, err)
+					dialog.ShowError(fmt.Errorf("failed to remove directory %s: %w", dirPath, err), fyne.CurrentApp().Driver().AllWindows()[0])
 					return
 				}
 			}
@@ -482,6 +483,25 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 		"Please wait...",
 		content,
 		w)
+
+	// Create a cancel channel
+	cancel := make(chan bool)
+
+	// Create a cancel button
+	cancelButton := widget.NewButton("Cancel", func() {
+		log.Println("Download cancelled by user")
+		close(cancel) // Signal cancellation
+		progressDialog.Hide()
+	})
+
+	// Update the custom dialog with the cancel button
+	contentWithCancel := container.NewBorder(nil, container.NewPadded(cancelButton), nil, nil, content)
+	progressDialog = dialog.NewCustom(
+		"Installing OWLCMS",
+		"Please wait...",
+		contentWithCancel,
+		w)
+
 	progressDialog.Show()
 
 	go func() {
@@ -494,8 +514,17 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 			}
 		}
 
-		err := downloadUtils.DownloadArchive(zipURL, zipPath, progressCallback)
+		err := downloadUtils.DownloadArchive(zipURL, zipPath, progressCallback, cancel)
 		if err != nil {
+			if err.Error() == "download cancelled" {
+				// Handle cancellation
+				log.Println("Download cancelled by user")
+
+				// Clean up the incomplete zip file
+				os.Remove(zipPath)
+
+				return
+			}
 			progressDialog.Hide()
 			dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
 			return

@@ -162,17 +162,28 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 
 				// Create progress dialog with progress bar
 				progressBar := widget.NewProgressBar()
+				messageLabel := widget.NewLabel("Downloading OWLCMS...")
 				progressContent := container.NewVBox(
-					widget.NewLabel("Downloading OWLCMS..."),
+					messageLabel,
 					progressBar,
 				)
-				progressDialog := dialog.NewCustom(
+
+				// Create a cancel channel
+				cancel := make(chan bool)
+
+				progressDialog := dialog.NewCustomConfirm(
 					"Installing OWLCMS",
-					"Please wait...",
+					"Cancel", // Set the cancel button text
+					"",       // Set the dismiss button text to empty string
 					progressContent,
+					func(ok bool) { // Add the callback function
+						if ok {
+							log.Println("Download cancelled by user")
+							close(cancel) // Signal cancellation
+						}
+					},
 					w)
 				progressDialog.Show()
-				defer progressDialog.Hide()
 
 				go func() {
 					// Download the ZIP file using downloadUtils
@@ -187,8 +198,17 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 						}
 					}
 
-					err := downloadUtils.DownloadArchive(zipURL, zipPath, progressCallback)
+					err := downloadUtils.DownloadArchive(zipURL, zipPath, progressCallback, cancel)
 					if err != nil {
+						if err.Error() == "download cancelled" {
+							// Handle cancellation
+							log.Println("Download cancelled by user")
+
+							// Clean up the incomplete zip file
+							os.Remove(zipPath)
+
+							return
+						}
 						progressDialog.Hide()
 						dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
 						return

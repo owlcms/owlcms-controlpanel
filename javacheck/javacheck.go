@@ -145,14 +145,26 @@ func CheckJava(statusLabel *widget.Label) error {
 
 	// Create progress dialog with progress bar
 	progressBar := widget.NewProgressBar()
-	progressContent := container.NewVBox(
-		widget.NewLabel("Downloading Java runtime..."),
+	messageLabel := widget.NewLabel("Downloading Java runtime...")
+	content := container.NewVBox(
+		messageLabel,
 		progressBar,
 	)
-	progressDialog := dialog.NewCustom(
+
+	// Create a cancel channel
+	cancel := make(chan bool)
+
+	progressDialog := dialog.NewCustomConfirm(
 		"Installing Java",
-		"Please wait...",
-		progressContent,
+		"Cancel", // Set the cancel button text
+		"",       // Set the dismiss button text to empty string
+		content,
+		func(ok bool) { // Add the callback function
+			if ok {
+				log.Println("Java download cancelled by user")
+				close(cancel) // Signal cancellation
+			}
+		},
 		fyne.CurrentApp().Driver().AllWindows()[0])
 	progressDialog.Show()
 	defer progressDialog.Hide()
@@ -201,7 +213,17 @@ func CheckJava(statusLabel *widget.Label) error {
 		}
 	}
 
-	if err := downloadUtils.DownloadArchive(url, archivePath, progressCallback); err != nil {
+	if err := downloadUtils.DownloadArchive(url, archivePath, progressCallback, cancel); err != nil {
+		if err.Error() == "download cancelled" {
+			// Handle cancellation
+			log.Println("Java download cancelled by user")
+
+			// Clean up the incomplete archive file
+			os.Remove(archivePath)
+
+			return nil
+		}
+		dialog.ShowError(fmt.Errorf("error downloading Temurin: %w", err), fyne.CurrentApp().Driver().AllWindows()[0])
 		return fmt.Errorf("error downloading Temurin: %w", err)
 	}
 
