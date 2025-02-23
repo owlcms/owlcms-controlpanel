@@ -20,7 +20,7 @@ func DownloadArchive(url, destPath string) error {
 	log.Printf("Attempting to download from URL: %s\n", url)
 
 	client := &http.Client{
-		Timeout: 60 * time.Second, // Set a timeout for the HTTP request
+		Timeout: 180 * time.Second, // Set a timeout for the HTTP request
 	}
 
 	resp, err := client.Get(url)

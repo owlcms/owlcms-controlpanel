@@ -225,6 +225,12 @@ func main() {
 	statusLabel.Refresh()
 	statusLabel.Show()
 	stopContainer.Show()
+	versionContainer.Show()
+	downloadContainer.Show()
+	mainContent.Show()
+	w.SetContent(mainContent)
+	w.Resize(fyne.NewSize(800, 400))
+	w.Canvas().Refresh(mainContent)
 
 	var javaAvailable bool
 	go func() {
