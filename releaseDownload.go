@@ -160,18 +160,34 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 					return
 				}
 
-				// Show progress dialog
+				// Create progress dialog with progress bar
+				progressBar := widget.NewProgressBar()
+				progressContent := container.NewVBox(
+					widget.NewLabel("Downloading OWLCMS..."),
+					progressBar,
+				)
 				progressDialog := dialog.NewCustom(
 					"Installing OWLCMS",
 					"Please wait...",
-					widget.NewLabel("Downloading and extracting files..."),
+					progressContent,
 					w)
 				progressDialog.Show()
+				defer progressDialog.Hide()
 
 				go func() {
 					// Download the ZIP file using downloadUtils
 					log.Printf("Starting download from URL: %s\n", zipURL)
-					err := downloadUtils.DownloadArchive(zipURL, zipPath)
+
+					progressCallback := func(downloaded, total int64) {
+						if total > 0 {
+							percentage := float64(downloaded) / float64(total)
+							progressBar.SetValue(percentage)
+							statusLabel.SetText(fmt.Sprintf("Downloading OWLCMS... %.1f%%", percentage*100))
+							statusLabel.Refresh()
+						}
+					}
+
+					err := downloadUtils.DownloadArchive(zipURL, zipPath, progressCallback)
 					if err != nil {
 						progressDialog.Hide()
 						dialog.ShowError(fmt.Errorf("download failed: %w", err), w)

@@ -457,23 +457,37 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 	zipPath := filepath.Join(owlcmsDir, fileName)
 	extractPath := filepath.Join(owlcmsDir, version)
 
-	// Show progress dialog
+	// Create a custom progress dialog with both progress bar and message
+	progressBar := widget.NewProgressBar()
+	messageLabel := widget.NewLabel("Downloading...")
+	content := container.NewVBox(messageLabel, progressBar)
 	progressDialog := dialog.NewCustom(
 		"Installing OWLCMS",
 		"Please wait...",
-		widget.NewLabel("Downloading and extracting files..."),
+		content,
 		w)
 	progressDialog.Show()
 
 	go func() {
 		// Download the ZIP file using downloadUtils
 		log.Printf("Starting download from URL: %s\n", zipURL)
-		err := downloadUtils.DownloadArchive(zipURL, zipPath)
+		progressCallback := func(downloaded, total int64) {
+			if total > 0 {
+				progress := float64(downloaded) / float64(total)
+				progressBar.SetValue(progress)
+			}
+		}
+
+		err := downloadUtils.DownloadArchive(zipURL, zipPath, progressCallback)
 		if err != nil {
 			progressDialog.Hide()
 			dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
 			return
 		}
+
+		progressBar.SetValue(1.0)
+		messageLabel.SetText("Extracting files...")
+		messageLabel.Refresh()
 
 		// Extract the ZIP file to version-specific subdirectory
 		log.Printf("Extracting ZIP file to: %s\n", extractPath)

@@ -19,7 +19,10 @@ import (
 	"github.com/Masterminds/semver/v3"
 )
 
-var versionList *widget.List
+var (
+	versionList     *widget.List
+	installProgress *widget.ProgressBar
+)
 
 func getAllInstalledVersions() []string {
 	owlcmsDir := owlcmsInstallDir
@@ -128,6 +131,7 @@ func findLatestPrereleaseInstalled() string {
 }
 
 func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
+	installProgress = widget.NewProgressBar() // Initialize the progress bar
 	versions := getAllInstalledVersions()
 
 	versionList = widget.NewList(
@@ -400,20 +404,38 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	zipPath := filepath.Join(owlcmsInstallDir, fileName)
 	extractPath := filepath.Join(owlcmsInstallDir, targetVersion)
 
+	// Create progress dialog with progress bar
+	progressBar := widget.NewProgressBar()
+	messageLabel := widget.NewLabel("Downloading update...")
+	progressContent := container.NewVBox(
+		messageLabel,
+		progressBar,
+	)
 	progressDialog := dialog.NewCustom(
 		"Updating OWLCMS",
 		"Please wait...",
-		widget.NewLabel("Downloading and extracting files..."),
+		progressContent,
 		w)
 	progressDialog.Show()
-
 	defer progressDialog.Hide()
 
-	err = downloadUtils.DownloadArchive(zipURL, zipPath)
+	progressCallback := func(downloaded, total int64) {
+		if total > 0 {
+			percentage := float64(downloaded) / float64(total)
+			progressBar.SetValue(percentage)
+			messageLabel.SetText(fmt.Sprintf("Downloading update... %.1f%%", percentage*100))
+			messageLabel.Refresh()
+		}
+	}
+
+	err = downloadUtils.DownloadArchive(zipURL, zipPath, progressCallback)
 	if err != nil {
 		dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
 		return
 	}
+
+	messageLabel.SetText("Extracting files...")
+	messageLabel.Refresh()
 
 	err = downloadUtils.ExtractZip(zipPath, extractPath)
 	if err != nil {

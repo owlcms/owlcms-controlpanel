@@ -15,17 +15,20 @@ import (
 	"time"
 )
 
-// DownloadArchive downloads a zip file from the given URL and saves it to the specified path.
-func DownloadArchive(url, destPath string) error {
+// ProgressCallback is a function type that receives download progress updates
+type ProgressCallback func(downloaded, total int64)
+
+// DownloadArchive downloads a file and reports progress through the callback
+func DownloadArchive(url, destPath string, progress ProgressCallback) error {
 	log.Printf("Attempting to download from URL: %s\n", url)
 
 	client := &http.Client{
-		Timeout: 180 * time.Second, // Set a timeout for the HTTP request
+		Timeout: 180 * time.Second,
 	}
 
 	resp, err := client.Get(url)
 	if err != nil {
-		return fmt.Errorf("failed to download zip from %s: %w", url, err)
+		return fmt.Errorf("failed to download from %s: %w", url, err)
 	}
 	defer resp.Body.Close()
 
@@ -39,13 +42,42 @@ func DownloadArchive(url, destPath string) error {
 	}
 	defer out.Close()
 
-	_, err = io.Copy(out, resp.Body)
+	// Create a proxy reader that will report progress
+	counter := &WriteCounter{
+		Total:    resp.ContentLength,
+		Progress: progress,
+	}
+
+	_, err = io.Copy(out, io.TeeReader(resp.Body, counter))
 	if err != nil {
-		return fmt.Errorf("failed to copy zip data: %w", err)
+		return fmt.Errorf("failed to copy data: %w", err)
 	}
 
 	log.Printf("Successfully downloaded file to: %s\n", destPath)
 	return nil
+}
+
+// WriteCounter counts bytes written and reports progress
+type WriteCounter struct {
+	Downloaded int64
+	Total      int64
+	Progress   ProgressCallback
+	lastReport time.Time
+}
+
+func (wc *WriteCounter) Write(p []byte) (int, error) {
+	n := len(p)
+	wc.Downloaded += int64(n)
+
+	// Report progress at most every 100ms to avoid overwhelming the UI
+	if time.Since(wc.lastReport) > 100*time.Millisecond {
+		if wc.Progress != nil {
+			wc.Progress(wc.Downloaded, wc.Total)
+		}
+		wc.lastReport = time.Now()
+	}
+
+	return n, nil
 }
 
 // IsWSL checks if the program is running under Windows Subsystem for Linux.

@@ -17,6 +17,9 @@ import (
 
 	"owlcms-launcher/downloadUtils"
 
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -140,6 +143,20 @@ func CheckJava(statusLabel *widget.Label) error {
 	statusLabel.Refresh()
 	statusLabel.Show()
 
+	// Create progress dialog with progress bar
+	progressBar := widget.NewProgressBar()
+	progressContent := container.NewVBox(
+		widget.NewLabel("Downloading Java runtime..."),
+		progressBar,
+	)
+	progressDialog := dialog.NewCustom(
+		"Installing Java",
+		"Please wait...",
+		progressContent,
+		fyne.CurrentApp().Driver().AllWindows()[0])
+	progressDialog.Show()
+	defer progressDialog.Hide()
+
 	// Recursively delete the java17 directory if it exists
 	javaDir := filepath.Join(owlcmsInstallDir, "java17")
 	if _, err := os.Stat(javaDir); err == nil {
@@ -175,7 +192,16 @@ func CheckJava(statusLabel *widget.Label) error {
 		archivePath += ".tar.gz"
 	}
 
-	if err := downloadUtils.DownloadArchive(url, archivePath); err != nil {
+	progressCallback := func(downloaded, total int64) {
+		if total > 0 {
+			percentage := float64(downloaded) / float64(total)
+			progressBar.SetValue(percentage)
+			statusLabel.SetText(fmt.Sprintf("Downloading Java runtime... %.1f%%", percentage*100))
+			statusLabel.Refresh()
+		}
+	}
+
+	if err := downloadUtils.DownloadArchive(url, archivePath, progressCallback); err != nil {
 		return fmt.Errorf("error downloading Temurin: %w", err)
 	}
 
