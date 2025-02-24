@@ -11,6 +11,8 @@ import (
 	"sort"
 	"time"
 
+	customdialog "owlcms-launcher/dialog" // Alias our custom dialog package
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
@@ -404,31 +406,13 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	zipPath := filepath.Join(owlcmsInstallDir, fileName)
 	extractPath := filepath.Join(owlcmsInstallDir, targetVersion)
 
-	// Create progress dialog with progress bar
-	progressBar := widget.NewProgressBar()
-	messageLabel := widget.NewLabel("Downloading update...")
-	content := container.NewVBox(
-		messageLabel,
-		progressBar,
-	)
-
 	// Create a cancel channel
 	cancel := make(chan bool)
 
-	// Declare progressDialog here
-	var progressDialog dialog.Dialog
-
-	progressDialog = dialog.NewCustomConfirm(
+	progressDialog, progressBar, messageLabel := customdialog.NewDownloadDialog(
 		"Updating OWLCMS",
-		"Cancel", // Set the cancel button text
-		"",       // Set the dismiss button text to empty string
-		content,
-		func(ok bool) { // Add the callback function
-			log.Println("Update cancelled by user")
-			close(cancel) // Signal cancellation
-			progressDialog.Hide()
-		},
-		w)
+		w,
+		cancel)
 	progressDialog.Show()
 	defer progressDialog.Hide()
 

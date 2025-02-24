@@ -15,11 +15,11 @@ import (
 	"strconv"
 	"strings"
 
+	customdialog "owlcms-launcher/dialog" // Alias our custom dialog package
 	"owlcms-launcher/downloadUtils"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/dialog" // Standard Fyne dialog package
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -143,29 +143,13 @@ func CheckJava(statusLabel *widget.Label) error {
 	statusLabel.Refresh()
 	statusLabel.Show()
 
-	// Create progress dialog with progress bar
-	progressBar := widget.NewProgressBar()
-	messageLabel := widget.NewLabel("Downloading Java runtime...")
-	content := container.NewVBox(
-		messageLabel,
-		progressBar,
-	)
-
 	// Create a cancel channel
 	cancel := make(chan bool)
 
-	progressDialog := dialog.NewCustomConfirm(
+	progressDialog, progressBar, messageLabel := customdialog.NewDownloadDialog(
 		"Installing Java",
-		"Cancel", // Set the cancel button text
-		"",       // Set the dismiss button text to empty string
-		content,
-		func(ok bool) { // Add the callback function
-			if ok {
-				log.Println("Java download cancelled by user")
-				close(cancel) // Signal cancellation
-			}
-		},
-		fyne.CurrentApp().Driver().AllWindows()[0])
+		fyne.CurrentApp().Driver().AllWindows()[0],
+		cancel)
 	progressDialog.Show()
 	defer progressDialog.Hide()
 
@@ -208,7 +192,8 @@ func CheckJava(statusLabel *widget.Label) error {
 		if total > 0 {
 			percentage := float64(downloaded) / float64(total)
 			progressBar.SetValue(percentage)
-			statusLabel.SetText(fmt.Sprintf("Downloading Java runtime... %.1f%%", percentage*100))
+			messageLabel.SetText(fmt.Sprintf("Downloading Java runtime... %.1f%%", percentage*100))
+			messageLabel.Refresh()
 			statusLabel.Refresh()
 		}
 	}

@@ -14,7 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"owlcms-launcher/downloadUtils"
+	customdialog "owlcms-launcher/dialog" // Alias our custom dialog package
+	downloadUtils "owlcms-launcher/downloadUtils"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -160,29 +161,13 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 					return
 				}
 
-				// Create progress dialog with progress bar
-				progressBar := widget.NewProgressBar()
-				messageLabel := widget.NewLabel("Downloading OWLCMS...")
-				progressContent := container.NewVBox(
-					messageLabel,
-					progressBar,
-				)
-
 				// Create a cancel channel
 				cancel := make(chan bool)
 
-				progressDialog := dialog.NewCustomConfirm(
+				progressDialog, progressBar, messageLabel := customdialog.NewDownloadDialog(
 					"Installing OWLCMS",
-					"Cancel", // Set the cancel button text
-					"",       // Set the dismiss button text to empty string
-					progressContent,
-					func(ok bool) { // Add the callback function
-						if ok {
-							log.Println("Download cancelled by user")
-							close(cancel) // Signal cancellation
-						}
-					},
-					w)
+					w,
+					cancel)
 				progressDialog.Show()
 
 				go func() {
@@ -193,8 +178,8 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 						if total > 0 {
 							percentage := float64(downloaded) / float64(total)
 							progressBar.SetValue(percentage)
-							statusLabel.SetText(fmt.Sprintf("Downloading OWLCMS... %.1f%%", percentage*100))
-							statusLabel.Refresh()
+							messageLabel.SetText(fmt.Sprintf("Downloading OWLCMS... %.1f%%", percentage*100))
+							messageLabel.Refresh()
 						}
 					}
 
