@@ -286,7 +286,7 @@ jobs:
         
         # Calculate version
         $version = $tagValue.TrimStart('v')
-        $fourthPart = "400"  # default for release version
+        $fourthPart = 400  # default for release version
         if ($version -match "-(alpha|beta|rc)(\d+)") {
             $prefix = $matches[1]
             $num = [int]$matches[2]
@@ -297,8 +297,13 @@ jobs:
             }
         }
         $version = $version -replace '-.*$', ''  # remove any pre-release suffix
-        $fullVersion = "$version$fourthPart.0"
-        
+        $versionParts = $version -split '\.'
+        $major = [int]$versionParts[0]
+        $minor = [int]$versionParts[1]
+        $patch = [int]$versionParts[2]
+        $computed = (($patch + 1) * 1000) + $fourthPart
+        $fullVersion = "$($major).$($minor).$($computed)"
+
         Write-Host "Using version: $fullVersion"
         
         # Update manifest
