@@ -302,7 +302,7 @@ jobs:
         $minor = [int]$versionParts[1]
         $patch = [int]$versionParts[2]
         $computed = (($patch + 1) * 1000) + $fourthPart
-        $fullVersion = "$($major).$($minor).$($computed)"
+        $fullVersion = "$($major).$($minor).$($patch).$($fourthPart)"
 
         Write-Host "Using version: $fullVersion"
         
