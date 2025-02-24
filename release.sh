@@ -4,10 +4,10 @@ git tag -d ${TAG}
 git push origin --delete ${TAG}
 gh release delete ${TAG} --repo owlcms/owlcms-controlpanel --yes
 
-BUILD_MAC=false
+BUILD_MAC=true
 BUILD_WINDOWS=true
-BUILD_RASPBERRY=false
-BUILD_LINUX=false
+BUILD_RASPBERRY=true
+BUILD_LINUX=true
 
 # Pull the latest changes
 git pull
