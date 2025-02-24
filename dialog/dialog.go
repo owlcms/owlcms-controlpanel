@@ -1,6 +1,8 @@
 package dialog
 
 import (
+	"sync"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
@@ -13,8 +15,12 @@ func NewDownloadDialog(title string, window fyne.Window, cancel chan bool) (dial
 
 	content := container.NewVBox(progressBar)
 	progressDialog := dialog.NewCustom(title, "Cancel", content, window)
+
+	var once sync.Once
 	progressDialog.SetOnClosed(func() {
-		close(cancel)
+		once.Do(func() {
+			close(cancel)
+		})
 	})
 
 	// Set a consistent width for the dialog

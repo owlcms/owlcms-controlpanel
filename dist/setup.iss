@@ -1,11 +1,11 @@
 [Setup]
 AppName=owlcms Control Panel
-AppVersion=1.9.4103
+AppVersion=2.0.0400
 AppPublisher=Jean-François Lamy
 AppPublisherURL=https://owlcms.jflamy.dev
 AppSupportURL=https://groups.google.com/g/owlcms
 AppUpdatesURL=https://github.com/owlcms/owlcms-controlpanel
-VersionInfoVersion=1.9.4103
+VersionInfoVersion=2.0.0400
 VersionInfoCompany=owlcms
 VersionInfoDescription=owlcms Control Panel Installer
 VersionInfoCopyright=© 2024 Jean-François Lamy

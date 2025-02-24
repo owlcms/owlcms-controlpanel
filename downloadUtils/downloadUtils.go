@@ -22,9 +22,7 @@ type ProgressCallback func(downloaded, total int64)
 func DownloadArchive(url, destPath string, progress ProgressCallback, cancel <-chan bool) error {
 	log.Printf("Attempting to download from URL: %s\n", url)
 
-	client := &http.Client{
-		Timeout: 180 * time.Second,
-	}
+	client := &http.Client{}
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {

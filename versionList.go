@@ -22,8 +22,7 @@ import (
 )
 
 var (
-	versionList     *widget.List
-	installProgress *widget.ProgressBar
+	versionList *widget.List
 )
 
 func getAllInstalledVersions() []string {
@@ -133,7 +132,6 @@ func findLatestPrereleaseInstalled() string {
 }
 
 func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
-	installProgress = widget.NewProgressBar() // Initialize the progress bar
 	versions := getAllInstalledVersions()
 
 	versionList = widget.NewList(

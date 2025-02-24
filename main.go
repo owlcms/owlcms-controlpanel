@@ -88,7 +88,7 @@ func checkJava(statusLabel *widget.Label) error {
 
 	err := javacheck.CheckJava(statusLabel)
 	if err != nil {
-		dialog.ShowError(fmt.Errorf("Could not install a Java runtime: %w", err), fyne.CurrentApp().Driver().AllWindows()[0])
+		dialog.ShowError(fmt.Errorf("could not install a Java runtime: %w", err), fyne.CurrentApp().Driver().AllWindows()[0])
 		statusLabel.SetText("Could not install a Java runtime.")
 		statusLabel.Refresh()
 		return err
@@ -144,6 +144,7 @@ func removeAllVersions() {
 	downloadButtonTitle.Refresh()
 	updateTitle.Refresh()
 	recomputeVersionList(fyne.CurrentApp().Driver().AllWindows()[0])
+	singleOrMultiVersionLabel.Hide() // Hide the singleOrMultiVersionLabel
 }
 
 func uninstallAll() {
@@ -260,7 +261,8 @@ func main() {
 			statusLabel.Refresh()
 
 			if err := checkJava(statusLabel); err != nil {
-				dialog.ShowError(fmt.Errorf("failed to fetch Java: %w", err), w)
+				log.Printf("Failed to fetch Java: %v\n", err)
+				// dialog.ShowError(fmt.Errorf("failed to fetch Java: %w", err), w)
 				return
 			}
 		}
@@ -479,7 +481,7 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 	cancel := make(chan bool)
 
 	progressDialog, progressBar := customdialog.NewDownloadDialog(
-		"Installing OWLCMS",
+		fmt.Sprintf("Downloading OWLCMS %s", version),
 		w,
 		cancel)
 	progressDialog.Show()

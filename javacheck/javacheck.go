@@ -18,8 +18,7 @@ import (
 	customdialog "owlcms-launcher/dialog" // Alias our custom dialog package
 	"owlcms-launcher/downloadUtils"
 
-	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/dialog" // Standard Fyne dialog package
+	"fyne.io/fyne/v2" // Standard Fyne dialog package
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -191,10 +190,11 @@ func CheckJava(statusLabel *widget.Label) error {
 			// Clean up the incomplete archive file
 			os.Remove(archivePath)
 
+			// dialog.ShowError(fmt.Errorf("Java download was cancelled by the user."), fyne.CurrentApp().Driver().AllWindows()[0])
 			return nil
 		}
-		dialog.ShowError(fmt.Errorf("error downloading Temurin: %w", err), fyne.CurrentApp().Driver().AllWindows()[0])
-		return fmt.Errorf("error downloading Temurin: %w", err)
+		// dialog.ShowError(fmt.Errorf("error downloading Java: %w", err), fyne.CurrentApp().Driver().AllWindows()[0])
+		return fmt.Errorf("error downloading Java: %w", err)
 	}
 
 	if downloadUtils.GetGoos() == "windows" && !isWSL() {

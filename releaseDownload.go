@@ -165,7 +165,7 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 				cancel := make(chan bool)
 
 				progressDialog, progressBar := customdialog.NewDownloadDialog(
-					"Installing OWLCMS",
+					fmt.Sprintf("Installing OWLCMS %s", selected),
 					w,
 					cancel)
 				progressDialog.Show()
