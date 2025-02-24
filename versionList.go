@@ -409,7 +409,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	// Create a cancel channel
 	cancel := make(chan bool)
 
-	progressDialog, progressBar, messageLabel := customdialog.NewDownloadDialog(
+	progressDialog, progressBar := customdialog.NewDownloadDialog(
 		"Updating OWLCMS",
 		w,
 		cancel)
@@ -420,8 +420,6 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		if total > 0 {
 			percentage := float64(downloaded) / float64(total)
 			progressBar.SetValue(percentage)
-			messageLabel.SetText(fmt.Sprintf("Downloading update... %.1f%%", percentage*100))
-			messageLabel.Refresh()
 		}
 	}
 
@@ -439,9 +437,6 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
 		return
 	}
-
-	messageLabel.SetText("Extracting files...")
-	messageLabel.Refresh()
 
 	err = downloadUtils.ExtractZip(zipPath, extractPath)
 	if err != nil {
@@ -477,7 +472,6 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 
 	// Recompute the downloadTitle
 	checkForNewerVersion()
-
 }
 
 func filterVersions(versions []string, currentVersion string) []string {

@@ -126,18 +126,6 @@ func CheckJava(statusLabel *widget.Label) error {
 		log.Printf("*** Local Java not found at %s: %v\n", javaPath, err)
 	}
 
-	// // Then check for system Java
-	// javaPath, err = findJava()
-	// if err == nil {
-	// 	version, err := getJavaVersion(javaPath)
-	// 	if err == nil && version >= 17 {
-	// 		log.Printf("System Java %d found at: %s\n", version, javaPath)
-	// 		return nil
-	// 	}
-	// 	if err == nil {
-	// 		log.Printf("System Java version %d is too old, need 17 or later\n", version)
-	// 	}
-	// }
 	fmt.Println("Suitable Java not found. Downloading from Temurin...")
 	statusLabel.SetText("Downloading a local copy of the Java language runtime.")
 	statusLabel.Refresh()
@@ -146,7 +134,7 @@ func CheckJava(statusLabel *widget.Label) error {
 	// Create a cancel channel
 	cancel := make(chan bool)
 
-	progressDialog, progressBar, messageLabel := customdialog.NewDownloadDialog(
+	progressDialog, progressBar := customdialog.NewDownloadDialog(
 		"Installing Java",
 		fyne.CurrentApp().Driver().AllWindows()[0],
 		cancel)
@@ -192,9 +180,6 @@ func CheckJava(statusLabel *widget.Label) error {
 		if total > 0 {
 			percentage := float64(downloaded) / float64(total)
 			progressBar.SetValue(percentage)
-			messageLabel.SetText(fmt.Sprintf("Downloading Java runtime... %.1f%%", percentage*100))
-			messageLabel.Refresh()
-			statusLabel.Refresh()
 		}
 	}
 

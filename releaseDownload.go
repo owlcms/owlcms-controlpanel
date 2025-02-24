@@ -164,7 +164,7 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 				// Create a cancel channel
 				cancel := make(chan bool)
 
-				progressDialog, progressBar, messageLabel := customdialog.NewDownloadDialog(
+				progressDialog, progressBar := customdialog.NewDownloadDialog(
 					"Installing OWLCMS",
 					w,
 					cancel)
@@ -178,8 +178,6 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 						if total > 0 {
 							percentage := float64(downloaded) / float64(total)
 							progressBar.SetValue(percentage)
-							messageLabel.SetText(fmt.Sprintf("Downloading OWLCMS... %.1f%%", percentage*100))
-							messageLabel.Refresh()
 						}
 					}
 

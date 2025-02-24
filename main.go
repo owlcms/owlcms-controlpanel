@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	customdialog "owlcms-launcher/dialog" // Alias our custom dialog package
 	"owlcms-launcher/downloadUtils"
 	"owlcms-launcher/javacheck"
 
@@ -474,34 +475,13 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 	zipPath := filepath.Join(owlcmsDir, fileName)
 	extractPath := filepath.Join(owlcmsDir, version)
 
-	// Create a custom progress dialog with both progress bar and message
-	progressBar := widget.NewProgressBar()
-	messageLabel := widget.NewLabel("Downloading...")
-	content := container.NewVBox(messageLabel, progressBar)
-	progressDialog := dialog.NewCustom(
-		"Installing OWLCMS",
-		"Please wait...",
-		content,
-		w)
-
 	// Create a cancel channel
 	cancel := make(chan bool)
 
-	// Create a cancel button
-	cancelButton := widget.NewButton("Cancel", func() {
-		log.Println("Download cancelled by user")
-		close(cancel) // Signal cancellation
-		progressDialog.Hide()
-	})
-
-	// Update the custom dialog with the cancel button
-	contentWithCancel := container.NewBorder(nil, container.NewPadded(cancelButton), nil, nil, content)
-	progressDialog = dialog.NewCustom(
+	progressDialog, progressBar := customdialog.NewDownloadDialog(
 		"Installing OWLCMS",
-		"Please wait...",
-		contentWithCancel,
-		w)
-
+		w,
+		cancel)
 	progressDialog.Show()
 
 	go func() {
@@ -509,8 +489,8 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 		log.Printf("Starting download from URL: %s\n", zipURL)
 		progressCallback := func(downloaded, total int64) {
 			if total > 0 {
-				progress := float64(downloaded) / float64(total)
-				progressBar.SetValue(progress)
+				percentage := float64(downloaded) / float64(total)
+				progressBar.SetValue(percentage)
 			}
 		}
 
@@ -530,10 +510,6 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 			return
 		}
 
-		progressBar.SetValue(1.0)
-		messageLabel.SetText("Extracting files...")
-		messageLabel.Refresh()
-
 		// Extract the ZIP file to version-specific subdirectory
 		log.Printf("Extracting ZIP file to: %s\n", extractPath)
 		err = downloadUtils.ExtractZip(zipPath, extractPath)
@@ -545,7 +521,9 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 
 		// Log when extraction is done
 		log.Println("Extraction completed")
-		updateExplanation()
+
+		// Log before closing the dialog
+		log.Println("Closing progress dialog")
 
 		// Hide progress dialog
 		progressDialog.Hide()
