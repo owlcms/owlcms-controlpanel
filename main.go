@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	customdialog "owlcms-launcher/dialog" // Alias our custom dialog package
 	"owlcms-launcher/downloadUtils"
 	"owlcms-launcher/javacheck"
 
@@ -19,7 +18,7 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/layout" // Corrected import with v2
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/Masterminds/semver/v3"
@@ -88,7 +87,6 @@ func checkJava(statusLabel *widget.Label) error {
 
 	err := javacheck.CheckJava(statusLabel)
 	if err != nil {
-		dialog.ShowError(fmt.Errorf("could not install a Java runtime: %w", err), fyne.CurrentApp().Driver().AllWindows()[0])
 		statusLabel.SetText("Could not install a Java runtime.")
 		statusLabel.Refresh()
 		return err
@@ -128,7 +126,7 @@ func removeAllVersions() {
 			if err == nil {
 				dirPath := filepath.Join(owlcmsInstallDir, entry.Name())
 				if err := os.RemoveAll(dirPath); err != nil {
-					log.Printf("failed to remove directory %s: %v\n", dirPath, err)
+					log.Printf("Failed to remove directory %s: %v\n", dirPath, err)
 					dialog.ShowError(fmt.Errorf("failed to remove directory %s: %w", dirPath, err), fyne.CurrentApp().Driver().AllWindows()[0])
 					return
 				}
@@ -144,7 +142,6 @@ func removeAllVersions() {
 	downloadButtonTitle.Refresh()
 	updateTitle.Refresh()
 	recomputeVersionList(fyne.CurrentApp().Driver().AllWindows()[0])
-	singleOrMultiVersionLabel.Hide() // Hide the singleOrMultiVersionLabel
 }
 
 func uninstallAll() {
@@ -181,25 +178,38 @@ func main() {
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
 	a.Settings().SetTheme(newMyTheme())
 	w := a.NewWindow("OWLCMS Control Panel")
-	w.Resize(fyne.NewSize(800, 400)) // Set window size immediately
+	w.Resize(fyne.NewSize(800, 400)) // Larger initial window size
 
 	// Create stop button and status label
 	stopButton = widget.NewButton("Stop", nil)
 	stopButton.Importance = widget.HighImportance // Make the stop button important
-	statusLabel = widget.NewLabel("")
+	statusLabel = widget.NewLabel("Initializing OWLCMS Control Panel...")
 	statusLabel.Wrapping = fyne.TextWrapWord // Allow status messages to wrap
 
-	// Create containers
-	downloadContainer = container.NewVBox()
-	versionContainer = container.NewVBox()
+	// Create a loading spinner to indicate activity
+	spinner := widget.NewProgressBarInfinite()
 
 	// Create URL hyperlink
 	urlLink = widget.NewHyperlink("", nil)
 	urlLink.Hide()
 
+	// Create containers with initial loading state
+	initialLoadingContent := container.NewVBox(
+		widget.NewLabelWithStyle("OWLCMS Control Panel", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		spinner,
+		statusLabel,
+	)
+
+	// Initialize hidden containers that will be shown later
+	downloadContainer = container.NewVBox()
+	versionContainer = container.NewVBox()
 	stopContainer = container.NewVBox(stopButton, statusLabel, urlLink)
 
-	// Initialize download titles
+	// Set initial content to show loading state immediately
+	w.SetContent(initialLoadingContent)
+	w.Show() // Show window immediately with loading indicator
+
+	// Initialize download titles (these won't be visible yet)
 	updateTitle = widget.NewRichTextFromMarkdown("")                                             // Initialize as RichText for Markdown
 	downloadButtonTitle = widget.NewHyperlink("Click here to install additional versions.", nil) // New title for download button
 	downloadButtonTitle.OnTapped = func() {
@@ -219,29 +229,21 @@ func main() {
 	stopButton.Hide()
 	stopContainer.Hide()
 
+	// Create the real main content that will replace the loading screen
 	mainContent := container.NewVBox(
-		// widget.NewLabelWithStyle("OWLCMS Launcher", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 		stopContainer,
 		versionContainer,
 		downloadContainer, // Use downloadGroup here
 	)
-	w.SetContent(mainContent) // Set content before hiding
-	w.Canvas().Refresh(mainContent)
 
+	// Start initialization in a goroutine
 	go func() {
-		// Hide all containers at startup
-		hideAllContainers := func() {
-			stopContainer.Hide()
-			versionContainer.Hide()
-			downloadContainer.Hide()
-			mainContent.Refresh()
-		}
-		hideAllContainers()
-
-		// Check Java first, show feedback immediately
+		// Check Java first
+		statusLabel.SetText("Checking for Java runtime...")
 		javaLoc, err := javacheck.FindLocalJava()
 		internetAvailable := CheckForInternet()
 
+		// Update status
 		if err != nil || javaLoc == "" {
 			if !internetAvailable {
 				content := container.New(layout.NewCenterLayout(),
@@ -255,19 +257,17 @@ func main() {
 				return
 			}
 
-			// Show Java download status immediately
 			statusLabel.SetText("Java runtime not found. Starting download...")
-			statusLabel.Show()
-			statusLabel.Refresh()
-
 			if err := checkJava(statusLabel); err != nil {
-				log.Printf("Failed to fetch Java: %v\n", err)
-				// dialog.ShowError(fmt.Errorf("failed to fetch Java: %w", err), w)
+				dialog.ShowError(fmt.Errorf("failed to fetch Java: %w", err), w)
 				return
 			}
+		} else {
+			statusLabel.SetText("Java runtime found. Loading application...")
 		}
 
 		// Get releases if internet is available
+		statusLabel.SetText("Checking for available OWLCMS versions...")
 		if internetAvailable {
 			releases, err := fetchReleases()
 			if err == nil {
@@ -277,10 +277,11 @@ func main() {
 			allReleases = []string{}
 		}
 
+		// Check if we need to download a version
 		numVersions := len(getAllInstalledVersions())
 		if numVersions == 0 && !internetAvailable {
-			w.SetContent(mainContent)
-			d := dialog.NewInformation("No Internet Connection", "You must be connected to the internet to fetch a version of the program.\nPlease connect and restart the program", w)
+			d := dialog.NewInformation("No Internet Connection",
+				"You must be connected to the internet to fetch a version of the program.\nPlease connect and restart the program", w)
 			d.Resize(fyne.NewSize(400, 200))
 			d.SetDismissText("Exit")
 			d.Show()
@@ -290,20 +291,17 @@ func main() {
 			return
 		}
 
-		// Initialize version list
+		// Initialize version list and UI components
 		recomputeVersionList(w)
-
-		// Create release dropdown for downloads
 		releaseSelect, releaseDropdown := createReleaseDropdown(w)
 		updateTitle.Hide()
-		releaseDropdown.Hide() // Hide the dropdown initially
+		releaseDropdown.Hide()
 
-		// Create checkbox for showing prereleases
 		prereleaseCheckbox = widget.NewCheck("Show Prereleases", func(checked bool) {
 			showPrereleases = checked
-			populateReleaseSelect(releaseSelect) // Repopulate the dropdown when the checkbox is changed
+			populateReleaseSelect(releaseSelect)
 		})
-		prereleaseCheckbox.Hide() // Hide the checkbox initially
+		prereleaseCheckbox.Hide()
 
 		if len(allReleases) > 0 {
 			downloadContainer.Objects = []fyne.CanvasObject{
@@ -319,63 +317,21 @@ func main() {
 			}
 		}
 
-		// Create menu items
-		fileMenu := fyne.NewMenu("File",
-			fyne.NewMenuItem("Remove All Versions", func() {
-				removeAllVersions()
-			}),
-			fyne.NewMenuItem("Remove Java", func() {
-				removeJava()
-			}),
-			fyne.NewMenuItem("Remove All Stored Data and Configurations", func() {
-				uninstallAll()
-			}),
-			fyne.NewMenuItem("Open Installation Directory", func() {
-				if err := openFileExplorer(owlcmsInstallDir); err != nil {
-					dialog.ShowError(fmt.Errorf("failed to open installation directory: %w", err), w)
-				}
-			}),
-		)
-		killMenu := fyne.NewMenu("Processes",
-			fyne.NewMenuItem("Kill Already Running Process", func() {
-				if err := killLockingProcess(); err != nil {
-					dialog.ShowError(fmt.Errorf("failed to kill already running process: %w", err), w)
-				} else {
-					dialog.ShowInformation("Success", "Successfully killed the already running process", w)
-				}
-			}),
-		)
-		helpMenu := fyne.NewMenu("Help",
-			fyne.NewMenuItem("Documentation", func() {
-				linkURL, _ := url.Parse("https://owlcms.github.io/owlcms4-prerelease/#/LocalControlPanel")
-				link := widget.NewHyperlink("Control Panel Documentation", linkURL)
-				dialog.ShowCustom("Documentation", "Close", link, w)
-			}),
-			fyne.NewMenuItem("Check for Updates", func() {
-				checkForUpdates(w)
-			}),
-			fyne.NewMenuItem("About", func() {
-				dialog.ShowInformation("About", "OWLCMS Launcher version "+launcherVersion, w)
-			}),
-		)
-		menu := fyne.NewMainMenu(fileMenu, killMenu, helpMenu)
-		w.SetMainMenu(menu)
-		mainContent.Resize(fyne.NewSize(800, 400))
-		w.SetContent(mainContent)
-		w.Resize(fyne.NewSize(800, 400))
-		w.Canvas().Refresh(mainContent)
+		// Setup menus
+		setupMenus(w)
 
-		populateReleaseSelect(releaseSelect) // Populate the dropdown with the releases
+		// Update UI and switch to main content
+		populateReleaseSelect(releaseSelect)
 		updateTitle.Show()
 		releaseDropdown.Hide()
-		prereleaseCheckbox.Hide()                             // Show the checkbox once releases are fetched
-		log.Printf("Fetched %d releases\n", len(allReleases)) // Use allReleases instead of releases
+		prereleaseCheckbox.Hide()
 
 		// If no version is installed, get the latest stable version
-		if len(getAllInstalledVersions()) == 0 {
+		if len(getAllInstalledVersions()) == 0 && len(allReleases) > 0 {
+			statusLabel.SetText("No versions installed. Getting latest stable version...")
 			for _, release := range allReleases {
 				if !containsPreReleaseTag(release) {
-					// Automatically download and install the latest stable version
+					// Download the latest stable version
 					downloadAndInstallVersion(release, w)
 					break
 				}
@@ -384,46 +340,79 @@ func main() {
 
 		// Check if a more recent version is available
 		checkForNewerVersion()
-		downloadContainer.Refresh()
+
+		// Switch from loading view to main view
+		w.SetContent(mainContent)
+		statusLabel.SetText("Ready")
+		statusLabel.Hide()
+
+		// Show the appropriate containers
+		stopContainer.Hide()
+		versionContainer.Show()
 		downloadContainer.Show()
 		mainContent.Refresh()
 
-		w.SetContent(mainContent)
-		w.Canvas().Refresh(mainContent)
-
-		w.SetCloseIntercept(func() {
-			if currentProcess != nil {
-				confirmDialog := dialog.NewConfirm(
-					"Confirm Exit",
-					"The server is running. This will stop the owlcms server for all the users. Are you sure you want to exit?",
-					func(confirm bool) {
-						if !confirm {
-							log.Println("Closing OWLCMS Launcher")
-							stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
-							w.Close()
-						}
-					},
-					w,
-				)
-				confirmDialog.SetConfirmText("Don't Stop owlcms")
-				confirmDialog.SetDismissText("Stop owlcms and Exit")
-				confirmDialog.Show()
-			} else {
-				w.Close()
-			}
-		})
-
-		log.Println("setup done.")
-		statusLabel.Hide()
+		setupCleanupOnExit(w)
+		log.Println("Setup complete")
 	}()
 
-	// Set up channel to listen for interrupt signals BEFORE ShowAndRun
+	// Set up signal handling
+	setupSignalHandling(stopButton, downloadContainer, versionContainer, statusLabel, w)
+
+	// Run the application
+	w.ShowAndRun()
+}
+
+// New helper function to setup menus
+func setupMenus(w fyne.Window) {
+	fileMenu := fyne.NewMenu("File",
+		fyne.NewMenuItem("Remove All Versions", func() {
+			removeAllVersions()
+		}),
+		fyne.NewMenuItem("Remove Java", func() {
+			removeJava()
+		}),
+		fyne.NewMenuItem("Remove All Stored Data and Configurations", func() {
+			uninstallAll()
+		}),
+		fyne.NewMenuItem("Open Installation Directory", func() {
+			if err := openFileExplorer(owlcmsInstallDir); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to open installation directory: %w", err), w)
+			}
+		}),
+	)
+	killMenu := fyne.NewMenu("Processes",
+		fyne.NewMenuItem("Kill Already Running Process", func() {
+			if err := killLockingProcess(); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to kill already running process: %w", err), w)
+			} else {
+				dialog.ShowInformation("Success", "Successfully killed the already running process", w)
+			}
+		}),
+	)
+	helpMenu := fyne.NewMenu("Help",
+		fyne.NewMenuItem("Documentation", func() {
+			linkURL, _ := url.Parse("https://owlcms.github.io/owlcms4-prerelease/#/LocalControlPanel")
+			link := widget.NewHyperlink("Control Panel Documentation", linkURL)
+			dialog.ShowCustom("Documentation", "Close", link, w)
+		}),
+		fyne.NewMenuItem("Check for Updates", func() {
+			checkForUpdates(w)
+		}),
+		fyne.NewMenuItem("About", func() {
+			dialog.ShowInformation("About", "OWLCMS Launcher version "+launcherVersion, w)
+		}),
+	)
+	menu := fyne.NewMainMenu(fileMenu, killMenu, helpMenu)
+	w.SetMainMenu(menu)
+}
+
+// New helper function to setup signal handling
+func setupSignalHandling(stopButton *widget.Button, downloadContainer, versionContainer *fyne.Container, statusLabel *widget.Label, w fyne.Window) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt)
 
 	var wg sync.WaitGroup
-
-	// Goroutine to handle interrupt signal
 	go func() {
 		<-sigChan
 		log.Println("Interrupt signal caught, stopping Java process...")
@@ -436,9 +425,31 @@ func main() {
 		log.Println("Exiting Control Panel...")
 		os.Exit(0)
 	}()
+}
 
-	log.Println("Showing OWLCMS Launcher")
-	w.ShowAndRun()
+// New helper function to setup cleanup on window close
+func setupCleanupOnExit(w fyne.Window) {
+	w.SetCloseIntercept(func() {
+		if currentProcess != nil {
+			confirmDialog := dialog.NewConfirm(
+				"Confirm Exit",
+				"The server is running. This will stop the owlcms server for all the users. Are you sure you want to exit?",
+				func(confirm bool) {
+					if !confirm {
+						log.Println("Closing OWLCMS Launcher")
+						stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+						w.Close()
+					}
+				},
+				w,
+			)
+			confirmDialog.SetConfirmText("Don't Stop owlcms")
+			confirmDialog.SetDismissText("Stop owlcms and Exit")
+			confirmDialog.Show()
+		} else {
+			w.Close()
+		}
+	})
 }
 
 func HideDownloadables() {
@@ -456,6 +467,19 @@ func ShowDownloadables() {
 }
 
 func downloadAndInstallVersion(version string, w fyne.Window) {
+	// Create a custom progress dialog with both progress bar and message
+	// Show it immediately before any network operations
+	progressBar := widget.NewProgressBar()
+	progressBar.SetValue(0.01) // Set a small initial value to show activity
+	messageLabel := widget.NewLabel(fmt.Sprintf("Preparing to download OWLCMS %s...", version))
+	content := container.NewVBox(messageLabel, progressBar)
+	progressDialog := dialog.NewCustom(
+		"Installing OWLCMS",
+		"Please wait...",
+		content,
+		w)
+	progressDialog.Show()
+
 	var urlPrefix string
 	if containsPreReleaseTag(version) {
 		urlPrefix = "https://github.com/owlcms/owlcms4-prerelease/releases/download"
@@ -469,6 +493,7 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 	owlcmsDir := owlcmsInstallDir
 	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(owlcmsDir, 0755); err != nil {
+			progressDialog.Hide()
 			dialog.ShowError(fmt.Errorf("creating owlcms directory: %w", err), w)
 			return
 		}
@@ -477,40 +502,29 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 	zipPath := filepath.Join(owlcmsDir, fileName)
 	extractPath := filepath.Join(owlcmsDir, version)
 
-	// Create a cancel channel
-	cancel := make(chan bool)
-
-	progressDialog, progressBar := customdialog.NewDownloadDialog(
-		fmt.Sprintf("Downloading OWLCMS %s", version),
-		w,
-		cancel)
-	progressDialog.Show()
-
 	go func() {
 		// Download the ZIP file using downloadUtils
 		log.Printf("Starting download from URL: %s\n", zipURL)
+		messageLabel.SetText(fmt.Sprintf("Downloading OWLCMS %s...", version))
+		messageLabel.Refresh()
+
 		progressCallback := func(downloaded, total int64) {
 			if total > 0 {
-				percentage := float64(downloaded) / float64(total)
-				progressBar.SetValue(percentage)
+				progress := float64(downloaded) / float64(total)
+				progressBar.SetValue(progress)
 			}
 		}
 
-		err := downloadUtils.DownloadArchive(zipURL, zipPath, progressCallback, cancel)
+		err := downloadUtils.DownloadArchive(zipURL, zipPath, progressCallback, nil)
 		if err != nil {
-			if err.Error() == "download cancelled" {
-				// Handle cancellation
-				log.Println("Download cancelled by user")
-
-				// Clean up the incomplete zip file
-				os.Remove(zipPath)
-
-				return
-			}
 			progressDialog.Hide()
 			dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
 			return
 		}
+
+		progressBar.SetValue(0.9)
+		messageLabel.SetText("Extracting files...")
+		messageLabel.Refresh()
 
 		// Extract the ZIP file to version-specific subdirectory
 		log.Printf("Extracting ZIP file to: %s\n", extractPath)
@@ -521,11 +535,12 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 			return
 		}
 
+		// Set to complete
+		progressBar.SetValue(1.0)
+
 		// Log when extraction is done
 		log.Println("Extraction completed")
-
-		// Log before closing the dialog
-		log.Println("Closing progress dialog")
+		updateExplanation()
 
 		// Hide progress dialog
 		progressDialog.Hide()

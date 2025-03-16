@@ -133,38 +133,44 @@ func CheckJava(statusLabel *widget.Label) error {
 	// Create a cancel channel
 	cancel := make(chan bool)
 
+	// Show the progress dialog immediately
 	progressDialog, progressBar := customdialog.NewDownloadDialog(
 		"Installing Java",
 		fyne.CurrentApp().Driver().AllWindows()[0],
 		cancel)
 	progressDialog.Show()
-	defer progressDialog.Hide()
-
-	// Recursively delete the java17 directory if it exists
-	javaDir := filepath.Join(owlcmsInstallDir, "java17")
-	if _, err := os.Stat(javaDir); err == nil {
-		err := os.RemoveAll(javaDir)
-		if err != nil {
-			return fmt.Errorf("failed to delete existing java17 directory: %w", err)
-		}
-	}
+	progressBar.SetValue(0.01) // Set a small initial value to show activity
 
 	// Ensure the owlcms directory exists
 	if _, err := os.Stat(owlcmsInstallDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(owlcmsInstallDir, 0755); err != nil {
+			progressDialog.Hide()
 			return fmt.Errorf("creating owlcms directory: %w", err)
 		}
 	}
 
-	javaDir = filepath.Join(owlcmsInstallDir, "java17")
+	javaDir := filepath.Join(owlcmsInstallDir, "java17")
+	// Recursively delete the java17 directory if it exists
+	if _, err := os.Stat(javaDir); err == nil {
+		err := os.RemoveAll(javaDir)
+		if err != nil {
+			progressDialog.Hide()
+			return fmt.Errorf("failed to delete existing java17 directory: %w", err)
+		}
+	}
+
 	if _, err := os.Stat(javaDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(javaDir, 0755); err != nil {
+			progressDialog.Hide()
 			return fmt.Errorf("creating java directory: %w", err)
 		}
 	}
 
+	// Show activity while getting the download URL
+	progressBar.SetValue(0.05)
 	url, err := getTemurinDownloadURL()
 	if err != nil {
+		progressDialog.Hide()
 		return fmt.Errorf("getting Temurin download URL: %w", err)
 	}
 
@@ -183,6 +189,7 @@ func CheckJava(statusLabel *widget.Label) error {
 	}
 
 	if err := downloadUtils.DownloadArchive(url, archivePath, progressCallback, cancel); err != nil {
+		progressDialog.Hide()
 		if err.Error() == "download cancelled" {
 			// Handle cancellation
 			log.Println("Java download cancelled by user")
@@ -190,22 +197,29 @@ func CheckJava(statusLabel *widget.Label) error {
 			// Clean up the incomplete archive file
 			os.Remove(archivePath)
 
-			// dialog.ShowError(fmt.Errorf("Java download was cancelled by the user."), fyne.CurrentApp().Driver().AllWindows()[0])
 			return nil
 		}
-		// dialog.ShowError(fmt.Errorf("error downloading Java: %w", err), fyne.CurrentApp().Driver().AllWindows()[0])
 		return fmt.Errorf("error downloading Java: %w", err)
 	}
 
+	// Show extraction progress
+	progressBar.SetValue(0.9)
 	if downloadUtils.GetGoos() == "windows" && !isWSL() {
 		if err := downloadUtils.ExtractZip(archivePath, javaDir); err != nil {
+			progressDialog.Hide()
 			return fmt.Errorf("error extracting Temurin zip: %w", err)
 		}
 	} else {
 		if err := downloadUtils.ExtractTarGz(archivePath, javaDir); err != nil {
+			progressDialog.Hide()
 			return fmt.Errorf("extracting Temurin tar.gz: %w", err)
 		}
 	}
+
+	// Indicate completion
+	progressBar.SetValue(1.0)
+	progressDialog.Hide()
+
 	// extract now removes the archive
 	log.Printf("Java downloaded and installed to %s\n", javaDir)
 	return nil

@@ -14,8 +14,7 @@ import (
 	"strings"
 	"time"
 
-	customdialog "owlcms-launcher/dialog" // Alias our custom dialog package
-	downloadUtils "owlcms-launcher/downloadUtils"
+	"owlcms-launcher/downloadUtils"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -131,106 +130,126 @@ func populateReleaseSelect(selectWidget *widget.Select) {
 	selectWidget.Refresh()
 }
 
-func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
-	selectWidget := widget.NewSelect([]string{}, func(selected string) {
-		var urlPrefix string
-		if containsPreReleaseTag(selected) {
-			urlPrefix = "https://github.com/owlcms/owlcms4-prerelease/releases/download"
-		} else {
-			urlPrefix = "https://github.com/owlcms/owlcms4/releases/download"
-		}
-		fileName := fmt.Sprintf("owlcms_%s.zip", selected)
-		zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, selected, fileName)
+func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownload bool) {
+	var urlPrefix string
+	if containsPreReleaseTag(version) {
+		urlPrefix = "https://github.com/owlcms/owlcms4-prerelease/releases/download"
+	} else {
+		urlPrefix = "https://github.com/owlcms/owlcms4/releases/download"
+	}
+	fileName := fmt.Sprintf("owlcms_%s.zip", version)
+	zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, version, fileName)
 
-		// Ensure the owlcms directory exists
-		owlcmsDir := owlcmsInstallDir
-		if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
-			if err := os.MkdirAll(owlcmsDir, 0755); err != nil {
-				dialog.ShowError(fmt.Errorf("creating owlcms directory: %w", err), w)
-				return
+	// Ensure the owlcms directory exists
+	owlcmsDir := owlcmsInstallDir
+	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(owlcmsDir, 0755); err != nil {
+			dialog.ShowError(fmt.Errorf("creating owlcms directory: %w", err), w)
+			return
+		}
+	}
+
+	zipPath := filepath.Join(owlcmsDir, fileName)
+	extractPath := filepath.Join(owlcmsDir, version)
+
+	// Create progress dialog with progress bar
+	progressBar := widget.NewProgressBar()
+	messageLabel := widget.NewLabel(fmt.Sprintf("Downloading OWLCMS %s...", version))
+	progressContent := container.NewVBox(messageLabel, progressBar)
+	progressDialog := dialog.NewCustom(
+		"Installing OWLCMS",
+		"Please wait...",
+		progressContent,
+		w)
+	progressDialog.Show()
+
+	// Create a channel to wait for download completion
+	done := make(chan bool)
+
+	go func() {
+		var dialogClosed bool
+		closeDialog := func() {
+			if !dialogClosed {
+				progressDialog.Hide()
+				dialogClosed = true
+			}
+		}
+		defer closeDialog()
+
+		// Download with progress tracking
+		progressCallback := func(downloaded, total int64) {
+			if total > 0 {
+				progress := float64(downloaded) / float64(total)
+				progressBar.SetValue(progress)
+				messageLabel.SetText(fmt.Sprintf("Downloading OWLCMS %s... %.1f%%", version, progress*100))
+				messageLabel.Refresh()
 			}
 		}
 
-		zipPath := filepath.Join(owlcmsDir, fileName)
-		extractPath := filepath.Join(owlcmsDir, selected)
+		// Fix: Add nil as the last argument for the cancel channel
+		err := downloadUtils.DownloadArchive(zipURL, zipPath, progressCallback, nil)
+		if err != nil {
+			dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
+			done <- false
+			return
+		}
 
+		messageLabel.SetText("Extracting files...")
+		messageLabel.Refresh()
+
+		err = downloadUtils.ExtractZip(zipPath, extractPath)
+		if err != nil {
+			dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
+			done <- false
+			return
+		}
+
+		message := fmt.Sprintf(
+			"Successfully installed OWLCMS version %s\n\n"+
+				"Location: %s\n\n"+
+				"The program files have been extracted to the above directory.",
+			version, extractPath)
+
+		dialog.ShowInformation("Installation Complete", message, w)
+
+		// Initialize UI after installation
+		if isInitialDownload {
+			// Initialize version list and release dropdown first
+			recomputeVersionList(w)
+			setupReleaseDropdown(w)
+			checkForNewerVersion()
+
+			// Show necessary containers
+			stopContainer.Hide()
+			versionContainer.Show()
+			downloadContainer.Show()
+			statusLabel.Hide()
+
+			// Show download button and update title
+			downloadButtonTitle.Show()
+			updateTitle.Show()
+		} else {
+			HideDownloadables()
+			recomputeVersionList(w)
+			checkForNewerVersion()
+		}
+
+		w.Content().Refresh()
+		done <- true
+	}()
+
+	// Wait for download completion
+	<-done
+}
+
+func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
+	selectWidget := widget.NewSelect([]string{}, func(selected string) {
 		dialog.ShowConfirm("Confirm Download",
 			fmt.Sprintf("Do you want to download and install OWLCMS version %s?", selected),
 			func(ok bool) {
-				if !ok {
-					return
+				if ok {
+					downloadReleaseWithProgress(selected, w, false)
 				}
-
-				// Create a cancel channel
-				cancel := make(chan bool)
-
-				progressDialog, progressBar := customdialog.NewDownloadDialog(
-					fmt.Sprintf("Installing OWLCMS %s", selected),
-					w,
-					cancel)
-				progressDialog.Show()
-
-				go func() {
-					// Download the ZIP file using downloadUtils
-					log.Printf("Starting download from URL: %s\n", zipURL)
-
-					progressCallback := func(downloaded, total int64) {
-						if total > 0 {
-							percentage := float64(downloaded) / float64(total)
-							progressBar.SetValue(percentage)
-						}
-					}
-
-					err := downloadUtils.DownloadArchive(zipURL, zipPath, progressCallback, cancel)
-					if err != nil {
-						if err.Error() == "download cancelled" {
-							// Handle cancellation
-							log.Println("Download cancelled by user")
-
-							// Clean up the incomplete zip file
-							os.Remove(zipPath)
-
-							return
-						}
-						progressDialog.Hide()
-						dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
-						return
-					}
-
-					// Extract the ZIP file to version-specific subdirectory
-					log.Printf("Extracting ZIP file to: %s\n", extractPath)
-					err = downloadUtils.ExtractZip(zipPath, extractPath)
-					if err != nil {
-						progressDialog.Hide()
-						dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
-						return
-					}
-
-					// Log when extraction is done
-					log.Println("Extraction completed")
-
-					// Log before closing the dialog
-					log.Println("Closing progress dialog")
-
-					// Hide progress dialog
-					progressDialog.Hide()
-
-					// Show success panel with installation details
-					message := fmt.Sprintf(
-						"Successfully installed OWLCMS version %s\n\n"+
-							"Location: %s\n\n"+
-							"The program files have been extracted to the above directory.",
-						selected, extractPath)
-
-					dialog.ShowInformation("Installation Complete", message, w)
-					HideDownloadables()
-
-					// Recompute the version list
-					recomputeVersionList(w)
-
-					// Recompute the downloadTitle
-					checkForNewerVersion()
-				}()
 			},
 			w)
 	})
@@ -285,4 +304,23 @@ func getMostRecentPrerelease() (string, error) {
 		return "", fmt.Errorf("no prerelease found")
 	}
 	return mostRecentPrerelease.String(), nil
+}
+
+func setupReleaseDropdown(w fyne.Window) {
+	selectWidget, dropdownContainer := createReleaseDropdown(w)
+	if len(allReleases) > 0 {
+		downloadContainer.Objects = []fyne.CanvasObject{
+			updateTitle,
+			singleOrMultiVersionLabel,
+			downloadButtonTitle,
+			dropdownContainer,
+			prereleaseCheckbox,
+		}
+	} else {
+		downloadContainer.Objects = []fyne.CanvasObject{
+			widget.NewLabel("You are not connected to the Internet. Available updates cannot be shown."),
+		}
+	}
+	populateReleaseSelect(selectWidget)
+	downloadContainer.Refresh()
 }

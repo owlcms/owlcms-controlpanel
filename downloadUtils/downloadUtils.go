@@ -29,6 +29,11 @@ func DownloadArchive(url, destPath string, progress ProgressCallback, cancel <-c
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
+	// Call progress callback immediately to update UI before network request
+	if progress != nil {
+		progress(0, 100) // Use placeholder total size of 100
+	}
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to download from %s: %w", url, err)
@@ -37,6 +42,11 @@ func DownloadArchive(url, destPath string, progress ProgressCallback, cancel <-c
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("server returned non-200 status: %s for %s", resp.Status, url)
+	}
+
+	// Update progress with actual total size now that we have the response
+	if progress != nil && resp.ContentLength > 0 {
+		progress(0, resp.ContentLength)
 	}
 
 	out, err := os.Create(destPath)
