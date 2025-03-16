@@ -413,7 +413,8 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		w,
 		cancel)
 	progressDialog.Show()
-	defer progressDialog.Hide()
+	// Remove the defer call as we want to control exactly when this hides
+	// defer progressDialog.Hide()
 
 	progressCallback := func(downloaded, total int64) {
 		if total > 0 {
@@ -442,6 +443,10 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
 		return
 	}
+
+	// Track what was copied successfully
+	var databaseCopied bool
+	var localFilesCopied bool
 
 	// Check if the database directory exists before attempting to copy
 	existingDatabaseDir := filepath.Join(existingVersionDir, "database")
@@ -511,6 +516,9 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 			modalDialog.Show()
 			return
 		}
+		// Database copied successfully
+		databaseCopied = true
+		log.Println("Database files copied successfully")
 	} else {
 		log.Printf("Database directory does not exist in %s\n", existingDatabaseDir)
 	}
@@ -521,6 +529,9 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		log.Printf("No local files to copy from %s\n", existingVersionDir)
 		dialog.ShowError(fmt.Errorf("failed to copy local files: %w", err), w)
 		return
+	} else {
+		localFilesCopied = true
+		log.Println("Local configuration files copied successfully")
 	}
 
 	// // Remove the existing directory
@@ -530,13 +541,51 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	// 	return
 	// }
 
-	dialog.ShowInformation("Update Complete", fmt.Sprintf("Successfully updated to version %s", targetVersion), w)
+	// Hide progress dialog before showing success dialog
+	progressDialog.Hide()
 
-	// Recompute the version list
-	recomputeVersionList(w)
+	// Create a detailed success message
+	var successMessage string
+	successMessage = fmt.Sprintf("Successfully updated to version %s\n", targetVersion)
 
-	// Recompute the downloadTitle
-	checkForNewerVersion()
+	if databaseCopied && localFilesCopied {
+		successMessage += "\n✓ Database files have been copied\n✓ Local configuration files have been copied"
+	} else if databaseCopied {
+		successMessage += "\n✓ Database files have been copied"
+	} else if localFilesCopied {
+		successMessage += "\n✓ Local configuration files have been copied"
+	}
+
+	// Create a custom modal dialog that won't be dismissed automatically
+	content := container.NewVBox(
+		widget.NewLabel(successMessage),
+	)
+
+	// Create a custom dialog and capture its reference
+	successDialog := dialog.NewCustom(
+		"Update Complete",
+		"OK",
+		content,
+		w,
+	)
+
+	// Set callback for when the dialog is closed
+	successDialog.SetOnClosed(func() {
+		log.Println("Success dialog acknowledged, updating UI...")
+
+		// Recompute the version list
+		recomputeVersionList(w)
+
+		// Recompute the downloadTitle
+		checkForNewerVersion()
+
+		// Refresh UI components
+		w.Content().Refresh()
+	})
+
+	// Show the dialog - it will block until the user dismisses it
+	log.Println("Showing success dialog")
+	successDialog.Show()
 }
 
 func filterVersions(versions []string, currentVersion string) []string {
