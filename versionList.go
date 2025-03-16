@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"syscall"
 	"time"
 
 	customdialog "owlcms-launcher/dialog" // Alias our custom dialog package
@@ -454,15 +455,45 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 			// Ensure the progress dialog is hidden first
 			progressDialog.Hide()
 
-			// Use a simple error dialog with modal behavior
-			errorDialog := dialog.NewError(
-				fmt.Errorf("Database copy failed: %v\n\nThe update will be cancelled.", err),
+			// Check if this is likely a file lock issue (platform-independent way)
+			isLockError := false
+			if os.IsPermission(err) {
+				isLockError = true
+			}
+
+			// On Windows, also check for sharing violation
+			if pathErr, ok := err.(*os.PathError); ok {
+				if errno, ok := pathErr.Err.(syscall.Errno); ok {
+					// Windows ERROR_SHARING_VIOLATION (32) and ERROR_LOCK_VIOLATION (33)
+					if errno == 32 || errno == 33 {
+						isLockError = true
+					}
+				}
+			}
+
+			var errorMsg string
+			if isLockError {
+				errorMsg = "Database files are locked and cannot be copied.\n\nPlease make sure OWLCMS is not running before trying to update."
+			} else {
+				errorMsg = fmt.Sprintf("Failed to copy database: %v", err)
+			}
+
+			// Create a custom dialog that will be shown reliably
+			content := container.NewVBox(
+				widget.NewLabel(errorMsg),
+				widget.NewLabel("\nThe update will be cancelled."),
+			)
+
+			modalDialog := dialog.NewCustom(
+				"Database Copy Error",
+				"OK",
+				content,
 				w,
 			)
 
-			// Make sure dialog doesn't get closed immediately
-			errorDialog.SetOnClosed(func() {
-				log.Println("Error dialog closed, cleaning up downloaded files")
+			// Set callback for when dialog is dismissed
+			modalDialog.SetOnClosed(func() {
+				log.Println("Error dialog closed, cleaning up...")
 
 				// Clean up the downloaded directory since update failed
 				cleanupErr := os.RemoveAll(newVersionDir)
@@ -470,15 +501,14 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 					log.Printf("Failed to clean up directory: %v", cleanupErr)
 				}
 
-				// Update UI after dialog is closed
+				// Update UI
 				recomputeVersionList(w)
 				checkForNewerVersion()
 				w.Content().Refresh()
 			})
 
-			// Show the dialog with modal behavior (blocks until closed)
-			errorDialog.Show()
-
+			// Show dialog
+			modalDialog.Show()
 			return
 		}
 	} else {
