@@ -448,14 +448,37 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		// Copy the database from the temporary directory to the new version
 		err = copyFiles(existingDatabaseDir, filepath.Join(newVersionDir, "database"), true)
 		if err != nil {
-			// copy failed, log the error and return
+			// copy failed, log the error
 			log.Printf("could not copy the database from %s to %s: %v\n", existingDatabaseDir, filepath.Join(newVersionDir, "database"), err)
-			dialog.ShowError(fmt.Errorf("failed to copy database: %w", err), w)
-			err = os.RemoveAll(newVersionDir)
-			if err != nil {
-				dialog.ShowError(fmt.Errorf("failed to remove the downloaded version directory: %w", err), w)
-				return
-			}
+
+			// Ensure the progress dialog is hidden first
+			progressDialog.Hide()
+
+			// Use a simple error dialog with modal behavior
+			errorDialog := dialog.NewError(
+				fmt.Errorf("Database copy failed: %v\n\nThe update will be cancelled.", err),
+				w,
+			)
+
+			// Make sure dialog doesn't get closed immediately
+			errorDialog.SetOnClosed(func() {
+				log.Println("Error dialog closed, cleaning up downloaded files")
+
+				// Clean up the downloaded directory since update failed
+				cleanupErr := os.RemoveAll(newVersionDir)
+				if cleanupErr != nil {
+					log.Printf("Failed to clean up directory: %v", cleanupErr)
+				}
+
+				// Update UI after dialog is closed
+				recomputeVersionList(w)
+				checkForNewerVersion()
+				w.Content().Refresh()
+			})
+
+			// Show the dialog with modal behavior (blocks until closed)
+			errorDialog.Show()
+
 			return
 		}
 	} else {
