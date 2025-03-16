@@ -6,19 +6,14 @@ require (
 	fyne.io/fyne/v2 v2.5.3
 	github.com/gofrs/flock v0.12.1
 	github.com/magiconair/properties v1.8.9
-	github.com/shirou/gopsutil v3.21.11+incompatible
 )
 
 require (
 	github.com/BurntSushi/toml v1.4.0 // indirect
-	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/jeandeaual/go-locale v0.0.0-20241217141322-fcc2cadd6f08 // indirect
 	github.com/nicksnyder/go-i18n/v2 v2.4.1 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	github.com/rymdport/portal v0.3.0 // indirect
-	github.com/tklauser/go-sysconf v0.3.14 // indirect
-	github.com/tklauser/numcpus v0.9.0 // indirect
-	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	golang.org/x/sys v0.29.0 // indirect
 )
 

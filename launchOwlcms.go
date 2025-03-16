@@ -8,14 +8,11 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
 
-	"owlcms-launcher/downloadUtils"
 	"owlcms-launcher/javacheck"
 
 	"fyne.io/fyne/v2/widget"
 	"github.com/gofrs/flock"
-	"github.com/shirou/gopsutil/process"
 )
 
 var (
@@ -75,24 +72,12 @@ func killLockingProcess() error {
 		return fmt.Errorf("failed to parse PID from PID file: %w", err)
 	}
 
-	proc, err := process.NewProcess(int32(pid))
+	err = GracefullyStopProcess(pid)
 	if err != nil {
 		releaseJavaLock()
-		return fmt.Errorf("failed to find process with PID %d: %w", pid, err)
-
+		return err
 	}
 
-	if downloadUtils.GetGoos() == "windows" && !downloadUtils.IsWSL() {
-		if err := proc.Terminate(); err != nil {
-			releaseJavaLock()
-			return fmt.Errorf("failed to terminate process with PID %d: %w", pid, err)
-		}
-	} else {
-		if err := proc.SendSignal(syscall.SIGKILL); err != nil {
-			releaseJavaLock()
-			return fmt.Errorf("failed to kill process with PID %d: %w", pid, err)
-		}
-	}
 	releaseJavaLock()
 	log.Printf("Killed process with PID %d\n", pid)
 	return nil

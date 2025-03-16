@@ -372,25 +372,25 @@ func adjustUpdateButton(mostRecent string, version string, updateButton *widget.
 func updateVersion(existingVersion string, targetVersion string, w fyne.Window) {
 	// Note the timestamp of the current version's top-level directory
 	currentVersionDir := filepath.Join(owlcmsInstallDir, existingVersion)
-	modTime, err := os.Stat(currentVersionDir)
-	if err != nil {
-		dialog.ShowError(fmt.Errorf("failed to get info for current version directory: %w", err), w)
-		return
-	}
+	// _, err := os.Stat(currentVersionDir)
+	// if err != nil {
+	// 	dialog.ShowError(fmt.Errorf("failed to get info for current version directory: %w", err), w)
+	// 	return
+	// }
 
 	// Move the current version to a temporary directory in the installation area
-	tempDir := filepath.Join(owlcmsInstallDir, "temp")
-	err = os.Rename(currentVersionDir, tempDir)
-	if err != nil {
-		dialog.ShowError(fmt.Errorf("failed to move current version to temporary directory: %w", err), w)
-		return
-	}
-	// set the modification time of the directory to modTime
-	err = os.Chtimes(tempDir, modTime.ModTime(), modTime.ModTime())
-	if err != nil {
-		dialog.ShowError(fmt.Errorf("failed to set modification time of temporary directory: %w", err), w)
-		return
-	}
+	existingVersionDir := currentVersionDir
+	// err = os.Rename(currentVersionDir, existingVersionDir)
+	// if err != nil {
+	// 	dialog.ShowError(fmt.Errorf("failed to move current version to temporary directory: %w", err), w)
+	// 	return
+	// }
+	// // set the modification time of the directory to modTime
+	// err = os.Chtimes(existingVersionDir, modTime.ModTime(), modTime.ModTime())
+	// if err != nil {
+	// 	dialog.ShowError(fmt.Errorf("failed to set modification time of temporary directory: %w", err), w)
+	// 	return
+	// }
 
 	// Download and extract the version given by string
 	var urlPrefix string
@@ -402,7 +402,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	fileName := fmt.Sprintf("owlcms_%s.zip", targetVersion)
 	zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, targetVersion, fileName)
 	zipPath := filepath.Join(owlcmsInstallDir, fileName)
-	extractPath := filepath.Join(owlcmsInstallDir, targetVersion)
+	newVersionDir := filepath.Join(owlcmsInstallDir, targetVersion)
 
 	// Create a cancel channel
 	cancel := make(chan bool)
@@ -421,7 +421,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		}
 	}
 
-	err = downloadUtils.DownloadArchive(zipURL, zipPath, progressCallback, cancel)
+	err := downloadUtils.DownloadArchive(zipURL, zipPath, progressCallback, cancel)
 	if err != nil {
 		if err.Error() == "download cancelled" {
 			// Handle cancellation
@@ -436,32 +436,46 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		return
 	}
 
-	err = downloadUtils.ExtractZip(zipPath, extractPath)
+	err = downloadUtils.ExtractZip(zipPath, newVersionDir)
 	if err != nil {
 		dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
 		return
 	}
 
-	// Copy the database from the temporary directory to the new version
-	err = copyFiles(filepath.Join(tempDir, "database"), filepath.Join(extractPath, "database"), true)
-	if err != nil {
-		log.Printf("No database files to copy from %s\n", tempDir)
+	// Check if the database directory exists before attempting to copy
+	existingDatabaseDir := filepath.Join(existingVersionDir, "database")
+	if _, err := os.Stat(existingDatabaseDir); !os.IsNotExist(err) {
+		// Copy the database from the temporary directory to the new version
+		err = copyFiles(existingDatabaseDir, filepath.Join(newVersionDir, "database"), true)
+		if err != nil {
+			// copy failed, log the error and return
+			log.Printf("could not copy the database from %s to %s: %v\n", existingDatabaseDir, filepath.Join(newVersionDir, "database"), err)
+			dialog.ShowError(fmt.Errorf("failed to copy database: %w", err), w)
+			err = os.RemoveAll(newVersionDir)
+			if err != nil {
+				dialog.ShowError(fmt.Errorf("failed to remove the downloaded version directory: %w", err), w)
+				return
+			}
+			return
+		}
+	} else {
+		log.Printf("Database directory does not exist in %s\n", existingDatabaseDir)
 	}
 
 	// Copy files newer than the memorized timestamp from the temporary directory to the new version
-	err = copyFiles(filepath.Join(tempDir, "local"), filepath.Join(extractPath, "local"), false)
+	err = copyFiles(filepath.Join(existingVersionDir, "local"), filepath.Join(newVersionDir, "local"), false)
 	if err != nil {
-		log.Printf("No local files to copy from %s\n", tempDir)
+		log.Printf("No local files to copy from %s\n", existingVersionDir)
 		dialog.ShowError(fmt.Errorf("failed to copy local files: %w", err), w)
 		return
 	}
 
-	// Remove the temporary directory
-	err = os.RemoveAll(tempDir)
-	if err != nil {
-		dialog.ShowError(fmt.Errorf("failed to remove temporary directory: %w", err), w)
-		return
-	}
+	// // Remove the existing directory
+	// err = os.RemoveAll(existingVersionDir)
+	// if err != nil {
+	// 	dialog.ShowError(fmt.Errorf("failed to remove temporary directory: %w", err), w)
+	// 	return
+	// }
 
 	dialog.ShowInformation("Update Complete", fmt.Sprintf("Successfully updated to version %s", targetVersion), w)
 

@@ -4,10 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"os/exec"
-	"owlcms-launcher/downloadUtils"
-	"syscall"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -76,21 +73,11 @@ func stopProcess(currentProcess *exec.Cmd, currentVersion string, stopButton *wi
 	pid := currentProcess.Process.Pid
 	killedByUs = true
 
-	var err error
-	if downloadUtils.GetGoos() == "windows" {
-		err = currentProcess.Process.Signal(os.Interrupt)
-	} else {
-		err = currentProcess.Process.Signal(syscall.SIGINT)
-	}
-
+	err := GracefullyStopProcess(pid)
 	if err != nil {
-		log.Printf("Failed to send interrupt signal to OWLCMS %s (PID: %d): %v\n", currentVersion, pid, err)
-		err = currentProcess.Process.Kill()
-		if err != nil {
-			killedByUs = false
-			dialog.ShowError(fmt.Errorf("failed to stop OWLCMS %s (PID: %d): %w", currentVersion, pid, err), w)
-			return
-		}
+		killedByUs = false
+		dialog.ShowError(fmt.Errorf("failed to stop OWLCMS %s (PID: %d): %w", currentVersion, pid, err), w)
+		return
 	}
 
 	log.Printf("OWLCMS %s (PID: %d) has been stopped\n", currentVersion, pid)
@@ -102,5 +89,4 @@ func stopProcess(currentProcess *exec.Cmd, currentVersion string, stopButton *wi
 	downloadGroup.Show()
 	versionContainer.Show()
 	releaseJavaLock()
-
 }

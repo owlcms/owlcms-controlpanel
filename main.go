@@ -9,7 +9,8 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"sync"
+	"syscall"
+	"time"
 
 	"owlcms-launcher/downloadUtils"
 	"owlcms-launcher/javacheck"
@@ -356,8 +357,8 @@ func main() {
 		log.Println("Setup complete")
 	}()
 
-	// Set up signal handling
-	setupSignalHandling(stopButton, downloadContainer, versionContainer, statusLabel, w)
+	// Set up signal handling - remove all parameters
+	setupSignalHandling()
 
 	// Run the application
 	w.ShowAndRun()
@@ -408,22 +409,47 @@ func setupMenus(w fyne.Window) {
 }
 
 // New helper function to setup signal handling
-func setupSignalHandling(stopButton *widget.Button, downloadContainer, versionContainer *fyne.Container, statusLabel *widget.Label, w fyne.Window) {
+func setupSignalHandling() {
 	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, os.Interrupt)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	var wg sync.WaitGroup
 	go func() {
-		<-sigChan
-		log.Println("Interrupt signal caught, stopping Java process...")
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
-		}()
-		wg.Wait()
+		sig := <-sigChan
+		log.Printf("Signal %v caught, cleaning up.\n", sig)
+
+		// Make sure we properly cleanup before exiting
+		if currentProcess != nil && currentProcess.Process != nil {
+			pid := currentProcess.Process.Pid
+			log.Printf("Stopping OWLCMS %s (PID: %d)...\n", currentVersion, pid)
+
+			// Set the killedByUs flag first so the monitoring goroutine knows this was intentional
+			killedByUs = true
+
+			// Use forceful termination since we need to exit quickly
+			err := ForcefullyKillProcess(pid)
+			if err != nil {
+				log.Printf("Forceful termination failed: %v\n", err)
+			} else {
+				log.Println("Process terminated successfully")
+			}
+
+			// Need to clear the current process pointer to avoid race conditions
+			currentProcess = nil
+
+			// Let the OS have time to register the process termination
+			time.Sleep(200 * time.Millisecond)
+
+			// Release the lock directly - this is a duplicate of what the monitor would do,
+			// but we can't wait for it in this emergency exit path
+			releaseJavaLock()
+		}
+
 		log.Println("Exiting Control Panel...")
-		os.Exit(0)
+
+		// Force exit with a slight delay to allow logs to be written
+		time.AfterFunc(100*time.Millisecond, func() {
+			os.Exit(0)
+		})
 	}()
 }
 
@@ -437,7 +463,10 @@ func setupCleanupOnExit(w fyne.Window) {
 				func(confirm bool) {
 					if !confirm {
 						log.Println("Closing OWLCMS Launcher")
-						stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+						// Use the same graceful termination method as in stopProcess
+						if currentProcess != nil && currentProcess.Process != nil {
+							stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+						}
 						w.Close()
 					}
 				},
