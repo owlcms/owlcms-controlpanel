@@ -426,22 +426,8 @@ func setupSignalHandling() {
 			killedByUs = true
 
 			// Use forceful termination since we need to exit quickly
-			err := ForcefullyKillProcess(pid)
-			if err != nil {
-				log.Printf("Forceful termination failed: %v\n", err)
-			} else {
-				log.Println("Process terminated successfully")
-			}
-
-			// Need to clear the current process pointer to avoid race conditions
-			currentProcess = nil
-
-			// Let the OS have time to register the process termination
-			time.Sleep(200 * time.Millisecond)
-
-			// Release the lock directly - this is a duplicate of what the monitor would do,
-			// but we can't wait for it in this emergency exit path
-			releaseJavaLock()
+			// the death is processed by launchOwlcms.go that is waiting on the process
+			ForcefullyKillProcess(pid)
 		}
 
 		log.Println("Exiting Control Panel...")
