@@ -187,9 +187,6 @@ func main() {
 	statusLabel = widget.NewLabel("Initializing OWLCMS Control Panel...")
 	statusLabel.Wrapping = fyne.TextWrapWord // Allow status messages to wrap
 
-	// Create a loading spinner to indicate activity
-	spinner := widget.NewProgressBarInfinite()
-
 	// Create URL hyperlink
 	urlLink = widget.NewHyperlink("", nil)
 	urlLink.Hide()
@@ -197,7 +194,6 @@ func main() {
 	// Create containers with initial loading state
 	initialLoadingContent := container.NewVBox(
 		widget.NewLabelWithStyle("OWLCMS Control Panel", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
-		spinner,
 		statusLabel,
 	)
 
