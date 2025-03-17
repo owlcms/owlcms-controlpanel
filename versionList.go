@@ -361,7 +361,8 @@ func adjustUpdateButton(mostRecent string, version string, updateButton *widget.
 		if compare.GreaterThan(x) {
 			updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
 			updateButton.OnTapped = func() {
-				if downloadUtils.GetGoos() == "linux" {
+				currentOS := downloadUtils.GetGoos()
+				if currentOS == "linux" || currentOS == "darwin" {
 					data, err := os.ReadFile(pidFilePath)
 					if err == nil && len(data) > 0 {
 						pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
