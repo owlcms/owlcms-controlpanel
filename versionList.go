@@ -359,7 +359,18 @@ func adjustUpdateButton(mostRecent string, version string, updateButton *widget.
 		if compare.GreaterThan(x) {
 			updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
 			updateButton.OnTapped = func() {
-				updateVersion(version, mostRecent, w)
+				confirmDialog := dialog.NewConfirm("Backup Suggestion",
+					"Before updating, we suggest that you take a backup of your current database using the 'Export Database' button of the 'Prepare Competition' page.",
+					func(confirm bool) {
+						if confirm {
+							updateVersion(version, mostRecent, w)
+						}
+					},
+					w,
+				)
+				confirmDialog.SetConfirmText("Perform Update")
+				confirmDialog.SetDismissText("Cancel Update")
+				confirmDialog.Show()
 			}
 			updateButton.Refresh()
 		} else {
