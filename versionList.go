@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -359,6 +361,21 @@ func adjustUpdateButton(mostRecent string, version string, updateButton *widget.
 		if compare.GreaterThan(x) {
 			updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
 			updateButton.OnTapped = func() {
+				if downloadUtils.GetGoos() == "linux" {
+					data, err := os.ReadFile(pidFilePath)
+					if err == nil && len(data) > 0 {
+						pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+						log.Printf("found pid %d in file %s \n", pid, pidFilePath)
+						if err == nil && pid != 0 {
+							process, err := os.FindProcess(pid)
+							if err == nil && process.Signal(syscall.Signal(0)) == nil {
+								dialog.ShowError(fmt.Errorf("an OWLCMS process is already running with PID %d.\nUse the 'Processes' menu to stop it before updating", pid), w)
+								return
+							}
+						}
+					}
+				}
+
 				confirmDialog := dialog.NewConfirm("Backup Suggestion",
 					"Before updating, we suggest that you take a backup of your current database using the 'Export Database' button of the 'Prepare Competition' page.",
 					func(confirm bool) {
