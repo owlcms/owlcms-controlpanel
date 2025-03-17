@@ -256,70 +256,70 @@ jobs:
         name: build_crosscompile_artifacts
         path: ./dist
 
-    - name: Install MakeAppx
-      if: ${{ env.BUILD_WINDOWS == 'true' }}
-      shell: pwsh
-      run: |
-        Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2286561" -OutFile "sdksetup.exe"
-        Start-Process -FilePath "sdksetup.exe" -ArgumentList "/features OptionId.SigningTools /q" -NoNewWindow -Wait
+    # - name: Install MakeAppx
+    #   if: ${{ env.BUILD_WINDOWS == 'true' }}
+    #   shell: pwsh
+    #   run: |
+    #     Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2286561" -OutFile "sdksetup.exe"
+    #     Start-Process -FilePath "sdksetup.exe" -ArgumentList "/features OptionId.SigningTools /q" -NoNewWindow -Wait
 
-    - name: Create MSIX Package
-      if: ${{ env.BUILD_WINDOWS == 'true' }}
-      shell: pwsh
-      run: |
-        # Ensure directory exists and is empty
-        if (Test-Path dist\msix) {
-            Remove-Item -Path dist\msix -Recurse -Force
-        }
-        New-Item -ItemType Directory -Path dist\msix -Force
+    # - name: Create MSIX Package
+    #   if: ${{ env.BUILD_WINDOWS == 'true' }}
+    #   shell: pwsh
+    #   run: |
+    #     # Ensure directory exists and is empty
+    #     if (Test-Path dist\msix) {
+    #         Remove-Item -Path dist\msix -Recurse -Force
+    #     }
+    #     New-Item -ItemType Directory -Path dist\msix -Force
         
-        # Copy required files
-        Copy-Item -Path dist\owlcms.exe -Destination dist\msix\
-        Copy-Item -Path dist\Assets -Destination dist\msix\ -Recurse
+    #     # Copy required files
+    #     Copy-Item -Path dist\owlcms.exe -Destination dist\msix\
+    #     Copy-Item -Path dist\Assets -Destination dist\msix\ -Recurse
         
-        # Get tag from environment and validate
-        $tagValue = [System.Environment]::GetEnvironmentVariable('TAG')
-        if (-not $tagValue) {
-            Write-Error "TAG environment variable is not set"
-            exit 1
-        }
+    #     # Get tag from environment and validate
+    #     $tagValue = [System.Environment]::GetEnvironmentVariable('TAG')
+    #     if (-not $tagValue) {
+    #         Write-Error "TAG environment variable is not set"
+    #         exit 1
+    #     }
         
-        # Calculate version
-        $version = $tagValue.TrimStart('v')
-        $fourthPart = 400  # default for release version
-        if ($version -match "-(alpha|beta|rc)(\d+)") {
-            $prefix = $matches[1]
-            $num = [int]$matches[2]
-            switch ($prefix) {
-                "alpha" { $fourthPart = 100 + $num }
-                "beta"  { $fourthPart = 200 + $num }
-                "rc"    { $fourthPart = 300 + $num }
-            }
-        }
-        $version = $version -replace '-.*$', ''  # remove any pre-release suffix
-        $versionParts = $version -split '\.'
-        $major = [int]$versionParts[0]
-        $minor = [int]$versionParts[1]
-        $patch = [int]$versionParts[2]
-        $computed = (($patch + 1) * 1000) + $fourthPart
-        $fullVersion = "$($major).$($minor).$($computed).0"
+    #     # Calculate version
+    #     $version = $tagValue.TrimStart('v')
+    #     $fourthPart = 400  # default for release version
+    #     if ($version -match "-(alpha|beta|rc)(\d+)") {
+    #         $prefix = $matches[1]
+    #         $num = [int]$matches[2]
+    #         switch ($prefix) {
+    #             "alpha" { $fourthPart = 100 + $num }
+    #             "beta"  { $fourthPart = 200 + $num }
+    #             "rc"    { $fourthPart = 300 + $num }
+    #         }
+    #     }
+    #     $version = $version -replace '-.*$', ''  # remove any pre-release suffix
+    #     $versionParts = $version -split '\.'
+    #     $major = [int]$versionParts[0]
+    #     $minor = [int]$versionParts[1]
+    #     $patch = [int]$versionParts[2]
+    #     $computed = (($patch + 1) * 1000) + $fourthPart
+    #     $fullVersion = "$($major).$($minor).$($computed).0"
 
-        Write-Host "Using version: $fullVersion"
+    #     Write-Host "Using version: $fullVersion"
         
-        # Update manifest
-        if (-not (Test-Path dist\AppxManifest.xml)) {
-            Write-Error "AppxManifest.xml not found in dist directory"
-            exit 1
-        }
-        $manifestContent = Get-Content dist\AppxManifest.xml -Raw
-        $manifestContent = $manifestContent -replace '_TAG_',$fullVersion
-        $manifestContent | Set-Content dist\msix\AppxManifest.xml -Force
+    #     # Update manifest
+    #     if (-not (Test-Path dist\AppxManifest.xml)) {
+    #         Write-Error "AppxManifest.xml not found in dist directory"
+    #         exit 1
+    #     }
+    #     $manifestContent = Get-Content dist\AppxManifest.xml -Raw
+    #     $manifestContent = $manifestContent -replace '_TAG_',$fullVersion
+    #     $manifestContent | Set-Content dist\msix\AppxManifest.xml -Force
         
-        & "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\MakeAppx.exe" pack /d dist\msix /p "artifacts\owlcms-Panel_windows_$($tagValue).msix"
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "MakeAppx failed with exit code $LASTEXITCODE"
-            exit $LASTEXITCODE
-        }
+    #     & "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\MakeAppx.exe" pack /d dist\msix /p "artifacts\owlcms-Panel_windows_$($tagValue).msix"
+    #     if ($LASTEXITCODE -ne 0) {
+    #         Write-Error "MakeAppx failed with exit code $LASTEXITCODE"
+    #         exit $LASTEXITCODE
+    #     }
 
     - name: Prepare Inno Setup directory
       if: ${{ env.BUILD_WINDOWS == 'true' }}
@@ -458,10 +458,10 @@ jobs:
       run: |
         gh release upload ${{ env.TAG }} dist/owlcms_controlpanel.exe
 
-    - name: Release Windows MSIX package
-      if: ${{ env.BUILD_WINDOWS == 'true' }}
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        gh release upload ${{ env.TAG }} dist/owlcms-Panel_windows_${{ env.TAG }}.msix
+    # - name: Release Windows MSIX package
+    #   if: ${{ env.BUILD_WINDOWS == 'true' }}
+    #   env:
+    #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #   run: |
+    #     gh release upload ${{ env.TAG }} dist/owlcms-Panel_windows_${{ env.TAG }}.msix
 
