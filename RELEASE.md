@@ -1,4 +1,4 @@
-Owlcms-launcher is a control panel for owlcms.  The control panel is used to
+This is a control panel for owlcms.  It is meant to:
 
 - Start and Stop owlcms
 - Install updates
