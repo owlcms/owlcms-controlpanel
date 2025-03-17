@@ -370,7 +370,7 @@ func adjustUpdateButton(mostRecent string, version string, updateButton *widget.
 						if err == nil && pid != 0 {
 							process, err := os.FindProcess(pid)
 							if err == nil && process.Signal(syscall.Signal(0)) == nil {
-								dialog.ShowError(fmt.Errorf("an OWLCMS process is already running with PID %d.\nUse the 'Processes' menu to stop it before updating", pid), w)
+								dialog.ShowError(fmt.Errorf("an OWLCMS process is already running with PID %d.\nStop it first. You can use the 'Processes' menu to stop it before updating", pid), w)
 								return
 							}
 						}
