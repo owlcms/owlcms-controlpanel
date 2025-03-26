@@ -8,6 +8,7 @@ The control panel is installed once. It will automatically download the current 
 
 ### Change Log
 
+- 2.2.0: Adjusted parameters for stopping owlcms on Windows to reduce the "owlcms running" and "port 8080 in use" messages
 - 2.1.0: Don't remove prior version when updating; abort update when previous database is locked or another owlcms has been started by a control panel
 - 2.0.0: Support for slow connections, better startup progress indicators.
 - 1.9.3: Single installer for macOS.

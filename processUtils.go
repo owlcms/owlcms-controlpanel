@@ -15,31 +15,31 @@ import (
 // GracefullyStopProcess attempts to stop a process with the given PID,
 // using platform-specific methods to ensure Java shutdown hooks can execute.
 func GracefullyStopProcess(pid int) error {
-	log.Printf("Attempting to gracefully stop process with PID: %d\n", pid)
+	// log.Printf("Attempting to gracefully stop process with PID: %d\n", pid)
 
 	if downloadUtils.GetGoos() == "windows" {
 		// For Windows, execute taskkill commands with a timeout
 		done := make(chan error, 1)
 
 		go func() {
-			// First try gentle termination on Windows
-			log.Printf("Using taskkill to stop process %d\n", pid)
-			cmd := exec.Command("taskkill", "/PID", strconv.Itoa(pid))
+			// // First try gentle termination on Windows
+			// log.Printf("Using taskkill to stop process %d\n", pid)
+			// cmd := exec.Command("taskkill", "/PID", strconv.Itoa(pid))
+			// err := cmd.Run()
+
+			// if err != nil {
+			// 	log.Printf("Failed to gracefully stop process (PID: %d): %v\n", pid, err)
+
+			// Try forceful termination if graceful approach fails
+			log.Printf("Attempting termination with taskkill /F for PID %d\n", pid)
+			cmd := exec.Command("taskkill", "/F", "/PID", strconv.Itoa(pid))
 			err := cmd.Run()
 
 			if err != nil {
-				log.Printf("Failed to gracefully stop process (PID: %d): %v\n", pid, err)
-
-				// Try forceful termination if graceful approach fails
-				log.Printf("Attempting forceful termination with taskkill /F for PID %d\n", pid)
-				cmd = exec.Command("taskkill", "/F", "/PID", strconv.Itoa(pid))
-				err = cmd.Run()
-
-				if err != nil {
-					done <- fmt.Errorf("failed to forcefully stop process (PID: %d): %w", pid, err)
-					return
-				}
+				done <- fmt.Errorf("failed to forcefully stop process (PID: %d): %w", pid, err)
+				return
 			}
+			// }
 
 			done <- nil
 		}()
@@ -59,7 +59,6 @@ func GracefullyStopProcess(pid int) error {
 			}
 		}
 
-		log.Printf("Process (PID: %d) has been stopped on Windows\n", pid)
 		return nil
 	} else {
 		// On Unix systems, try SIGINT first (equivalent to Ctrl+C)
