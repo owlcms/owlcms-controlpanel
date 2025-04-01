@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	launcherVersion = "2.1.0"              // Default launcher version
+	launcherVersion = "2.3.0"              // Default launcher version
 	buildVersion    = "_TAG_"              // Placeholder for build version
 	environment     *properties.Properties // Global variable to hold the environment properties
 )
@@ -101,7 +101,7 @@ func loadProperties(envFilePath string) {
 	// }
 }
 
-func checkForUpdates(win fyne.Window) {
+func checkForUpdates(win fyne.Window, showConfirmation bool) {
 	const repoURL = "https://api.github.com/repos/owlcms/owlcms-controlpanel/releases/latest"
 	log.Println("Checking for updates from:", repoURL)
 
@@ -165,7 +165,9 @@ func checkForUpdates(win fyne.Window) {
 		dialog.ShowCustom("Update Available", "Close", content, win)
 	} else {
 		log.Println("No updates available - you are using the latest version")
-		// Uncomment the following line if you want to show a dialog when no updates are available
-		// dialog.ShowInformation("No Updates", "You are using the latest version.", win)
+		// Only show confirmation when explicitly requested
+		if showConfirmation {
+			dialog.ShowInformation("No Updates", fmt.Sprintf("You are running the most recent version (v%s).", currentVersion), win)
+		}
 	}
 }

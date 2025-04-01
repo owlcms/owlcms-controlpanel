@@ -183,7 +183,8 @@ func main() {
 	w.Show()                         // Show window immediately
 
 	// Check for updates immediately after showing the window
-	go checkForUpdates(w)
+	// Don't show "you're ok"" dialog when starting up
+	go checkForUpdates(w, false)
 
 	// Create stop button and status label
 	stopButton = widget.NewButton("Stop", nil)
@@ -398,7 +399,8 @@ func setupMenus(w fyne.Window) {
 			dialog.ShowCustom("Documentation", "Close", link, w)
 		}),
 		fyne.NewMenuItem("Check for Updates", func() {
-			checkForUpdates(w)
+			// Show confirmation dialog when checking from menu
+			checkForUpdates(w, true)
 		}),
 		fyne.NewMenuItem("About", func() {
 			dialog.ShowInformation("About", "OWLCMS Launcher version "+launcherVersion, w)
