@@ -180,6 +180,10 @@ func main() {
 	a.Settings().SetTheme(newMyTheme())
 	w := a.NewWindow("OWLCMS Control Panel")
 	w.Resize(fyne.NewSize(800, 400)) // Larger initial window size
+	w.Show()                         // Show window immediately
+
+	// Check for updates immediately after showing the window
+	go checkForUpdates(w)
 
 	// Create stop button and status label
 	stopButton = widget.NewButton("Stop", nil)

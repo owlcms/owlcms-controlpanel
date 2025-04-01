@@ -13,11 +13,12 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
+	"github.com/Masterminds/semver/v3"
 	"github.com/magiconair/properties"
 )
 
 var (
-	launcherVersion = "1.0.0"              // Default launcher version
+	launcherVersion = "2.1.0"              // Default launcher version
 	buildVersion    = "_TAG_"              // Placeholder for build version
 	environment     *properties.Properties // Global variable to hold the environment properties
 )
@@ -102,6 +103,8 @@ func loadProperties(envFilePath string) {
 
 func checkForUpdates(win fyne.Window) {
 	const repoURL = "https://api.github.com/repos/owlcms/owlcms-controlpanel/releases/latest"
+	log.Println("Checking for updates from:", repoURL)
+
 	resp, err := http.Get(repoURL)
 	if err != nil {
 		log.Printf("Failed to check for updates: %v", err)
@@ -123,7 +126,32 @@ func checkForUpdates(win fyne.Window) {
 		return
 	}
 
-	if release.TagName > launcherVersion {
+	// Remove 'v' prefix if present in both versions for comparison
+	remoteVersion := release.TagName
+	if len(remoteVersion) > 0 && remoteVersion[0] == 'v' {
+		remoteVersion = remoteVersion[1:]
+	}
+
+	currentVersion := launcherVersion
+	if len(currentVersion) > 0 && currentVersion[0] == 'v' {
+		currentVersion = currentVersion[1:]
+	}
+
+	// Parse versions for semantic comparison
+	remoteSemver, remoteErr := semver.NewVersion(remoteVersion)
+	currentSemver, currentErr := semver.NewVersion(currentVersion)
+
+	if remoteErr != nil || currentErr != nil {
+		log.Printf("Failed to parse version strings for comparison: remote=%v, current=%v", remoteErr, currentErr)
+		return
+	}
+
+	log.Printf("Comparing versions - Remote: %s, Current: %s", remoteSemver, currentSemver)
+	log.Printf("Remote greater than current?: %t", remoteSemver.GreaterThan(currentSemver))
+
+	if remoteSemver.GreaterThan(currentSemver) {
+		log.Printf("Update available: %s -> %s", currentSemver, remoteSemver)
+
 		url, err := url.Parse(release.HTMLURL)
 		if err != nil {
 			log.Printf("Failed to parse release URL: %v", err)
@@ -136,6 +164,8 @@ func checkForUpdates(win fyne.Window) {
 		)
 		dialog.ShowCustom("Update Available", "Close", content, win)
 	} else {
-		dialog.ShowInformation("No Updates", "You are using the latest version.", win)
+		log.Println("No updates available - you are using the latest version")
+		// Uncomment the following line if you want to show a dialog when no updates are available
+		// dialog.ShowInformation("No Updates", "You are using the latest version.", win)
 	}
 }
