@@ -150,19 +150,24 @@ func checkForUpdates(win fyne.Window, showConfirmation bool) {
 	log.Printf("Remote greater than current?: %t", remoteSemver.GreaterThan(currentSemver))
 
 	if remoteSemver.GreaterThan(currentSemver) {
-		log.Printf("Update available: %s -> %s", currentSemver, remoteSemver)
+		// Only prompt if the remote version is a stable release (no pre-release tag)
+		if remoteSemver.Prerelease() == "" {
+			log.Printf("Update available: %s -> %s", currentSemver, remoteSemver)
 
-		url, err := url.Parse(release.HTMLURL)
-		if err != nil {
-			log.Printf("Failed to parse release URL: %v", err)
-			return
+			url, err := url.Parse(release.HTMLURL)
+			if err != nil {
+				log.Printf("Failed to parse release URL: %v", err)
+				return
+			}
+			link := widget.NewHyperlink("Release Notes and Installer", url)
+			content := container.NewVBox(
+				widget.NewLabel(fmt.Sprintf("A new version (%s) is available. You are currently using version %s.\nYou can simply download the new installer and install over the current version.", release.TagName, launcherVersion)),
+				link,
+			)
+			dialog.ShowCustom("Update Available", "Close", content, win)
+		} else {
+			log.Printf("Remote version %s is a pre-release. No update prompt will be shown.", remoteSemver)
 		}
-		link := widget.NewHyperlink("Release Notes and Installer", url)
-		content := container.NewVBox(
-			widget.NewLabel(fmt.Sprintf("A new version (%s) is available. You are currently using version %s.\nYou can simply download the new installer and install over the current version.", release.TagName, launcherVersion)),
-			link,
-		)
-		dialog.ShowCustom("Update Available", "Close", content, win)
 	} else {
 		log.Println("No updates available - you are using the latest version")
 		// Only show confirmation when explicitly requested

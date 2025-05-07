@@ -8,18 +8,10 @@ The control panel is installed once. It will automatically download the current 
 
 ### Change Log
 
-- 2.3.1: On Raspberry Pi, the desktop icon no longer prompts for execution.
-- 2.3.0: Check for updates now done systematically on startup if there is internet connectivity
+- 2.4.0: The update procedure now preserves additions, changes and deletions made in the version being updated.
+- 2.4.0: On Raspberry Pi, the desktop icon no longer prompts for execution.
+- 2.3.0: Check for updates of the control panel now done systematically on startup if there is internet connectivity
 - 2.2.0: Adjusted parameters for stopping owlcms on Windows to reduce the "owlcms running" and "port 8080 in use" messages
-- 2.1.0: Don't remove prior version when updating; abort update when previous database is locked or another owlcms has been started by a control panel
-- 2.0.0: Support for slow connections, better startup progress indicators.
-- 1.9.3: Single installer for macOS.
-- 1.9.2: Ask for confirmation if closing the window while owlcms is running since this will stop owlcms
-- 1.9.2: Removed the Windows installer, due to virus false detection on Windows.  Instructions for owlcms now refer to using the executable directly.
-- 1.9.1: Now copy the windows executable as well as the installer
-- 1.9.1: The build process is now conditional for the various platforms
-- 1.9.0: The `env.properties` file is now reloaded before launching owlcms, at every launch
-- 1.9.0: Added a "Check for Updates" entry in the help menu.
 
 ### Installing the Control Panel
 
