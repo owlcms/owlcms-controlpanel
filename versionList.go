@@ -16,6 +16,10 @@ import (
 
 	customdialog "owlcms-launcher/dialog" // Alias our custom dialog package
 
+	"archive/zip"
+	"crypto/sha256"
+	"io/fs"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
@@ -238,10 +242,12 @@ func createImportButton(versions []string, version string, w fyne.Window, button
 				if err := copyFiles(filepath.Join(sourceDir, "database"), filepath.Join(destDir, "database"), true); err != nil {
 					log.Printf("No database files to copy from %s\n", sourceDir)
 				}
-				// Copy local files if they are newer
-				if err := copyFiles(filepath.Join(sourceDir, "local"), filepath.Join(destDir, "local"), false); err != nil {
-					log.Printf("No local files to copy from %s\n", sourceDir)
-					dialog.ShowError(fmt.Errorf("failed to copy local files: %w", err), w)
+
+				// Use the new logic to restore local files
+				err := restoreLocalFilesFromPreviousVersion(destDir, sourceDir)
+				if err != nil {
+					log.Printf("Error while processing local files: %v\n", err)
+					dialog.ShowError(fmt.Errorf("failed to process local files: %w", err), w)
 					return
 				}
 
@@ -402,25 +408,7 @@ func adjustUpdateButton(mostRecent string, version string, updateButton *widget.
 func updateVersion(existingVersion string, targetVersion string, w fyne.Window) {
 	// Note the timestamp of the current version's top-level directory
 	currentVersionDir := filepath.Join(owlcmsInstallDir, existingVersion)
-	// _, err := os.Stat(currentVersionDir)
-	// if err != nil {
-	// 	dialog.ShowError(fmt.Errorf("failed to get info for current version directory: %w", err), w)
-	// 	return
-	// }
-
-	// Move the current version to a temporary directory in the installation area
 	existingVersionDir := currentVersionDir
-	// err = os.Rename(currentVersionDir, existingVersionDir)
-	// if err != nil {
-	// 	dialog.ShowError(fmt.Errorf("failed to move current version to temporary directory: %w", err), w)
-	// 	return
-	// }
-	// // set the modification time of the directory to modTime
-	// err = os.Chtimes(existingVersionDir, modTime.ModTime(), modTime.ModTime())
-	// if err != nil {
-	// 	dialog.ShowError(fmt.Errorf("failed to set modification time of temporary directory: %w", err), w)
-	// 	return
-	// }
 
 	// Download and extract the version given by string
 	var urlPrefix string
@@ -442,8 +430,6 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		w,
 		cancel)
 	progressDialog.Show()
-	// Remove the defer call as we want to control exactly when this hides
-	// defer progressDialog.Hide()
 
 	progressCallback := func(downloaded, total int64) {
 		if total > 0 {
@@ -467,6 +453,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		return
 	}
 
+	// new version is downloaded, now extract it to its own directory
 	err = downloadUtils.ExtractZip(zipPath, newVersionDir)
 	if err != nil {
 		dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
@@ -477,10 +464,10 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	var databaseCopied bool
 	var localFilesCopied bool
 
-	// Check if the database directory exists before attempting to copy
+	// Check if the old database directory exists before attempting to copy
 	existingDatabaseDir := filepath.Join(existingVersionDir, "database")
-	if _, err := os.Stat(existingDatabaseDir); !os.IsNotExist(err) {
-		// Copy the database from the temporary directory to the new version
+	if _, statErr := os.Stat(existingDatabaseDir); !os.IsNotExist(statErr) {
+		// Copy the database from the old directory to the new version
 		err = copyFiles(existingDatabaseDir, filepath.Join(newVersionDir, "database"), true)
 		if err != nil {
 			// copy failed, log the error
@@ -552,23 +539,16 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		log.Printf("Database directory does not exist in %s\n", existingDatabaseDir)
 	}
 
-	// Copy files newer than the memorized timestamp from the temporary directory to the new version
-	err = copyFiles(filepath.Join(existingVersionDir, "local"), filepath.Join(newVersionDir, "local"), false)
+	// Use the new logic to restore local files from previous version
+	err = restoreLocalFilesFromPreviousVersion(newVersionDir, existingVersionDir)
 	if err != nil {
-		log.Printf("No local files to copy from %s\n", existingVersionDir)
-		dialog.ShowError(fmt.Errorf("failed to copy local files: %w", err), w)
+		log.Printf("Error while restoring local configuration files: %v\n", err)
+		dialog.ShowError(fmt.Errorf("failed to restore local files: %w", err), w)
 		return
 	} else {
 		localFilesCopied = true
-		log.Println("Local configuration files copied successfully")
+		log.Println("Local configuration files processed successfully")
 	}
-
-	// // Remove the existing directory
-	// err = os.RemoveAll(existingVersionDir)
-	// if err != nil {
-	// 	dialog.ShowError(fmt.Errorf("failed to remove temporary directory: %w", err), w)
-	// 	return
-	// }
 
 	// Hide progress dialog before showing success dialog
 	progressDialog.Hide()
@@ -578,11 +558,11 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	successMessage = fmt.Sprintf("Successfully updated to version %s\n", targetVersion)
 
 	if databaseCopied && localFilesCopied {
-		successMessage += "\n✓ Database files have been copied\n✓ Local configuration files have been copied"
+		successMessage += "\n✓ Database files have been copied\n✓ Local configuration files have been processed"
 	} else if databaseCopied {
 		successMessage += "\n✓ Database files have been copied"
 	} else if localFilesCopied {
-		successMessage += "\n✓ Local configuration files have been copied"
+		successMessage += "\n✓ Local configuration files have been processed"
 	}
 
 	// Create a custom modal dialog that won't be dismissed automatically
@@ -615,6 +595,233 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	// Show the dialog - it will block until the user dismisses it
 	log.Println("Showing success dialog")
 	successDialog.Show()
+}
+
+// restoreLocalFilesFromPreviousVersion restores files in newDir/local from oldDir/local
+// according to the logic described in the prompt.
+func restoreLocalFilesFromPreviousVersion(newDir, oldDir string) error {
+	newLocal := filepath.Join(newDir, "local")
+	oldLocal := filepath.Join(oldDir, "local")
+	oldJar := filepath.Join(oldDir, "owlcms.jar")
+
+	// 1. Get top-level directories in newDir/local
+	topLevelDirs, err := getTopLevelDirs(newLocal)
+	if err != nil {
+		return fmt.Errorf("failed to get top-level dirs: %w", err)
+	}
+
+	// 2. Build oldJarFiles: map[path]checksum for files in topLevelDirs inside oldJar
+	oldJarFiles, err := getJarFilesChecksums(oldJar, topLevelDirs)
+	if err != nil {
+		return fmt.Errorf("failed to get jar files: %w", err)
+	}
+
+	// 3. Create map of files in oldDir/local
+	oldLocalFiles, err := getLocalFiles(oldLocal, topLevelDirs)
+	if err != nil {
+		return fmt.Errorf("failed to get local files: %w", err)
+	}
+
+	// 4. Process files in newDir/local
+	err = filepath.WalkDir(newLocal, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(newLocal, path)
+		if err != nil {
+			return err
+		}
+
+		// Only consider files under topLevelDirs
+		topLevel := strings.Split(relPath, string(os.PathSeparator))[0]
+		if !contains(topLevelDirs, topLevel) {
+			return nil
+		}
+
+		// If not in oldJarFiles, it's a new addition - leave intact
+		oldJarChecksum, inJar := oldJarFiles[relPath]
+		if !inJar {
+			log.Printf("Keeping new file addition: %s\n", relPath)
+			return nil
+		}
+
+		// Check if the file exists in the old version
+		oldFilePath := filepath.Join(oldLocal, relPath)
+		_, err = os.Stat(oldFilePath)
+		if os.IsNotExist(err) {
+			// File intentionally removed in previous version, remove from new version
+			log.Printf("Removing file (intentionally deleted in previous version): %s\n", relPath)
+			return os.Remove(path)
+		} else if err != nil {
+			return err
+		}
+
+		// Mark this file as processed in oldLocalFiles map
+		delete(oldLocalFiles, relPath)
+
+		// File exists in oldLocal, check if it was modified from reference
+		oldFileChecksum, err := fileChecksum(oldFilePath)
+		if err != nil {
+			return err
+		}
+		if oldFileChecksum != oldJarChecksum {
+			// File was modified from reference, copy the modified version
+			log.Printf("Restoring modified file from previous version: %s\n", relPath)
+			return copyFile(oldFilePath, path)
+		}
+
+		// File was not modified from reference, leave new version intact
+		log.Printf("Using new file (old file was same as old reference): %s\n", relPath)
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	// 5. Copy any remaining files from oldLocal to newLocal
+	for relPath := range oldLocalFiles {
+		oldFilePath := filepath.Join(oldLocal, relPath)
+		newFilePath := filepath.Join(newLocal, relPath)
+
+		log.Printf("Copying additional file from previous version: %s\n", relPath)
+		if err := copyFile(oldFilePath, newFilePath); err != nil {
+			return fmt.Errorf("failed to copy additional file %s: %w", relPath, err)
+		}
+	}
+
+	return nil
+}
+
+// getTopLevelDirs returns the names of top-level directories in dir.
+func getTopLevelDirs(dir string) ([]string, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+	var dirs []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			dirs = append(dirs, entry.Name())
+		}
+	}
+	return dirs, nil
+}
+
+// getJarFilesChecksums returns a map of file paths (relative to local/) to their SHA256 checksums
+// for files in the given topLevelDirs inside the jar file.
+func getJarFilesChecksums(jarPath string, topLevelDirs []string) (map[string]string, error) {
+	result := make(map[string]string)
+	r, err := zip.OpenReader(jarPath)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+	for _, f := range r.File {
+		// Only consider files under topLevelDirs
+		parts := strings.SplitN(f.Name, "/", 2)
+		if len(parts) < 2 {
+			continue
+		}
+		topLevel := parts[0]
+		if !contains(topLevelDirs, topLevel) {
+			continue
+		}
+		relPath := filepath.FromSlash(f.Name)
+		rc, err := f.Open()
+		if err != nil {
+			return nil, err
+		}
+		sum, err := streamChecksum(rc)
+		rc.Close()
+		if err != nil {
+			return nil, err
+		}
+		result[relPath] = sum
+	}
+	return result, nil
+}
+
+// getLocalFiles returns a map of relative file paths that exist in the given directory
+func getLocalFiles(dir string, topLevelDirs []string) (map[string]struct{}, error) {
+	result := make(map[string]struct{})
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+
+		// Only consider files under topLevelDirs
+		topLevel := strings.Split(relPath, string(os.PathSeparator))[0]
+		if !contains(topLevelDirs, topLevel) {
+			return nil
+		}
+
+		result[relPath] = struct{}{}
+		return nil
+	})
+	return result, err
+}
+
+// fileChecksum returns the SHA256 checksum of a file.
+func fileChecksum(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	return streamChecksum(f)
+}
+
+// streamChecksum returns the SHA256 checksum of the data read from r.
+func streamChecksum(r io.Reader) (string, error) {
+	h := sha256.New()
+	if _, err := io.Copy(h, r); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", h.Sum(nil)), nil
+}
+
+// copyFile copies a file from src to dst, overwriting dst if it exists.
+func copyFile(src, dst string) error {
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, in)
+	return err
+}
+
+// contains returns true if s is in list.
+func contains(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
 
 func filterVersions(versions []string, currentVersion string) []string {

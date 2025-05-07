@@ -8,6 +8,7 @@ The control panel is installed once. It will automatically download the current 
 
 ### Change Log
 
+- 2.3.1: On Raspberry Pi, the desktop icon no longer prompts for execution.
 - 2.3.0: Check for updates now done systematically on startup if there is internet connectivity
 - 2.2.0: Adjusted parameters for stopping owlcms on Windows to reduce the "owlcms running" and "port 8080 in use" messages
 - 2.1.0: Don't remove prior version when updating; abort update when previous database is locked or another owlcms has been started by a control panel
