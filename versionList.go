@@ -67,10 +67,10 @@ func findLatestInstalled() string {
 		return ""
 	}
 
-	versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+(?:-(?:rc|alpha|beta)(?:\d+)?)?$`)
+	// Accept any valid semver directory name
 	var versions []*semver.Version
 	for _, entry := range entries {
-		if entry.IsDir() && versionPattern.MatchString(entry.Name()) {
+		if entry.IsDir() {
 			v, err := semver.NewVersion(entry.Name())
 			if err == nil {
 				versions = append(versions, v)
@@ -119,12 +119,12 @@ func findLatestPrereleaseInstalled() string {
 		return ""
 	}
 
-	versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+-(?:rc|alpha|beta)(?:\d+)?$`)
+	// Accept any valid semver with a pre-release tag
 	var versions []*semver.Version
 	for _, entry := range entries {
-		if entry.IsDir() && versionPattern.MatchString(entry.Name()) {
+		if entry.IsDir() {
 			v, err := semver.NewVersion(entry.Name())
-			if err == nil {
+			if err == nil && v.Prerelease() != "" {
 				versions = append(versions, v)
 			}
 		}
