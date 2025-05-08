@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout" // Corrected import with v2
+	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/Masterminds/semver/v3"
@@ -376,10 +378,36 @@ func setupMenus(w fyne.Window) {
 		fyne.NewMenuItem("Remove All Stored Data and Configurations", func() {
 			uninstallAll()
 		}),
+		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Open Installation Directory", func() {
 			if err := openFileExplorer(owlcmsInstallDir); err != nil {
 				dialog.ShowError(fmt.Errorf("failed to open installation directory: %w", err), w)
 			}
+		}),
+		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("Install from Local ZIP", func() {
+			// Create and show file dialog to select ZIP file
+			fileDialog := dialog.NewFileOpen(
+				func(reader fyne.URIReadCloser, err error) {
+					if err != nil {
+						dialog.ShowError(err, w)
+						return
+					}
+					if reader == nil {
+						// User canceled the operation
+						return
+					}
+
+					// Process the selected ZIP file
+					processLocalZipFile(reader.URI().Path(), w)
+					reader.Close()
+				},
+				w,
+			)
+
+			// Set file filter to only show ZIP files
+			fileDialog.SetFilter(storage.NewExtensionFileFilter([]string{".zip"}))
+			fileDialog.Show()
 		}),
 	)
 	killMenu := fyne.NewMenu("Processes",
@@ -407,6 +435,163 @@ func setupMenus(w fyne.Window) {
 	)
 	menu := fyne.NewMainMenu(fileMenu, killMenu, helpMenu)
 	w.SetMainMenu(menu)
+}
+
+// processLocalZipFile handles a ZIP file selected from the file system
+func processLocalZipFile(zipPath string, w fyne.Window) {
+	// Extract version number from filename if possible
+	fileName := filepath.Base(zipPath)
+	version := ""
+
+	// Try to extract version from filename (assuming format like "owlcms_4.24.1.zip" or any prefix with semver)
+	if strings.HasSuffix(fileName, ".zip") {
+		// Remove .zip extension
+		nameWithoutExt := strings.TrimSuffix(fileName, ".zip")
+
+		// Find the first digit which might be the start of a semantic version
+		for i, char := range nameWithoutExt {
+			if char >= '0' && char <= '9' {
+				// Found first digit, extract from here to end as potential version
+				version = nameWithoutExt[i:]
+				break
+			}
+		}
+	}
+
+	// If version couldn't be determined or is invalid, ask the user
+	if version == "" || !isValidSemVer(version) {
+		content := widget.NewEntry()
+		content.SetPlaceHolder("e.g., 4.24.1")
+
+		versionDialog := dialog.NewCustomConfirm(
+			"Enter Version",
+			"Install",
+			"Cancel",
+			content,
+			func(confirmed bool) {
+				if !confirmed || content.Text == "" {
+					return
+				}
+
+				if isValidSemVer(content.Text) {
+					installLocalZipFile(zipPath, content.Text, w)
+				} else {
+					dialog.ShowError(fmt.Errorf("invalid version format, please use semantic versioning (e.g., 4.24.1)"), w)
+				}
+			},
+			w,
+		)
+		versionDialog.Show()
+	} else {
+		// We have a valid version, proceed with installation
+		installLocalZipFile(zipPath, version, w)
+	}
+}
+
+// isValidSemVer checks if a string is a valid semantic version
+func isValidSemVer(version string) bool {
+	_, err := semver.NewVersion(version)
+	return err == nil
+}
+
+// installLocalZipFile installs from a local ZIP file
+func installLocalZipFile(zipPath, version string, w fyne.Window) {
+	// Create a custom progress dialog
+	progressBar := widget.NewProgressBar()
+	progressBar.SetValue(0.1)
+	messageLabel := widget.NewLabel(fmt.Sprintf("Installing OWLCMS %s from local file...", version))
+	content := container.NewVBox(messageLabel, progressBar)
+	progressDialog := dialog.NewCustom(
+		"Installing OWLCMS",
+		"Please wait...",
+		content,
+		w)
+	progressDialog.Show()
+
+	// Ensure the owlcms directory exists
+	owlcmsDir := owlcmsInstallDir
+	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(owlcmsDir, 0755); err != nil {
+			progressDialog.Hide()
+			dialog.ShowError(fmt.Errorf("creating owlcms directory: %w", err), w)
+			return
+		}
+	}
+
+	// First copy the ZIP with original filename to preserve it as-is
+	originalFileName := filepath.Base(zipPath)
+	destOriginalPath := filepath.Join(owlcmsDir, originalFileName)
+
+	// Also create the standardized name for consistency
+	standardFileName := fmt.Sprintf("owlcms_%s.zip", version)
+	destStandardPath := filepath.Join(owlcmsDir, standardFileName)
+
+	messageLabel.SetText("Copying ZIP file...")
+	messageLabel.Refresh()
+
+	progressBar.SetValue(0.3)
+
+	// Copy the file with original name first
+	if zipPath != destOriginalPath {
+		err := copyFile(zipPath, destOriginalPath) // Updated to use the copyFile function from versionList.go
+		if err != nil {
+			progressDialog.Hide()
+			dialog.ShowError(fmt.Errorf("failed to copy ZIP file: %w", err), w)
+			return
+		}
+	}
+
+	// If the original name is different from the standard name, create a second copy
+	if originalFileName != standardFileName && destOriginalPath != destStandardPath {
+		err := copyFile(destOriginalPath, destStandardPath) // Updated to use the copyFile function from versionList.go
+		if err != nil {
+			log.Printf("Note: Could not create standardized name copy: %v\n", err)
+			// Continue with original file if we can't create the standard name
+			destStandardPath = destOriginalPath
+		}
+	}
+
+	extractPath := filepath.Join(owlcmsDir, version)
+
+	go func() {
+		progressBar.SetValue(0.5)
+		messageLabel.SetText("Extracting files...")
+		messageLabel.Refresh()
+
+		// Use the original copied file for extraction
+		log.Printf("Extracting ZIP file to: %s\n", extractPath)
+		err := downloadUtils.ExtractZip(destOriginalPath, extractPath)
+		if err != nil {
+			progressDialog.Hide()
+			dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
+			return
+		}
+
+		// Set to complete
+		progressBar.SetValue(1.0)
+
+		// Log when extraction is done
+		log.Println("Extraction completed")
+		updateExplanation()
+
+		// Hide progress dialog
+		progressDialog.Hide()
+
+		// Show success panel with installation details
+		message := fmt.Sprintf(
+			"Successfully installed OWLCMS version %s\n\n"+
+				"Location: %s\n\n"+
+				"The program files have been extracted to the above directory.\n\n",
+			version, extractPath)
+
+		dialog.ShowInformation("Installation Complete", message, w)
+
+		// Recompute the version list
+		recomputeVersionList(w)
+
+		// Recompute the downloadTitle
+		checkForNewerVersion()
+	}()
 }
 
 // New helper function to setup signal handling
