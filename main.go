@@ -107,12 +107,6 @@ func goBackToMainScreen() {
 	versionContainer.Show()
 }
 
-func computeVersionScrollHeight(numVersions int) float32 {
-	minHeight := 0  // minimum height
-	rowHeight := 50 // approximate height per row
-	return float32(minHeight + (rowHeight * min(numVersions, 4)))
-}
-
 func removeAllVersions() {
 	entries, err := os.ReadDir(owlcmsInstallDir)
 	if err != nil {
@@ -179,7 +173,7 @@ func main() {
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
 	a.Settings().SetTheme(newMyTheme())
 	w := a.NewWindow("OWLCMS Control Panel")
-	w.Resize(fyne.NewSize(800, 400)) // Larger initial window size
+	w.Resize(fyne.NewSize(800, 430)) // Initial window size (was 800, 450)
 	w.Show()                         // Show window immediately
 
 	// Check for updates immediately after showing the window
@@ -204,7 +198,7 @@ func main() {
 
 	// Initialize hidden containers that will be shown later
 	downloadContainer = container.NewVBox()
-	versionContainer = container.NewVBox()
+	versionContainer = container.NewMax() // Use NewMax so it expands in the center
 	stopContainer = container.NewVBox(stopButton, statusLabel, urlLink)
 
 	// Set initial content to show loading state immediately
@@ -232,10 +226,15 @@ func main() {
 	stopContainer.Hide()
 
 	// Create the real main content that will replace the loading screen
-	mainContent := container.NewVBox(
-		stopContainer,
-		versionContainer,
-		downloadContainer, // Use downloadGroup here
+	// Only put versionContainer in the center, and nothing below the border container.
+	downloadContainer.Resize(fyne.NewSize(800, 180)) // Set a fixed height for the bottom container
+
+	mainContent := container.NewBorder(
+		stopContainer,     // Top (hidden except when stopping)
+		downloadContainer, // Bottom (fixed height, always visible)
+		nil,               // Left
+		nil,               // Right
+		versionContainer,  // Center (now a NewMax, expands to fill space)
 	)
 
 	// Start initialization in a goroutine
@@ -578,13 +577,6 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 		// Recompute the downloadTitle
 		checkForNewerVersion()
 	}()
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 func checkForNewerVersion() {

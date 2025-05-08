@@ -7,7 +7,6 @@ import (
 	"os"
 	"owlcms-launcher/downloadUtils"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -39,10 +38,10 @@ func getAllInstalledVersions() []string {
 		return nil
 	}
 
-	versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+(?:-(?:rc|alpha|beta)(?:\d+)?)?$`)
 	var versions []*semver.Version
 	for _, entry := range entries {
-		if entry.IsDir() && versionPattern.MatchString(entry.Name()) {
+		if entry.IsDir() {
+			// Try to parse the directory name as a semver version
 			v, err := semver.NewVersion(entry.Name())
 			if err == nil {
 				versions = append(versions, v)
@@ -93,12 +92,11 @@ func findLatestStableInstalled() string {
 		return ""
 	}
 
-	versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+$`)
 	var versions []*semver.Version
 	for _, entry := range entries {
-		if entry.IsDir() && versionPattern.MatchString(entry.Name()) {
+		if entry.IsDir() {
 			v, err := semver.NewVersion(entry.Name())
-			if err == nil {
+			if err == nil && v.Prerelease() == "" {
 				versions = append(versions, v)
 			}
 		}
@@ -486,6 +484,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 			if pathErr, ok := err.(*os.PathError); ok {
 				if errno, ok := pathErr.Err.(syscall.Errno); ok {
 					// Windows ERROR_SHARING_VIOLATION (32) and ERROR_LOCK_VIOLATION (33)
+					// Fix the type mismatch by comparing errno to each value separately
 					if errno == 32 || errno == 33 {
 						isLockError = true
 					}
@@ -888,28 +887,34 @@ func copyFiles(srcDir, destDir string, alwaysCopy bool) error {
 }
 
 func recomputeVersionList(w fyne.Window) {
-	// Reinitialize the version list
 	log.Println("Reinitializing version list")
 	versionContainer.Objects = nil // Clear the container
 	newVersionList := createVersionList(w, stopButton)
 
-	// Update the scroll container's size
+	// "Installed Versions" label: not bold, left-aligned
+	borderTopLabel := widget.NewLabelWithStyle("Installed Versions", fyne.TextAlignLeading, fyne.TextStyle{Bold: false})
+
 	numVersions := len(getAllInstalledVersions())
 	versionScroll := container.NewVScroll(newVersionList)
-	versionScroll.SetMinSize(fyne.NewSize(400, computeVersionScrollHeight(numVersions)))
+	center := container.NewMax(versionScroll)
 
-	versionLabel := widget.NewLabel("Installed Versions:")
 	if numVersions == 0 {
-		versionLabel.Hide()
 		versionScroll.Hide()
 		versionContainer.Hide()
 	} else {
-		versionLabel.Show()
 		versionScroll.Show()
 		versionContainer.Show()
 	}
-	versionContainer.Add(versionLabel)
-	versionContainer.Add(versionScroll)
 
+	content := container.NewBorder(
+		borderTopLabel, // Top (not bold, left-aligned)
+		nil,            // Bottom
+		nil,            // Left
+		nil,            // Right
+		center,         // Center: expands to fill available space
+	)
+
+	versionContainer.Objects = nil
+	versionContainer.Add(content)
 	log.Println("Version list reinitialized")
 }
