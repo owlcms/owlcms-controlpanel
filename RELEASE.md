@@ -8,12 +8,11 @@ The control panel is installed once. It will automatically download the current 
 
 ### Change Log
 
+- 2.4.0: Ability to install from a downloaded zip, making it easier for federations to prepare a kit with their own templates and settings
 - 2.4.0: The update procedure now preserves additions, changes and deletions made in the version being updated.
 - 2.4.0: Don't warn users about control panel updates that are prerelease
 - 2.4.0: Accept any valid semver version as a directory, allowing 57.1.0+federation as a valid name with metadata
 - 2.4.0: On Raspberry Pi, the desktop icon no longer prompts for execution.
-- 2.3.0: Check for updates of the control panel now done systematically on startup if there is internet connectivity
-- 2.2.0: Adjusted parameters for stopping owlcms on Windows to reduce the "owlcms running" and "port 8080 in use" messages
 
 ### Installing the Control Panel
 
