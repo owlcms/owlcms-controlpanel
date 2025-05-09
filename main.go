@@ -518,36 +518,22 @@ func installLocalZipFile(zipPath, version string, w fyne.Window) {
 		}
 	}
 
-	// First copy the ZIP with original filename to preserve it as-is
+	// Copy the ZIP with original filename to preserve it as-is
 	originalFileName := filepath.Base(zipPath)
 	destOriginalPath := filepath.Join(owlcmsDir, originalFileName)
-
-	// Also create the standardized name for consistency
-	standardFileName := fmt.Sprintf("owlcms_%s.zip", version)
-	destStandardPath := filepath.Join(owlcmsDir, standardFileName)
 
 	messageLabel.SetText("Copying ZIP file...")
 	messageLabel.Refresh()
 
 	progressBar.SetValue(0.3)
 
-	// Copy the file with original name first
+	// Copy the file with original name to the installation directory
 	if zipPath != destOriginalPath {
-		err := copyFile(zipPath, destOriginalPath) // Updated to use the copyFile function from versionList.go
+		err := copyFile(zipPath, destOriginalPath)
 		if err != nil {
 			progressDialog.Hide()
 			dialog.ShowError(fmt.Errorf("failed to copy ZIP file: %w", err), w)
 			return
-		}
-	}
-
-	// If the original name is different from the standard name, create a second copy
-	if originalFileName != standardFileName && destOriginalPath != destStandardPath {
-		err := copyFile(destOriginalPath, destStandardPath) // Updated to use the copyFile function from versionList.go
-		if err != nil {
-			log.Printf("Note: Could not create standardized name copy: %v\n", err)
-			// Continue with original file if we can't create the standard name
-			destStandardPath = destOriginalPath
 		}
 	}
 

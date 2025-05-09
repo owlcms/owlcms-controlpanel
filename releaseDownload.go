@@ -204,6 +204,11 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 			return
 		}
 
+		// Delete the downloaded zip file after successful extraction
+		if err := os.Remove(zipPath); err != nil {
+			log.Printf("Warning: Could not delete downloaded zip file: %v", err)
+		}
+
 		message := fmt.Sprintf(
 			"Successfully installed OWLCMS version %s\n\n"+
 				"Location: %s\n\n"+
