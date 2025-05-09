@@ -8,6 +8,7 @@ The control panel is installed once. It will automatically download the current 
 
 ### Change Log
 
+- 2.4.1: Fix Raspberry Pi Desktop file to not require an execution confirmation
 - 2.4.0: Ability to install from a downloaded zip, making it easier for federations to prepare a kit with their own templates and settings
 - 2.4.0: The update procedure now preserves additions, changes and deletions made in the version being updated.
 - 2.4.0: Don't warn users about control panel updates that are prerelease
