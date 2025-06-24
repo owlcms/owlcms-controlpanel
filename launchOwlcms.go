@@ -191,6 +191,15 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 	downloadContainer.Hide()
 	versionContainer.Hide()
 
+	// Show the application directory link immediately
+	appDir := filepath.Join(owlcmsInstallDir, version)
+	appDirLink.SetText(fmt.Sprintf("Open OWLCMS %s directory", version))
+	appDirLink.SetURL(nil) // Not a web URL, so clear
+	appDirLink.OnTapped = func() {
+		openFileExplorer(appDir)
+	}
+	appDirLink.Show()
+
 	// Monitor the process in background
 	monitorChan := monitorProcess(cmd)
 
@@ -216,6 +225,15 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 		urlLink.SetText("Open OWLCMS in a browser")
 		urlLink.Show()
 
+		// Set up the application directory link
+		appDir := filepath.Join(owlcmsInstallDir, version)
+		appDirLink.SetText(fmt.Sprintf("Open OWLCMS %s directory", version))
+		appDirLink.SetURL(nil) // Not a web URL, so clear
+		appDirLink.OnTapped = func() {
+			openFileExplorer(appDir)
+		}
+		appDirLink.Show()
+
 		// Process is stable, wait for it to end
 		err := cmd.Wait()
 		pid := cmd.Process.Pid
@@ -240,6 +258,8 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 		launchButton.Show()
 		downloadContainer.Show()
 		versionContainer.Show()
+		urlLink.Hide()
+		appDirLink.Hide()
 		releaseJavaLock()
 	}()
 

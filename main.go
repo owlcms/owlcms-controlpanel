@@ -39,6 +39,7 @@ var (
 	downloadContainer         *fyne.Container   // New global to track the same container
 	downloadsShown            bool              // New global to track whether downloads are shown
 	urlLink                   *widget.Hyperlink // Add this new variable
+	appDirLink                *widget.Hyperlink // New: hyperlink for application directory
 )
 
 func init() {
@@ -192,6 +193,10 @@ func main() {
 	urlLink = widget.NewHyperlink("", nil)
 	urlLink.Hide()
 
+	// Create application directory hyperlink
+	appDirLink = widget.NewHyperlink("", nil)
+	appDirLink.Hide()
+
 	// Create containers with initial loading state
 	initialLoadingContent := container.NewVBox(
 		widget.NewLabelWithStyle("OWLCMS Control Panel", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
@@ -200,8 +205,8 @@ func main() {
 
 	// Initialize hidden containers that will be shown later
 	downloadContainer = container.NewVBox()
-	versionContainer = container.NewMax() // Use NewMax so it expands in the center
-	stopContainer = container.NewVBox(stopButton, statusLabel, urlLink)
+	versionContainer = container.NewMax()                                           // Use NewMax so it expands in the center
+	stopContainer = container.NewVBox(stopButton, statusLabel, urlLink, appDirLink) // Add appDirLink here
 
 	// Set initial content to show loading state immediately
 	w.SetContent(initialLoadingContent)
