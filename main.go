@@ -43,7 +43,7 @@ var (
 )
 
 func init() {
-	javacheck.InitJavaCheck(owlcmsInstallDir)
+	javacheck.InitJavaCheck(owlcmsInstallDir, GetTemurinVersion)
 }
 
 type myTheme struct {

@@ -264,4 +264,3 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 
 	return nil
 }
-}
