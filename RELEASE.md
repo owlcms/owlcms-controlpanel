@@ -8,6 +8,7 @@ The control panel is installed once. It will automatically download the current 
 
 ### Change Log
 
+- 2.4.3: Fix for Raspberry Pi Java version - the latest JDK build is missing 2/3 of the expected releases, using a predetermined version instead.
 - 2.4.3: Make the Java version fetched configurable instead of being "latest".  Can be overridden as TEMURIN_VERSION in env.properties
 - 2.4.2: Show a link to the configuration files of the running owlcms version while it is running
 - 2.4.1: Fix Raspberry Pi Desktop file to not require an execution confirmation
