@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	launcherVersion = "2.4.0"              // Default launcher version
+	launcherVersion = "2.4.3"              // Default launcher version
 	buildVersion    = "_TAG_"              // Placeholder for build version
 	environment     *properties.Properties // Global variable to hold the environment properties
 )
@@ -42,6 +42,18 @@ func GetPort() string {
 	return port
 }
 
+// GetTemurinVersion returns the configured Temurin version from env.properties, defaulting to "jdk-17.0.15+6"
+func GetTemurinVersion() string {
+	if environment == nil {
+		return "jdk-17.0.15+6"
+	}
+	version, ok := environment.Get("TEMURIN_VERSION")
+	if !ok {
+		return "jdk-17.0.15+6"
+	}
+	return version
+}
+
 func InitEnv() {
 	// Check for the presence of env.properties file in the owlcmsInstallDir
 	props := properties.NewProperties()
@@ -49,6 +61,7 @@ func InitEnv() {
 	if _, err := os.Stat(envFilePath); os.IsNotExist(err) {
 		// Create env.properties file with entry "OWLCMS_PORT=8080"
 		props.Set("OWLCMS_PORT", "8080")
+		props.Set("TEMURIN_VERSION", "jdk-17.0.15+6")
 		file, err := os.Create(envFilePath)
 		if err != nil {
 			log.Fatalf("Failed to create env.properties file: %v", err)
@@ -93,12 +106,12 @@ func loadProperties(envFilePath string) {
 		log.Fatalf("Failed to load env.properties file: %v", err)
 	}
 
-	// // Log the properties for debugging
-	// log.Printf("Loaded properties from %s:", envFilePath)
-	// for _, key := range environment.Keys() {
-	// 	value, _ := environment.Get(key)
-	// 	log.Printf("  %s = %s", key, value)
-	// }
+	// Log the properties for debugging
+	log.Printf("Loaded properties from %s:", envFilePath)
+	for _, key := range environment.Keys() {
+		value, _ := environment.Get(key)
+		log.Printf("  %s = %s", key, value)
+	}
 }
 
 func checkForUpdates(win fyne.Window, showConfirmation bool) {

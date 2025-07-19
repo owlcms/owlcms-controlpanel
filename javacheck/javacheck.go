@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,9 +24,11 @@ import (
 )
 
 var owlcmsInstallDir string
+var getTemurinVersionFunc func() string
 
-func InitJavaCheck(installDir string) {
+func InitJavaCheck(installDir string, getVersionFunc func() string) {
 	owlcmsInstallDir = installDir
+	getTemurinVersionFunc = getVersionFunc
 }
 
 // compareVersions compares two jdk directory names and returns true if a is more recent than b
@@ -243,9 +246,19 @@ func isWSL() bool {
 	return strings.Contains(strings.ToLower(string(data)), "microsoft")
 }
 
-func findLatestTemurinRelease() (string, error) {
-	// Get latest release info from API
-	req, err := http.NewRequest("GET", "https://api.github.com/repos/adoptium/temurin17-binaries/releases/latest", nil)
+func findLatestTemurinRelease(version string) (string, error) {
+	// Determine the API endpoint based on whether a specific version is requested
+	var apiURL string
+	if version == "" {
+		// Get latest release info from API
+		apiURL = "https://api.github.com/repos/adoptium/temurin17-binaries/releases/latest"
+	} else {
+		// Get specific version release info from API - URL encode the version tag
+		encodedVersion := url.QueryEscape(version)
+		apiURL = fmt.Sprintf("https://api.github.com/repos/adoptium/temurin17-binaries/releases/tags/%s", encodedVersion)
+	}
+
+	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
@@ -277,15 +290,22 @@ func findLatestTemurinRelease() (string, error) {
 }
 
 func getTemurinDownloadURL() (string, error) {
-	// Get the latest release tag
-	tag, err := findLatestTemurinRelease()
+	// Get the specific release tag from configuration
+	var version string
+	if getTemurinVersionFunc != nil {
+		version = getTemurinVersionFunc()
+	} else {
+		version = "jdk-17.0.15+6" // fallback
+	}
+
+	tag, err := findLatestTemurinRelease(version)
 	if err != nil {
-		log.Printf("Failed to get latest version number: %v", err)
-		return "", fmt.Errorf("failed to get latest version number: %w", err)
+		log.Printf("Failed to get version number: %v", err)
+		return "", fmt.Errorf("failed to get version number: %w", err)
 	}
 
 	// Extract version number from tag (e.g., "jdk-17.0.13+11" -> "17.0.13_11")
-	version := strings.TrimPrefix(tag, "jdk-")
+	version = strings.TrimPrefix(tag, "jdk-")
 	version = strings.ReplaceAll(version, "+", "_")
 
 	// Use the tag to get specific release

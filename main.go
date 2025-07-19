@@ -176,8 +176,11 @@ func main() {
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
 	a.Settings().SetTheme(newMyTheme())
 	w := a.NewWindow("OWLCMS Control Panel")
-	w.Resize(fyne.NewSize(800, 430)) // Initial window size (was 800, 450)
-	w.Show()                         // Show window immediately
+	w.Resize(fyne.NewSize(800, 430))
+	w.Show()
+
+	// Initialize environment early
+	InitEnv()
 
 	// Check for updates immediately after showing the window
 	// Don't show "you're ok"" dialog when starting up
