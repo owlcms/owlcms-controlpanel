@@ -2,12 +2,14 @@ This is a control panel for owlcms.  It is meant to:
 
 - Start and Stop owlcms
 - Install updates
-- Have multiple versions at once for testing purposes, with the ability to copy data from one to the other.
+- Allow for multiple installations to be present at once for testing purposes, with the ability to copy data from one to another.
 
 The control panel is installed once. It will automatically download the current version of owlcms and the correct version of Java when used for the first time.
 
 ### Change Log
 
+- 2.5.0: improved kill behaviour
+- 2.5.0: Avoid false alarms about owlcms processes already running by doing an active check.
 - 2.4.3: Fix for Raspberry Pi Java version - the latest JDK build is missing 2/3 of the expected releases, using a predetermined version instead.
 - 2.4.3: Make the Java version fetched configurable instead of being "latest".  Can be overridden as TEMURIN_VERSION in env.properties
 - 2.4.2: Show a link to the configuration files of the running owlcms version while it is running
@@ -23,9 +25,10 @@ The control panel is installed once. It will automatically download the current 
 > When downloading the following files, some browsers may give you warnings about "rarely downloaded files".   You may have to select "Keep" one or more times to download the file.
 
 - For Windows, 
-  1. Download the Windows `owlcms_controlpanel.exe` executable from the Assets section below
+  1. Download the Windows installer from the Assets section below.
   2. Drag the file from the Downloads area to your Desktop. 
   3. The first time you run the program, you may get warnings in a blue dialog box.  Select "More Info" and "Run Anyway"
+  4. NOTE: if the installer cannot be run (sometimes antivirus software falsely detects it), you can use the `.exe` file directly instead.
 - For Mac
   1. Download the macOS `.dmg`  file
   4. Execute the `.dmg` file.  Drag the application to the Application folder, or drag the application to your desktop
