@@ -18,47 +18,25 @@ func GracefullyStopProcess(pid int) error {
 	// log.Printf("Attempting to gracefully stop process with PID: %d\n", pid)
 
 	if downloadUtils.GetGoos() == "windows" {
-		// For Windows, execute taskkill commands with a timeout
-		done := make(chan error, 1)
+		// First try graceful termination (allows shutdown hooks)
+		log.Printf("Attempting graceful termination for PID %d\n", pid)
+		cmd := exec.Command("taskkill", "/PID", strconv.Itoa(pid))
+		err := cmd.Run()
 
-		go func() {
-			// // First try gentle termination on Windows
-			// log.Printf("Using taskkill to stop process %d\n", pid)
-			// cmd := exec.Command("taskkill", "/PID", strconv.Itoa(pid))
-			// err := cmd.Run()
-
-			// if err != nil {
-			// 	log.Printf("Failed to gracefully stop process (PID: %d): %v\n", pid, err)
-
-			// Try forceful termination if graceful approach fails
-			log.Printf("Attempting termination with taskkill /F for PID %d\n", pid)
-			cmd := exec.Command("taskkill", "/F", "/PID", strconv.Itoa(pid))
-			err := cmd.Run()
-
-			if err != nil {
-				done <- fmt.Errorf("failed to forcefully stop process (PID: %d): %w", pid, err)
-				return
-			}
-			// }
-
-			done <- nil
-		}()
-
-		// Wait for the command to complete or timeout
-		select {
-		case err := <-done:
-			if err != nil {
-				return err
-			}
-		case <-time.After(3 * time.Second):
-			// Final attempt - most forceful option with /T to kill tree
-			log.Printf("Taskkill timed out for PID %d, trying final forceful termination\n", pid)
-			cmd := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(pid))
-			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("all termination attempts failed for PID %d", pid)
-			}
+		if err != nil {
+			log.Printf("Graceful termination failed for PID %d: %v\n", pid, err)
+			// Fall back to forceful termination
+			return ForcefullyKillProcess(pid)
 		}
 
+		// Wait a moment and check if process is still running
+		time.Sleep(500 * time.Millisecond)
+		if IsProcessRunning(pid) {
+			log.Printf("Process %d still running after graceful termination, using forceful termination\n", pid)
+			return ForcefullyKillProcess(pid)
+		}
+
+		log.Printf("Process (PID: %d) has been gracefully stopped\n", pid)
 		return nil
 	} else {
 		// On Unix systems, try SIGINT first (equivalent to Ctrl+C)
@@ -67,37 +45,33 @@ func GracefullyStopProcess(pid int) error {
 			return fmt.Errorf("failed to find process (PID: %d): %w", pid, err)
 		}
 
+		// Try SIGINT (graceful)
 		err = process.Signal(syscall.SIGINT)
-		if err != nil {
-			log.Printf("Failed to send SIGINT to process (PID: %d): %v\n", pid, err)
-
-			// Try SIGTERM next
-			err = process.Signal(syscall.SIGTERM)
-			if err != nil {
-				log.Printf("Failed to send SIGTERM to process (PID: %d): %v\n", pid, err)
-
-				// Fall back to SIGKILL as last resort
-				err = process.Kill()
-				if err != nil {
-					return fmt.Errorf("failed to kill process (PID: %d): %w", pid, err)
-				}
+		if err == nil {
+			// Wait a moment and check if process terminated gracefully
+			time.Sleep(1 * time.Second)
+			if !IsProcessRunning(pid) {
+				log.Printf("Process (PID: %d) has been gracefully stopped with SIGINT\n", pid)
+				return nil
 			}
 		}
 
-		// Verify the process is gone on Unix
-		time.Sleep(500 * time.Millisecond) // Give the OS time
-		if _, err := os.FindProcess(pid); err == nil {
-			// On Unix, FindProcess always succeeds, so check if the process can be signaled with 0
-			if err := process.Signal(syscall.Signal(0)); err == nil {
-				log.Printf("Process %d still alive after termination attempts\n", pid)
-				// Force kill as last resort
-				process.Kill()
+		// Try SIGTERM (polite termination)
+		log.Printf("SIGINT failed or process still running, trying SIGTERM for PID %d\n", pid)
+		err = process.Signal(syscall.SIGTERM)
+		if err == nil {
+			// Wait a moment and check if process terminated
+			time.Sleep(1 * time.Second)
+			if !IsProcessRunning(pid) {
+				log.Printf("Process (PID: %d) has been stopped with SIGTERM\n", pid)
+				return nil
 			}
 		}
+
+		// Fall back to forceful termination
+		log.Printf("Graceful termination failed for PID %d, using forceful termination\n", pid)
+		return ForcefullyKillProcess(pid)
 	}
-
-	log.Printf("Process (PID: %d) has been stopped\n", pid)
-	return nil
 }
 
 // ForcefullyKillProcess uses the most aggressive methods available to kill a process
@@ -122,21 +96,8 @@ func ForcefullyKillProcess(pid int) error {
 	// Give the process a moment to terminate
 	time.Sleep(500 * time.Millisecond)
 
-	// Check if process is still running
-	isRunning := false
-	if downloadUtils.GetGoos() == "windows" {
-		// On Windows, use a simple process check
-		checkCmd := exec.Command("tasklist", "/FI", fmt.Sprintf("PID eq %d", pid), "/NH")
-		out, _ := checkCmd.CombinedOutput()
-		isRunning = strings.Contains(string(out), strconv.Itoa(pid))
-	} else {
-		// On Unix, check if we can send signal 0 (process exists check)
-		err := process.Signal(syscall.Signal(0))
-		isRunning = (err == nil)
-	}
-
-	// If process is still running, use more aggressive approach
-	if isRunning {
+	// Check if process is still running using the unified function
+	if IsProcessRunning(pid) {
 		log.Printf("Process %d still running after Kill, using fallback termination method\n", pid)
 
 		if downloadUtils.GetGoos() == "windows" {
@@ -147,8 +108,8 @@ func ForcefullyKillProcess(pid int) error {
 				return fmt.Errorf("all termination attempts failed for PID %d", pid)
 			}
 		} else {
-			// On Unix, try SIGKILL one more time with a brief delay
-			time.Sleep(100 * time.Millisecond)
+			// On Unix, try SIGKILL one more time after a brief delay
+			time.Sleep(200 * time.Millisecond)
 			if err := process.Kill(); err != nil {
 				return fmt.Errorf("failed to kill process after multiple attempts (PID: %d): %w", pid, err)
 			}
@@ -157,4 +118,26 @@ func ForcefullyKillProcess(pid int) error {
 
 	log.Printf("Process (PID: %d) has been forcefully terminated\n", pid)
 	return nil
+}
+
+// IsProcessRunning checks if a process with the given PID is currently running
+func IsProcessRunning(pid int) bool {
+	if downloadUtils.GetGoos() == "windows" {
+		// Windows: Use tasklist to check if process exists
+		cmd := exec.Command("tasklist", "/FI", fmt.Sprintf("PID eq %d", pid), "/NH")
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return false
+		}
+		return strings.Contains(string(output), strconv.Itoa(pid))
+	} else {
+		// Unix-like systems (Linux, macOS): Use signal 0 to check process existence
+		process, err := os.FindProcess(pid)
+		if err != nil {
+			return false
+		}
+		// Signal 0 doesn't actually send a signal, just checks if the process exists
+		err = process.Signal(syscall.Signal(0))
+		return err == nil
+	}
 }

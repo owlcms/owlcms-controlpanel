@@ -23,20 +23,20 @@ var (
 )
 
 func acquireJavaLock() (*flock.Flock, error) {
-	// lock := flock.New(lockFilePath)
-	// locked, err := lock.TryLock()
-	// if err != nil {
-	// 	log.Printf("Failed to acquire lock %s: %v", lockFilePath, err)
-	// 	return nil, fmt.Errorf("failed to acquire lock: %w", err)
-	// }
-	// if !locked {
-	// 	// we could not lock, so the lock owner should have written a PID to the file
+	// Check if PID file exists and read it
 	data, err := os.ReadFile(pidFilePath)
 	if err == nil && len(data) > 0 {
 		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 		if err == nil && pid != 0 {
-			log.Printf("Another instance of OWLCMS is already running with PID %d", pid)
-			return nil, fmt.Errorf("another instance of OWLCMS is already running with PID %d", pid)
+			// Check if the process is actually running before alerting
+			if IsProcessRunning(pid) {
+				log.Printf("Another instance of OWLCMS is already running with PID %d", pid)
+				return nil, fmt.Errorf("another instance of OWLCMS is already running with PID %d", pid)
+			} else {
+				log.Printf("Stale PID file found (PID %d is not running), removing and proceeding", pid)
+				os.Remove(pidFilePath)
+				os.Remove(lockFilePath) // Also remove the lock file if it exists
+			}
 		} else {
 			log.Printf("Failed to parse PID from PID file: %v", err)
 			os.Remove(pidFilePath)
@@ -44,8 +44,6 @@ func acquireJavaLock() (*flock.Flock, error) {
 	} else {
 		return nil, nil
 	}
-
-	// }
 
 	return nil, nil
 }
@@ -57,6 +55,8 @@ func releaseJavaLock() {
 		lock.Unlock()
 		lock = nil
 	}
+
+	// remove the lock file and PID file, ignore if not present
 	os.Remove(lockFilePath)
 	os.Remove(pidFilePath)
 }
@@ -144,6 +144,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 		return fmt.Errorf("failed to find local Java: %w", err)
 	}
 
+	InitEnv()
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("OWLCMS_LAUNCHER=%s", version))
 
