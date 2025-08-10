@@ -180,7 +180,12 @@ func main() {
 	w.Show()
 
 	// Initialize environment early
-	InitEnv()
+	if err := InitEnv(); err != nil {
+		log.Printf("Failed to initialize environment: %v", err)
+		dialog.ShowError(fmt.Errorf("Failed to initialize environment: %w", err), w)
+		// Note: Using log.Printf instead of log.Fatalf to allow manual testing of error scenarios
+		// In production, you might want to use os.Exit(1) here if this is a critical failure
+	}
 
 	// Check for updates immediately after showing the window
 	// Don't show "you're ok"" dialog when starting up

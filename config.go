@@ -54,23 +54,33 @@ func GetTemurinVersion() string {
 	return version
 }
 
-func InitEnv() {
+func InitEnv() error {
 	// Check for the presence of env.properties file in the owlcmsInstallDir
-	props := properties.NewProperties()
 	envFilePath := filepath.Join(owlcmsInstallDir, "env.properties")
 	if _, err := os.Stat(envFilePath); os.IsNotExist(err) {
-		// Create env.properties file with entry "OWLCMS_PORT=8080"
+		log.Printf("env.properties file not found at %s, creating with default values", envFilePath)
+
+		// Ensure the directory exists before creating the file
+		if err := os.MkdirAll(owlcmsInstallDir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", owlcmsInstallDir, err)
+		}
+
+		// Create env.properties file with default entries
+		props := properties.NewProperties()
 		props.Set("OWLCMS_PORT", "8080")
 		props.Set("TEMURIN_VERSION", "jdk-17.0.15+6")
+
 		file, err := os.Create(envFilePath)
 		if err != nil {
-			log.Fatalf("Failed to create env.properties file: %v", err)
+			return fmt.Errorf("failed to create env.properties file: %w", err)
 		}
 		defer file.Close()
+
 		if _, err := props.Write(file, properties.UTF8); err != nil {
-			log.Fatalf("Failed to write env.properties file: %v", err)
+			return fmt.Errorf("failed to write env.properties file: %w", err)
 		}
-		// Add commented-out entries
+
+		// Add commented-out entries for user reference
 		rawString := `# Add any environment variable you need. (remove the leading # to uncomment)
 #OWLCMS_INITIALDATA=LARGEGROUP_DEMO
 #OWLCMS_RESETMODE=true
@@ -83,27 +93,29 @@ func InitEnv() {
 #JAVA_OPTIONS=-Xmx512m -Xmx512m`
 
 		if _, err := file.WriteString(rawString); err != nil {
-			log.Fatalf("Failed to write comment to env.properties file: %v", err)
+			log.Printf("Failed to write comments to env.properties file: %v, but file is usable", err)
 		}
+
+		log.Printf("Successfully created env.properties file at %s", envFilePath)
 	}
 
 	// Load the properties into the global variable environment
-	loadProperties(envFilePath)
+	return loadProperties(envFilePath)
 }
 
-func loadProperties(envFilePath string) {
+func loadProperties(envFilePath string) error {
 	environment = properties.NewProperties()
 	file, err := os.Open(envFilePath)
 	if err != nil {
-		log.Fatalf("Failed to open env.properties file: %v", err)
+		return fmt.Errorf("failed to open env.properties file: %w", err)
 	}
 	defer file.Close()
 	content, err := os.ReadFile(envFilePath)
 	if err != nil {
-		log.Fatalf("Failed to read env.properties file: %v", err)
+		return fmt.Errorf("failed to read env.properties file: %w", err)
 	}
 	if err := environment.Load(content, properties.UTF8); err != nil {
-		log.Fatalf("Failed to load env.properties file: %v", err)
+		return fmt.Errorf("failed to load env.properties file: %w", err)
 	}
 
 	// Log the properties for debugging
@@ -112,6 +124,8 @@ func loadProperties(envFilePath string) {
 		value, _ := environment.Get(key)
 		log.Printf("  %s = %s", key, value)
 	}
+
+	return nil
 }
 
 func checkForUpdates(win fyne.Window, showConfirmation bool) {
