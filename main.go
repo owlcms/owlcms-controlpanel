@@ -180,7 +180,10 @@ func main() {
 	w.Show()
 
 	// Initialize environment early
-	InitEnv()
+	if err := InitEnv(); err != nil {
+		log.Printf("Failed to initialize environment: %v", err)
+		dialog.ShowError(fmt.Errorf("Failed to initialize environment: %w", err), w)
+	}
 
 	// Check for updates immediately after showing the window
 	// Don't show "you're ok"" dialog when starting up

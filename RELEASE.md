@@ -8,6 +8,7 @@ The control panel is installed once. It will automatically download the current 
 
 ### Change Log
 
+- 2.5.1: Would not start on first install
 - 2.5.0: improved kill behaviour
 - 2.5.0: Avoid false alarms about owlcms processes already running by doing an active check.
 - 2.4.3: Fix for Raspberry Pi Java version - the latest JDK build is missing 2/3 of the expected releases, using a predetermined version instead.
