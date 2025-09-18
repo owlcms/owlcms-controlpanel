@@ -142,11 +142,16 @@ jobs:
           '    curl \' \
           '    ca-certificates \' \
           '    && rm -rf /var/lib/apt/lists/*' \
-          'RUN ZIG_VER=0.11.0 && \              \
-            curl -fsSL https://ziglang.org/download/0.11.0/zig-linux-x86_64-0.11.0.tar.xz -o /tmp/zig.tar.xz && \  \
-            mkdir -p /opt/zig && tar -xJf /tmp/zig.tar.xz -C /opt/zig --strip-components=1 && rm /tmp/zig.tar.xz && \ 
-            ln -s /opt/zig/zig /usr/local/bin/zig || true && \ 
-            echo '--- Diagnostics: zig and gcc info ---' && which zig || true && zig version || true && which cc || true && cc --version || true && echo 'Include search' && echo | cc -v -E -x c - 2>&1 | sed -n '/#include <...> search starts here:/, /End of search list./p'' \
+          'RUN echo "--- Diagnostics: which zig ---"' \
+          'RUN which zig || true' \
+          'RUN echo "--- Diagnostics: zig version ---"' \
+          'RUN zig version || true' \
+          'RUN echo "--- Diagnostics: which cc ---"' \
+          'RUN which cc || true' \
+          'RUN echo "--- Diagnostics: cc version ---"' \
+          'RUN cc --version || true' \
+          'RUN echo "--- Diagnostics: include search ---"' \
+          'RUN sh -c "echo | cc -v -E -x c - 2>&1 | sed -n \"/#include <...> search starts here:/, /End of search list./p\"" || true' \
           'ENV CC=gcc' \
           'ENV CXX=g++' \
           'USER fyne' > Dockerfile.linux-amd64
@@ -165,11 +170,16 @@ jobs:
           '      curl \' \
           '      ca-certificates \' \
           '    && rm -rf /var/lib/apt/lists/*' \
-          'RUN ZIG_VER=0.11.0 && \              \
-            curl -fsSL https://ziglang.org/download/0.11.0/zig-linux-aarch64-0.11.0.tar.xz -o /tmp/zig.tar.xz && \  \
-            mkdir -p /opt/zig && tar -xJf /tmp/zig.tar.xz -C /opt/zig --strip-components=1 && rm /tmp/zig.tar.xz && \ 
-            ln -s /opt/zig/zig /usr/local/bin/zig || true && \ 
-            echo '--- Diagnostics: zig and gcc info ---' && which zig || true && zig version || true && which cc || true && cc --version || true && echo 'Include search' && echo | cc -v -E -x c - 2>&1 | sed -n '/#include <...> search starts here:/, /End of search list./p'' \
+          'RUN echo "--- Diagnostics: which zig ---"' \
+          'RUN which zig || true' \
+          'RUN echo "--- Diagnostics: zig version ---"' \
+          'RUN zig version || true' \
+          'RUN echo "--- Diagnostics: which cc ---"' \
+          'RUN which cc || true' \
+          'RUN echo "--- Diagnostics: cc version ---"' \
+          'RUN cc --version || true' \
+          'RUN echo "--- Diagnostics: include search ---"' \
+          'RUN sh -c "echo | cc -v -E -x c - 2>&1 | sed -n \"/#include <...> search starts here:/, /End of search list./p\"" || true' \
           'ENV PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig' \
           'ENV PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig' \
           'ENV CC=aarch64-linux-gnu-gcc' \
