@@ -223,7 +223,9 @@ jobs:
           -env="CXX=g++" \
           -env="CPATH=/usr/include:/usr/include/x86_64-linux-gnu" \
           -env="CGO_CFLAGS=-I/usr/include -I/usr/include/x86_64-linux-gnu" \
-          -env="CGO_CPPFLAGS=-nostdinc -I/usr/include -I/usr/include/x86_64-linux-gnu"
+          -env="CGO_CPPFLAGS=-nostdinc -I/usr/lib/gcc/x86_64-linux-gnu/12/include -I/usr/include/x86_64-linux-gnu -I/usr/include" \
+          -env="C_INCLUDE_PATH=" \
+          -env="CPLUS_INCLUDE_PATH="
 
     - name: Copy Linux binary
       if: ${{ env.BUILD_LINUX == 'true' }}
@@ -254,7 +256,9 @@ jobs:
           -env="CXX=aarch64-linux-gnu-g++" \
           -env="CPATH=/usr/include:/usr/lib/aarch64-linux-gnu/include" \
           -env="CGO_CFLAGS=-I/usr/include -I/usr/lib/aarch64-linux-gnu/include" \
-          -env="CGO_CPPFLAGS=-nostdinc -I/usr/include -I/usr/lib/aarch64-linux-gnu/include"
+          -env="CGO_CPPFLAGS=-nostdinc -I/usr/lib/gcc/aarch64-linux-gnu/12/include -I/usr/lib/aarch64-linux-gnu/include -I/usr/include" \
+          -env="C_INCLUDE_PATH=" \
+          -env="CPLUS_INCLUDE_PATH="
 
     - name: Copy Raspberry Pi binary
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
