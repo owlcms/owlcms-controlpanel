@@ -126,6 +126,9 @@ jobs:
         sed -i "s/_TAG_/${TAG}/g" config.go
 
     # Create custom Docker images with GTK support
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
     - name: Create custom fyne-cross Docker images
       run: |
         # AMD64 Linux image with GTK
@@ -138,7 +141,7 @@ jobs:
           '    && rm -rf /var/lib/apt/lists/*' \
           'USER fyne' > Dockerfile.linux-amd64
 
-        # ARM64 Linux image with GTK (for Raspberry Pi)
+        # ARM64 cross-compilation image (runs on AMD64 but cross-compiles for ARM64)
         printf '%s\n' \
           'FROM fyneio/fyne-cross-images:linux' \
           'USER root' \
@@ -151,11 +154,13 @@ jobs:
           '    && rm -rf /var/lib/apt/lists/*' \
           'ENV PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig' \
           'ENV PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig' \
+          'ENV CC=aarch64-linux-gnu-gcc' \
+          'ENV CXX=aarch64-linux-gnu-g++' \
           'USER fyne' > Dockerfile.linux-arm64
 
-        # Build the custom images specifying the target platform
+        # Build both images on AMD64 platform (cross-compilation setup)
         docker buildx build --platform=linux/amd64 -f Dockerfile.linux-amd64 -t owlcms-fyne-cross:linux-amd64 --load .
-        docker buildx build --platform=linux/arm64 -f Dockerfile.linux-arm64 -t owlcms-fyne-cross:linux-arm64 --load .
+        docker buildx build --platform=linux/amd64 -f Dockerfile.linux-arm64 -t owlcms-fyne-cross:linux-arm64 --load .
 
     # Windows build steps (unchanged)
     - name: Build for Windows
