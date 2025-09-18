@@ -136,9 +136,10 @@ jobs:
           'FROM fyneio/fyne-cross-images:linux' \
           'USER root' \
           'RUN apt-get update && apt-get install -y \' \
+          '    build-essential \' \
           '    libgtk-3-dev \' \
           '    pkg-config \' \
-          '    && rm -rf /var/lib/apt/lists/*' \
+          '    && rm -rf /var/lib/apt/lists/* && rm -rf /usr/local/zig || true' \
           'USER fyne' > Dockerfile.linux-amd64
 
         # ARM64 cross-compilation image (runs on AMD64 but cross-compiles for ARM64)
@@ -148,10 +149,11 @@ jobs:
           'RUN dpkg --add-architecture arm64 && \' \
           '    apt-get update && \' \
           '    apt-get install -y \' \
+          '      build-essential \' \
           '      libgtk-3-dev:arm64 \' \
           '      pkg-config \' \
           '      crossbuild-essential-arm64 \' \
-          '    && rm -rf /var/lib/apt/lists/*' \
+          '    && rm -rf /var/lib/apt/lists/* && rm -rf /usr/local/zig || true' \
           'ENV PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig' \
           'ENV PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig' \
           'ENV CC=aarch64-linux-gnu-gcc' \
