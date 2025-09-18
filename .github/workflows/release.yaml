@@ -142,6 +142,8 @@ jobs:
           '    curl \' \
           '    ca-certificates \' \
           '    && rm -rf /var/lib/apt/lists/*' \
+          'RUN ls -la /usr/local/include || true' \
+          'RUN rm -f /usr/local/include || true' \
           'RUN echo "--- Diagnostics: which zig ---"' \
           'RUN which zig || true' \
           'RUN echo "--- Diagnostics: zig version ---"' \
@@ -170,6 +172,8 @@ jobs:
           '      curl \' \
           '      ca-certificates \' \
           '    && rm -rf /var/lib/apt/lists/*' \
+          'RUN ls -la /usr/local/include || true' \
+          'RUN rm -f /usr/local/include || true' \
           'RUN echo "--- Diagnostics: which zig ---"' \
           'RUN which zig || true' \
           'RUN echo "--- Diagnostics: zig version ---"' \
