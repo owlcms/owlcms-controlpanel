@@ -139,7 +139,16 @@ jobs:
           '    build-essential \' \
           '    libgtk-3-dev \' \
           '    pkg-config \' \
-          '    && rm -rf /var/lib/apt/lists/* && rm -rf /usr/local/zig || true' \
+          '    curl \' \
+          '    ca-certificates \' \
+          '    && rm -rf /var/lib/apt/lists/*' \
+          'RUN ZIG_VER=0.11.0 && \              \
+            curl -fsSL https://ziglang.org/download/0.11.0/zig-linux-x86_64-0.11.0.tar.xz -o /tmp/zig.tar.xz && \  \
+            mkdir -p /opt/zig && tar -xJf /tmp/zig.tar.xz -C /opt/zig --strip-components=1 && rm /tmp/zig.tar.xz && \ 
+            ln -s /opt/zig/zig /usr/local/bin/zig || true && \ 
+            echo '--- Diagnostics: zig and gcc info ---' && which zig || true && zig version || true && which cc || true && cc --version || true && echo 'Include search' && echo | cc -v -E -x c - 2>&1 | sed -n '/#include <...> search starts here:/, /End of search list./p'' \
+          'ENV CC=gcc' \
+          'ENV CXX=g++' \
           'USER fyne' > Dockerfile.linux-amd64
 
         # ARM64 cross-compilation image (runs on AMD64 but cross-compiles for ARM64)
@@ -153,7 +162,14 @@ jobs:
           '      libgtk-3-dev:arm64 \' \
           '      pkg-config \' \
           '      crossbuild-essential-arm64 \' \
-          '    && rm -rf /var/lib/apt/lists/* && rm -rf /usr/local/zig || true' \
+          '      curl \' \
+          '      ca-certificates \' \
+          '    && rm -rf /var/lib/apt/lists/*' \
+          'RUN ZIG_VER=0.11.0 && \              \
+            curl -fsSL https://ziglang.org/download/0.11.0/zig-linux-aarch64-0.11.0.tar.xz -o /tmp/zig.tar.xz && \  \
+            mkdir -p /opt/zig && tar -xJf /tmp/zig.tar.xz -C /opt/zig --strip-components=1 && rm /tmp/zig.tar.xz && \ 
+            ln -s /opt/zig/zig /usr/local/bin/zig || true && \ 
+            echo '--- Diagnostics: zig and gcc info ---' && which zig || true && zig version || true && which cc || true && cc --version || true && echo 'Include search' && echo | cc -v -E -x c - 2>&1 | sed -n '/#include <...> search starts here:/, /End of search list./p'' \
           'ENV PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig' \
           'ENV PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig' \
           'ENV CC=aarch64-linux-gnu-gcc' \
@@ -194,7 +210,9 @@ jobs:
           -name owlcms \
           -env="CGO_ENABLED=1" \
           -env="CC=gcc" \
-          -env="CXX=g++"
+          -env="CXX=g++" \
+          -env="CPATH=/usr/include:/usr/include/x86_64-linux-gnu" \
+          -env="CGO_CFLAGS=-I/usr/include -I/usr/include/x86_64-linux-gnu"
 
     - name: Copy Linux binary
       if: ${{ env.BUILD_LINUX == 'true' }}
@@ -222,7 +240,9 @@ jobs:
           -name owlcms \
           -env="CGO_ENABLED=1" \
           -env="CC=aarch64-linux-gnu-gcc" \
-          -env="CXX=aarch64-linux-gnu-g++"
+          -env="CXX=aarch64-linux-gnu-g++" \
+          -env="CPATH=/usr/include:/usr/lib/aarch64-linux-gnu/include" \
+          -env="CGO_CFLAGS=-I/usr/include -I/usr/lib/aarch64-linux-gnu/include"
 
     - name: Copy Raspberry Pi binary
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
