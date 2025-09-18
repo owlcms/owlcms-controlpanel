@@ -24,7 +24,6 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/Masterminds/semver/v3"
-	sqdialog "github.com/sqweek/dialog"
 )
 
 var (
@@ -397,24 +396,20 @@ func setupMenus(w fyne.Window) {
 		}),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Install from Local ZIP", func() {
-			// Use native file chooser from sqweek/dialog for consistent behaviour
-			path, err := sqdialog.File().Filter("ZIP files", "zip").Title("Select OWLCMS ZIP").Load()
-			if err != nil {
-				// user cancelled
-				if err == sqdialog.ErrCancelled {
+			// Use platform-specific file chooser implementation.
+			// The concrete implementation will invoke the provided callback
+			// asynchronously with the selected path or an error.
+			selectLocalZip(w, func(path string, err error) {
+				if err != nil {
+					dialog.ShowError(fmt.Errorf("file selection failed: %w", err), w)
 					return
 				}
-				dialog.ShowError(fmt.Errorf("file selection failed: %w", err), w)
-				return
-			}
-
-			// If no file selected, just return
-			if path == "" {
-				return
-			}
-
-			// Process the selected ZIP file
-			processLocalZipFile(path, w)
+				if path == "" {
+					// user cancelled or no selection
+					return
+				}
+				processLocalZipFile(path, w)
+			})
 		}),
 	)
 	killMenu := fyne.NewMenu("Processes",
