@@ -8,6 +8,7 @@ The control panel is installed once. It will automatically download the current 
 
 ### Change Log
 
+- 2.6.0: Use a native file selector for the "Install from Local Zip" feature.
 - 2.5.1: Would not start on first install
 - 2.5.0: improved kill behaviour
 - 2.5.0: Avoid false alarms about owlcms processes already running by doing an active check.

@@ -53,37 +53,6 @@ jobs:
       if: ${{ env.BUILD_MAC == 'true' }}
       run: npm install -g appdmg
 
-    # - name: Build for macOS arm64
-    #   if: ${{ env.BUILD_MAC == 'true' }}
-    #   run: |
-    #     export GOOS=darwin
-    #     export GOARCH=arm64
-    #     export CGO_ENABLED=1
-    #     go build -o owlcms .
-
-    # - name: Package for macOS arm64
-    #   if: ${{ env.BUILD_MAC == 'true' }}
-    #   run: |
-    #     export GOOS=darwin
-    #     export GOARCH=arm64
-    #     export CGO_ENABLED=1
-    #     rm -rf owlcms.app
-    #     fyne package -os darwin -icon Icon.png -name owlcms -executable owlcms
-
-    # - name: Move macOS arm64 app to dist directory
-    #   if: ${{ env.BUILD_MAC == 'true' }}
-    #   run: |
-    #     rm -rf dist/darwin-arm64
-    #     mkdir -p dist/darwin-arm64
-    #     mv owlcms.app dist/darwin-arm64/
-    #     ls -l dist/darwin-arm64
-
-    # - name: Create DMG for macOS arm64
-    #   if: ${{ env.BUILD_MAC == 'true' }}
-    #   run: |
-    #     mkdir -p artifacts
-    #     appdmg dist/appdmg_arm64.json artifacts/macOS_Apple_M-series_Control_Panel_Installer.dmg
-
     - name: Build for macOS amd64
       if: ${{ env.BUILD_MAC == 'true' }}
       run: |
@@ -156,7 +125,41 @@ jobs:
       run: |
         sed -i "s/_TAG_/${TAG}/g" config.go
 
-    # Windows build steps
+    # Create custom Docker images with GTK support
+    - name: Create custom fyne-cross Docker images
+      run: |
+        # AMD64 Linux image with GTK
+        cat > Dockerfile.linux-amd64 << 'EOF'
+        FROM fyneio/fyne-cross:1.4-linux
+        USER root
+        RUN apt-get update && apt-get install -y \
+            libgtk-3-dev \
+            pkg-config \
+            && rm -rf /var/lib/apt/lists/*
+        USER fyne
+        EOF
+        
+        # ARM64 Linux image with GTK (for Raspberry Pi)
+        cat > Dockerfile.linux-arm64 << 'EOF'
+        FROM fyneio/fyne-cross:1.4-linux-arm64
+        USER root
+        RUN dpkg --add-architecture arm64 && \
+            apt-get update && \
+            apt-get install -y \
+              libgtk-3-dev:arm64 \
+              pkg-config \
+              crossbuild-essential-arm64 \
+            && rm -rf /var/lib/apt/lists/*
+        ENV PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+        ENV PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig
+        USER fyne
+        EOF
+        
+        # Build the custom images
+        docker build -f Dockerfile.linux-amd64 -t owlcms-fyne-cross:linux-amd64 .
+        docker build -f Dockerfile.linux-arm64 -t owlcms-fyne-cross:linux-arm64 .
+
+    # Windows build steps (unchanged)
     - name: Build for Windows
       if: ${{ env.BUILD_WINDOWS == 'true' }}
       run: |
@@ -166,19 +169,25 @@ jobs:
 
     # Linux and Raspberry Pi preparation
     - name: Install Ruby
-      if: ${{ env.BUILD_LINUX == 'true' }}
+      if: ${{ env.BUILD_LINUX == 'true' || env.BUILD_RASPBERRY == 'true' }}
       run: sudo apt-get install -y ruby-full
 
     - name: Install fpm
-      if: ${{ env.BUILD_LINUX == 'true' }}
+      if: ${{ env.BUILD_LINUX == 'true' || env.BUILD_RASPBERRY == 'true' }}
       run: |
         sudo gem install --no-document fpm
         echo "$(gem environment gemdir)/bin" >> $GITHUB_PATH
 
-    # Linux Intel steps
-    - name: Build for Linux amd64
+    # Linux Intel steps with GTK support
+    - name: Build for Linux amd64 with GTK
       if: ${{ env.BUILD_LINUX == 'true' }}
-      run: fyne-cross linux -arch amd64 -app-id app.owlcms.controlpanel -icon Icon.png -name owlcms
+      run: |
+        fyne-cross linux -arch amd64 \
+          -image=owlcms-fyne-cross:linux-amd64 \
+          -app-id app.owlcms.controlpanel \
+          -icon Icon.png \
+          -name owlcms \
+          -env="CGO_ENABLED=1"
 
     - name: Copy Linux binary
       if: ${{ env.BUILD_LINUX == 'true' }}
@@ -190,14 +199,21 @@ jobs:
         fpm -s tar -t deb -n owlcms-launcher -v ${DEB_TAG} -a amd64 --prefix / \
           --after-install ./dist/after_install.sh \
           --after-remove ./dist/after_remove.sh \
+          --depends libgtk-3-0 \
           ./fyne-cross/dist/linux-amd64/owlcms.tar.xz
         mkdir -p artifacts
         mv owlcms-launcher_${DEB_TAG}_amd64.deb artifacts/Linux_Control_Panel_Installer.deb
 
-    # Raspberry Pi steps
-    - name: Build for Linux arm64
+    # Raspberry Pi steps with GTK support
+    - name: Build for Linux arm64 with GTK
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
-      run: fyne-cross linux -arch arm64 -app-id app.owlcms.controlpanel -icon Icon.png -name owlcms
+      run: |
+        fyne-cross linux -arch arm64 \
+          -image=owlcms-fyne-cross:linux-arm64 \
+          -app-id app.owlcms.controlpanel \
+          -icon Icon.png \
+          -name owlcms \
+          -env="CGO_ENABLED=1"
 
     - name: Copy Raspberry Pi binary
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
@@ -209,6 +225,7 @@ jobs:
         fpm -s tar -t deb -n owlcms-launcher -v ${DEB_TAG} -a arm64 --prefix / \
           --after-install ./dist/after_install.sh \
           --after-remove ./dist/after_remove.sh \
+          --depends libgtk-3-0 \
           ./fyne-cross/dist/linux-arm64/owlcms.tar.xz
         mkdir -p artifacts
         mv owlcms-launcher_${DEB_TAG}_arm64.deb artifacts/Raspberry_Pi_arm64_Control_Panel_Installer.deb
@@ -255,71 +272,6 @@ jobs:
       with:
         name: build_crosscompile_artifacts
         path: ./dist
-
-    # - name: Install MakeAppx
-    #   if: ${{ env.BUILD_WINDOWS == 'true' }}
-    #   shell: pwsh
-    #   run: |
-    #     Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/?linkid=2286561" -OutFile "sdksetup.exe"
-    #     Start-Process -FilePath "sdksetup.exe" -ArgumentList "/features OptionId.SigningTools /q" -NoNewWindow -Wait
-
-    # - name: Create MSIX Package
-    #   if: ${{ env.BUILD_WINDOWS == 'true' }}
-    #   shell: pwsh
-    #   run: |
-    #     # Ensure directory exists and is empty
-    #     if (Test-Path dist\msix) {
-    #         Remove-Item -Path dist\msix -Recurse -Force
-    #     }
-    #     New-Item -ItemType Directory -Path dist\msix -Force
-        
-    #     # Copy required files
-    #     Copy-Item -Path dist\owlcms.exe -Destination dist\msix\
-    #     Copy-Item -Path dist\Assets -Destination dist\msix\ -Recurse
-        
-    #     # Get tag from environment and validate
-    #     $tagValue = [System.Environment]::GetEnvironmentVariable('TAG')
-    #     if (-not $tagValue) {
-    #         Write-Error "TAG environment variable is not set"
-    #         exit 1
-    #     }
-        
-    #     # Calculate version
-    #     $version = $tagValue.TrimStart('v')
-    #     $fourthPart = 400  # default for release version
-    #     if ($version -match "-(alpha|beta|rc)(\d+)") {
-    #         $prefix = $matches[1]
-    #         $num = [int]$matches[2]
-    #         switch ($prefix) {
-    #             "alpha" { $fourthPart = 100 + $num }
-    #             "beta"  { $fourthPart = 200 + $num }
-    #             "rc"    { $fourthPart = 300 + $num }
-    #         }
-    #     }
-    #     $version = $version -replace '-.*$', ''  # remove any pre-release suffix
-    #     $versionParts = $version -split '\.'
-    #     $major = [int]$versionParts[0]
-    #     $minor = [int]$versionParts[1]
-    #     $patch = [int]$versionParts[2]
-    #     $computed = (($patch + 1) * 1000) + $fourthPart
-    #     $fullVersion = "$($major).$($minor).$($computed).0"
-
-    #     Write-Host "Using version: $fullVersion"
-        
-    #     # Update manifest
-    #     if (-not (Test-Path dist\AppxManifest.xml)) {
-    #         Write-Error "AppxManifest.xml not found in dist directory"
-    #         exit 1
-    #     }
-    #     $manifestContent = Get-Content dist\AppxManifest.xml -Raw
-    #     $manifestContent = $manifestContent -replace '_TAG_',$fullVersion
-    #     $manifestContent | Set-Content dist\msix\AppxManifest.xml -Force
-        
-    #     & "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\MakeAppx.exe" pack /d dist\msix /p "artifacts\owlcms-Panel_windows_$($tagValue).msix"
-    #     if ($LASTEXITCODE -ne 0) {
-    #         Write-Error "MakeAppx failed with exit code $LASTEXITCODE"
-    #         exit $LASTEXITCODE
-    #     }
 
     - name: Prepare Inno Setup directory
       if: ${{ env.BUILD_WINDOWS == 'true' }}
@@ -416,13 +368,6 @@ jobs:
             --notes-file ./dist/RELEASE.md
         fi
 
-    # - name: Release macOS arm64 DMG
-    #   if: ${{ env.BUILD_MAC == 'true' }}
-    #   env:
-    #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    #   run: |
-    #     gh release upload ${{ env.TAG }} dist/macOS_Apple_M-series_Control_Panel_Installer.dmg
-
     - name: Release macOS amd64 DMG
       if: ${{ env.BUILD_MAC == 'true' }}
       env:
@@ -457,11 +402,3 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         gh release upload ${{ env.TAG }} dist/owlcms_controlpanel.exe
-
-    # - name: Release Windows MSIX package
-    #   if: ${{ env.BUILD_WINDOWS == 'true' }}
-    #   env:
-    #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    #   run: |
-    #     gh release upload ${{ env.TAG }} dist/owlcms-Panel_windows_${{ env.TAG }}.msix
-
