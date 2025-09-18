@@ -6,10 +6,12 @@ require (
 	fyne.io/fyne/v2 v2.5.3
 	github.com/gofrs/flock v0.12.1
 	github.com/magiconair/properties v1.8.9
+	github.com/sqweek/dialog v0.0.0-20240226140203-065105509627
 )
 
 require (
 	github.com/BurntSushi/toml v1.4.0 // indirect
+	github.com/TheTitanrain/w32 v0.0.0-20180517000239-4f5cfb03fabf // indirect
 	github.com/jeandeaual/go-locale v0.0.0-20241217141322-fcc2cadd6f08 // indirect
 	github.com/nicksnyder/go-i18n/v2 v2.4.1 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect

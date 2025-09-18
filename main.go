@@ -21,10 +21,10 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout" // Corrected import with v2
-	"fyne.io/fyne/v2/storage"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/Masterminds/semver/v3"
+	sqdialog "github.com/sqweek/dialog"
 )
 
 var (
@@ -182,7 +182,7 @@ func main() {
 	// Initialize environment early
 	if err := InitEnv(); err != nil {
 		log.Printf("Failed to initialize environment: %v", err)
-		dialog.ShowError(fmt.Errorf("Failed to initialize environment: %w", err), w)
+		dialog.ShowError(fmt.Errorf("failed to initialize environment: %w", err), w)
 	}
 
 	// Check for updates immediately after showing the window
@@ -397,28 +397,24 @@ func setupMenus(w fyne.Window) {
 		}),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Install from Local ZIP", func() {
-			// Create and show file dialog to select ZIP file
-			fileDialog := dialog.NewFileOpen(
-				func(reader fyne.URIReadCloser, err error) {
-					if err != nil {
-						dialog.ShowError(err, w)
-						return
-					}
-					if reader == nil {
-						// User canceled the operation
-						return
-					}
+			// Use native file chooser from sqweek/dialog for consistent behaviour
+			path, err := sqdialog.File().Filter("ZIP files", "zip").Title("Select OWLCMS ZIP").Load()
+			if err != nil {
+				// user cancelled
+				if err == sqdialog.ErrCancelled {
+					return
+				}
+				dialog.ShowError(fmt.Errorf("file selection failed: %w", err), w)
+				return
+			}
 
-					// Process the selected ZIP file
-					processLocalZipFile(reader.URI().Path(), w)
-					reader.Close()
-				},
-				w,
-			)
+			// If no file selected, just return
+			if path == "" {
+				return
+			}
 
-			// Set file filter to only show ZIP files
-			fileDialog.SetFilter(storage.NewExtensionFileFilter([]string{".zip"}))
-			fileDialog.Show()
+			// Process the selected ZIP file
+			processLocalZipFile(path, w)
 		}),
 	)
 	killMenu := fyne.NewMenu("Processes",
