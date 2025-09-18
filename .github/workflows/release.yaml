@@ -13,8 +13,8 @@ jobs:
   build_mac:
     runs-on: macos-13
     env:
-      BUILD_MAC: true
-      BUILD_WINDOWS: true
+      BUILD_MAC: false
+      BUILD_WINDOWS: false
       BUILD_RASPBERRY: true
       BUILD_LINUX: true
 
@@ -91,8 +91,8 @@ jobs:
   build_crosscompile:
     runs-on: ubuntu-latest
     env:
-      BUILD_MAC: true
-      BUILD_WINDOWS: true
+      BUILD_MAC: false
+      BUILD_WINDOWS: false
       BUILD_RASPBERRY: true
       BUILD_LINUX: true
 
@@ -190,7 +190,9 @@ jobs:
           -app-id app.owlcms.controlpanel \
           -icon Icon.png \
           -name owlcms \
-          -env="CGO_ENABLED=1"
+          -env="CGO_ENABLED=1" \
+          -env="CC=gcc" \
+          -env="CXX=g++"
 
     - name: Copy Linux binary
       if: ${{ env.BUILD_LINUX == 'true' }}
@@ -216,7 +218,9 @@ jobs:
           -app-id app.owlcms.controlpanel \
           -icon Icon.png \
           -name owlcms \
-          -env="CGO_ENABLED=1"
+          -env="CGO_ENABLED=1" \
+          -env="CC=aarch64-linux-gnu-gcc" \
+          -env="CXX=aarch64-linux-gnu-g++"
 
     - name: Copy Raspberry Pi binary
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
@@ -244,8 +248,8 @@ jobs:
     runs-on: windows-latest
     needs: build_crosscompile
     env:
-      BUILD_MAC: true
-      BUILD_WINDOWS: true
+      BUILD_MAC: false
+      BUILD_WINDOWS: false
       BUILD_RASPBERRY: true
       BUILD_LINUX: true
 
@@ -310,8 +314,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build_mac, build_crosscompile, package_windows]
     env:
-      BUILD_MAC: true
-      BUILD_WINDOWS: true
+      BUILD_MAC: false
+      BUILD_WINDOWS: false
       BUILD_RASPBERRY: true
       BUILD_LINUX: true
 

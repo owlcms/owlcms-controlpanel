@@ -4,8 +4,8 @@ git tag -d ${TAG}
 git push origin --delete ${TAG}
 gh release delete ${TAG} --repo owlcms/owlcms-controlpanel --yes
 
-BUILD_MAC=true
-BUILD_WINDOWS=true
+BUILD_MAC=false
+BUILD_WINDOWS=false
 BUILD_RASPBERRY=true
 BUILD_LINUX=true
 
