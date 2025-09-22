@@ -6,9 +6,11 @@ This is a control panel for owlcms.  It is meant to:
 
 The control panel is installed once. It will automatically download the current version of owlcms and the correct version of Java when used for the first time.
 
-### Change Log
 
-- 2.5.1: Would not start on first install
+### Change Log
+- 2.6.0: The `Install from Local ZIP` menu option now uses the familiar file chooser from the operating system.  This will make it easier for federations to provide customized kits.
+
+### Previous versions
 - 2.5.0: improved kill behaviour
 - 2.5.0: Avoid false alarms about owlcms processes already running by doing an active check.
 - 2.4.3: Fix for Raspberry Pi Java version - the latest JDK build is missing 2/3 of the expected releases, using a predetermined version instead.
