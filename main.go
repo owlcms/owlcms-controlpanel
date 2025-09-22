@@ -210,7 +210,7 @@ func main() {
 
 	// Initialize hidden containers that will be shown later
 	downloadContainer = container.NewVBox()
-	versionContainer = container.NewMax()                                           // Use NewMax so it expands in the center
+	versionContainer = container.NewStack()                                         // Use Stack so it expands in the center (replaces deprecated NewMax)
 	stopContainer = container.NewVBox(stopButton, statusLabel, urlLink, appDirLink) // Add appDirLink here
 
 	// Set initial content to show loading state immediately

@@ -896,7 +896,7 @@ func recomputeVersionList(w fyne.Window) {
 
 	numVersions := len(getAllInstalledVersions())
 	versionScroll := container.NewVScroll(newVersionList)
-	center := container.NewMax(versionScroll)
+	center := container.NewStack(versionScroll)
 
 	if numVersions == 0 {
 		versionScroll.Hide()
