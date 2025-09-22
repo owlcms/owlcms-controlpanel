@@ -263,8 +263,13 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 	if prereleaseCheckbox != nil {
 		prereleaseCheckbox.Hide()
 	}
-	releaseDropdown = container.New(layout.NewHBoxLayout(), selectWidget)
-	releaseDropdown.Resize(fyne.NewSize(200, 200))
+	// Put the select widget and the prerelease checkbox side-by-side
+	horiz := container.New(layout.NewHBoxLayout(), selectWidget)
+	if prereleaseCheckbox != nil {
+		horiz.Add(prereleaseCheckbox)
+	}
+	releaseDropdown = horiz
+	releaseDropdown.Resize(fyne.NewSize(300, 200))
 
 	return selectWidget, releaseDropdown
 }
@@ -319,7 +324,6 @@ func setupReleaseDropdown(w fyne.Window) {
 			singleOrMultiVersionLabel,
 			downloadButtonTitle,
 			dropdownContainer,
-			prereleaseCheckbox,
 		}
 	} else {
 		downloadContainer.Objects = []fyne.CanvasObject{

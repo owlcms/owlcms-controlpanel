@@ -306,15 +306,20 @@ func main() {
 
 		// Initialize version list and UI components
 		recomputeVersionList(w)
-		releaseSelect, releaseDropdown := createReleaseDropdown(w)
-		updateTitle.Hide()
-		releaseDropdown.Hide()
 
+		// Create prerelease checkbox first so the dropdown builder can include it in the same horizontal container
+		var releaseSelect *widget.Select
 		prereleaseCheckbox = widget.NewCheck("Show Prereleases", func(checked bool) {
 			showPrereleases = checked
-			populateReleaseSelect(releaseSelect)
+			if releaseSelect != nil {
+				populateReleaseSelect(releaseSelect)
+			}
 		})
 		prereleaseCheckbox.Hide()
+
+		releaseSelect, releaseDropdown = createReleaseDropdown(w)
+		updateTitle.Hide()
+		releaseDropdown.Hide()
 
 		if len(allReleases) > 0 {
 			downloadContainer.Objects = []fyne.CanvasObject{
@@ -322,7 +327,6 @@ func main() {
 				singleOrMultiVersionLabel,
 				downloadButtonTitle,
 				releaseDropdown,
-				prereleaseCheckbox,
 			}
 		} else {
 			downloadContainer.Objects = []fyne.CanvasObject{
