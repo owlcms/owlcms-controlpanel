@@ -1,8 +1,10 @@
 package main
 
 import (
+	"archive/zip"
 	"fmt"
 	"image/color"
+	"io"
 	"log"
 	"net/url"
 	"os"
@@ -77,6 +79,20 @@ func getInstallDir() string {
 	default:
 		return "./owlcms"
 	}
+}
+
+// stripVersionMetadata removes build metadata (the part after +) from a version string
+// e.g., "1.2.0-rc.1+20251116.gitsha" becomes "1.2.0-rc.1"
+func stripVersionMetadata(version string) string {
+	v, err := semver.NewVersion(version)
+	if err != nil {
+		return version
+	}
+	// Reconstruct version without metadata
+	if v.Prerelease() != "" {
+		return fmt.Sprintf("%d.%d.%d-%s", v.Major(), v.Minor(), v.Patch(), v.Prerelease())
+	}
+	return fmt.Sprintf("%d.%d.%d", v.Major(), v.Minor(), v.Patch())
 }
 
 func checkJava(statusLabel *widget.Label) error {
@@ -399,7 +415,7 @@ func setupMenus(w fyne.Window) {
 			}
 		}),
 		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("Install from Local ZIP", func() {
+		fyne.NewMenuItem("Install version from ZIP", func() {
 			// Use platform-specific file chooser implementation.
 			// The concrete implementation will invoke the provided callback
 			// asynchronously with the selected path or an error.
@@ -414,6 +430,9 @@ func setupMenus(w fyne.Window) {
 				}
 				processLocalZipFile(path, w)
 			})
+		}),
+		fyne.NewMenuItem("Save installed version as ZIP", func() {
+			zipCurrentSetup(w)
 		}),
 	)
 	killMenu := fyne.NewMenu("Processes",
@@ -584,6 +603,168 @@ func installLocalZipFile(zipPath, version string, w fyne.Window) {
 		// Recompute the downloadTitle
 		checkForNewerVersion()
 	}()
+}
+
+// zipCurrentSetup creates a ZIP file of a selected installed version
+func zipCurrentSetup(w fyne.Window) {
+	versions := getAllInstalledVersions()
+	if len(versions) == 0 {
+		dialog.ShowError(fmt.Errorf("no versions installed to zip"), w)
+		return
+	}
+
+	// Create a dialog to select which version to zip
+	versionSelect := widget.NewSelect(versions, func(selected string) {})
+	if len(versions) == 1 {
+		versionSelect.Selected = versions[0]
+	}
+
+	dialog.ShowForm("Zip Current Setup",
+		"Create ZIP",
+		"Cancel",
+		[]*widget.FormItem{
+			widget.NewFormItem("Select version to zip", versionSelect),
+		},
+		func(ok bool) {
+			if !ok || versionSelect.Selected == "" {
+				return
+			}
+
+			version := versionSelect.Selected
+			sourceDir := filepath.Join(owlcmsInstallDir, version)
+
+			// Check if directory exists
+			if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
+				dialog.ShowError(fmt.Errorf("version directory does not exist: %s", version), w)
+				return
+			}
+
+			// Create filename with version and timestamp in ISO format
+			timestamp := time.Now().Format("2006-01-02_150405")
+			zipFileName := fmt.Sprintf("owlcms_%s_%s.zip", version, timestamp)
+
+			// Ask user where to save the zip file using platform-specific dialog
+			selectSaveZip(w, zipFileName, func(zipPath string, err error) {
+				if err != nil {
+					dialog.ShowError(fmt.Errorf("failed to select save location: %w", err), w)
+					return
+				}
+				if zipPath == "" {
+					// User cancelled
+					return
+				}
+
+				// Create progress dialog
+				progressBar := widget.NewProgressBar()
+				messageLabel := widget.NewLabel(fmt.Sprintf("Creating ZIP file for version %s...", version))
+				progressContent := container.NewVBox(messageLabel, progressBar)
+				progressDialog := dialog.NewCustom(
+					"Creating ZIP",
+					"Please wait...",
+					progressContent,
+					w)
+				progressDialog.Show()
+
+				go func() {
+					defer progressDialog.Hide()
+
+					// Create the zip file
+					err := createZipArchive(sourceDir, zipPath, func(progress float64) {
+						progressBar.SetValue(progress)
+					})
+
+					if err != nil {
+						dialog.ShowError(fmt.Errorf("failed to create ZIP file: %w", err), w)
+						return
+					}
+
+					dialog.ShowInformation("Success",
+						fmt.Sprintf("Successfully created ZIP file:\n%s", zipPath), w)
+				}()
+			})
+		},
+		w)
+}
+
+// createZipArchive creates a zip file from a directory
+func createZipArchive(sourceDir, zipPath string, progressCallback func(float64)) error {
+	// Count total files first for progress tracking
+	var totalFiles int
+	filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		if err == nil && !info.IsDir() {
+			totalFiles++
+		}
+		return nil
+	})
+
+	zipFile, err := os.Create(zipPath)
+	if err != nil {
+		return fmt.Errorf("failed to create zip file: %w", err)
+	}
+	defer zipFile.Close()
+
+	zipWriter := zip.NewWriter(zipFile)
+	defer zipWriter.Close()
+
+	var processedFiles int
+	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Get relative path
+		relPath, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return err
+		}
+
+		// Skip the root directory itself
+		if relPath == "." {
+			return nil
+		}
+
+		// Create zip header
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return err
+		}
+
+		// Use forward slashes in zip paths
+		header.Name = filepath.ToSlash(relPath)
+
+		if info.IsDir() {
+			header.Name += "/"
+		} else {
+			header.Method = zip.Deflate
+		}
+
+		writer, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+
+		if !info.IsDir() {
+			file, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+			defer file.Close()
+
+			_, err = io.Copy(writer, file)
+			if err != nil {
+				return err
+			}
+
+			processedFiles++
+			if progressCallback != nil && totalFiles > 0 {
+				progressCallback(float64(processedFiles) / float64(totalFiles))
+			}
+		}
+
+		return nil
+	})
+
+	return err
 }
 
 // New helper function to setup signal handling
@@ -774,7 +955,7 @@ func checkForNewerVersion() {
 						log.Printf("Found newer version: %s\n", releaseVersion)
 						var releaseURL string
 						if containsPreReleaseTag(release) {
-							releaseURL = fmt.Sprintf("https://github.com/owlcms/owlcms4-prerelease/releases/tag/%s", release)
+							releaseURL = fmt.Sprintf("https://github.com/owlcms/owlcms4-prerelease/releases/tag/%s", stripVersionMetadata(release))
 							if containsPreReleaseTag(latestInstalled) {
 								updateTitle.ParseMarkdown(fmt.Sprintf("**A more recent prerelease version %s is available.** [Release Notes](%s)", releaseVersion, releaseURL))
 								updateTitle.Refresh()
@@ -782,7 +963,7 @@ func checkForNewerVersion() {
 								return
 							}
 						} else {
-							releaseURL = fmt.Sprintf("https://github.com/owlcms/owlcms4/releases/tag/%s", release)
+							releaseURL = fmt.Sprintf("https://github.com/owlcms/owlcms4/releases/tag/%s", stripVersionMetadata(release))
 							updateTitle.ParseMarkdown(fmt.Sprintf("**A more recent stable version %s is available.** [Release Notes](%s)", releaseVersion, releaseURL))
 							updateTitle.Refresh()
 							updateTitle.Show()
@@ -799,15 +980,15 @@ func checkForNewerVersion() {
 
 			var releaseURL string
 			if containsPreReleaseTag(latestInstalled) {
-				stableURL := fmt.Sprintf("https://github.com/owlcms/owlcms4/releases/tag/%s", latestStable)
-				prereleaseURL := fmt.Sprintf("https://github.com/owlcms/owlcms4-prerelease/releases/tag/%s", latestInstalled)
+				stableURL := fmt.Sprintf("https://github.com/owlcms/owlcms4/releases/tag/%s", stripVersionMetadata(latestStable.String()))
+				prereleaseURL := fmt.Sprintf("https://github.com/owlcms/owlcms4-prerelease/releases/tag/%s", stripVersionMetadata(latestInstalled))
 				updateTitle.ParseMarkdown(fmt.Sprintf(
 					`**The latest installed version is pre-release %s** [Release Notes](%s)
 					
 The latest stable version is %s. [Release Notes](%s)`,
 					latestInstalled, prereleaseURL, latestStable, stableURL))
 			} else {
-				releaseURL = fmt.Sprintf("https://github.com/owlcms/owlcms4/releases/tag/%s", latestInstalled)
+				releaseURL = fmt.Sprintf("https://github.com/owlcms/owlcms4/releases/tag/%s", stripVersionMetadata(latestInstalled))
 				updateTitle.ParseMarkdown(fmt.Sprintf("**The latest stable version is installed.** [Release Notes](%s)", releaseURL))
 			}
 			updateTitle.Refresh()

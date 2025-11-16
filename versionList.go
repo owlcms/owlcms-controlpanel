@@ -151,7 +151,7 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 				container.NewPadded(launchButton),
 				layout.NewSpacer(), // Add spacer to push buttons to the left
 			)
-			grid := container.New(layout.NewHBoxLayout(), container.NewGridWrap(fyne.NewSize(120, 25), label), buttonContainer)
+			grid := container.New(layout.NewHBoxLayout(), container.NewGridWrap(fyne.NewSize(250, 25), label), buttonContainer)
 			return grid
 		},
 		func(index widget.ListItemID, item fyne.CanvasObject) {
