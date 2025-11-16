@@ -8,7 +8,10 @@ The control panel is installed once. It will automatically download the current 
 
 
 ### Change Log
-- 2.6.0: The `Install from Local ZIP` menu option now uses the familiar file chooser from the operating system.  This will make it easier for federations to provide customized kits.
+- 2.7.0: Will now handle +versioninfo in the file names, so that zipped installation files can
+describe what they are for (which federation, etc.)
+- 2.7.0: Ability to package an installation as a zip, to more easily create federation-specific kits.
+- 2.6.0: The `Install from ZIP` menu option now uses the familiar file chooser from the operating system.  This will make it easier for federations to provide customized kits.
 
 ### Previous versions
 - 2.5.0: improved kill behaviour
