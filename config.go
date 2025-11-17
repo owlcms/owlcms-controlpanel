@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	launcherVersion = "2.6.1"              // Dev launcher version
+	launcherVersion = "2.8.0"              // Dev launcher version
 	buildVersion    = "_TAG_"              // Placeholder for build version
 	environment     *properties.Properties // Global variable to hold the environment properties
 )

@@ -475,9 +475,7 @@ func processLocalZipFile(zipPath string, w fyne.Window) {
 		nameWithoutExt := strings.TrimSuffix(fileName, ".zip")
 
 		// Remove "owlcms_" prefix if present
-		if strings.HasPrefix(nameWithoutExt, "owlcms_") {
-			nameWithoutExt = strings.TrimPrefix(nameWithoutExt, "owlcms_")
-		}
+		nameWithoutExt = strings.TrimPrefix(nameWithoutExt, "owlcms_")
 
 		// The version is everything before the last underscore (which precedes the timestamp)
 		// Format: VERSION_YYYY-MM-DD_HHMMSS
