@@ -8,6 +8,11 @@ The control panel is installed once. It will automatically download the current 
 
 
 ### Change Log
+- 2.8.0-rc01: Revised import process. Local is now reset to match the current jar, and then all additions,
+deletions and modifications done in the imported release relative to the imported release's jar
+are applied.
+- 2.7.0: Ability to package an installation as a zip, to more easily create federation-specific kits.
+- 2.6.0: The `Install from ZIP` menu option now uses the familiar file chooser from the operating system.  This will make it easier for federations to provide customized kits.
 - 2.7.0: Will now handle +versioninfo in the file names, so that zipped installation files can
 describe what they are for (which federation, etc.)
 - 2.7.0: Ability to package an installation as a zip, to more easily create federation-specific kits.
