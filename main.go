@@ -468,18 +468,51 @@ func processLocalZipFile(zipPath string, w fyne.Window) {
 	fileName := filepath.Base(zipPath)
 	version := ""
 
-	// Try to extract version from filename (assuming format like "owlcms_4.24.1.zip" or any prefix with semver)
+	// Try to extract version from filename
+	// Handle format: "owlcms_VERSION_TIMESTAMP.zip" where VERSION can be full semver like "1.2.3-rc.1+metadata"
 	if strings.HasSuffix(fileName, ".zip") {
 		// Remove .zip extension
 		nameWithoutExt := strings.TrimSuffix(fileName, ".zip")
 
-		// Find the first digit which might be the start of a semantic version
-		for i, char := range nameWithoutExt {
-			if char >= '0' && char <= '9' {
-				// Found first digit, extract from here to end as potential version
-				version = nameWithoutExt[i:]
-				break
+		// Remove "owlcms_" prefix if present
+		if strings.HasPrefix(nameWithoutExt, "owlcms_") {
+			nameWithoutExt = strings.TrimPrefix(nameWithoutExt, "owlcms_")
+		}
+
+		// The version is everything before the last underscore (which precedes the timestamp)
+		// Format: VERSION_YYYY-MM-DD_HHMMSS
+		// We need to find where the timestamp starts (YYYY-MM-DD pattern)
+		lastUnderscore := strings.LastIndex(nameWithoutExt, "_")
+		if lastUnderscore > 0 {
+			// Check if what follows looks like a timestamp part (HHMMSS)
+			afterLastUnderscore := nameWithoutExt[lastUnderscore+1:]
+			if len(afterLastUnderscore) == 6 && isAllDigits(afterLastUnderscore) {
+				// This is likely the time part, now find the date part
+				beforeLastUnderscore := nameWithoutExt[:lastUnderscore]
+				prevUnderscore := strings.LastIndex(beforeLastUnderscore, "_")
+				if prevUnderscore > 0 {
+					potentialVersion := beforeLastUnderscore[:prevUnderscore]
+					if isValidSemVer(potentialVersion) {
+						version = potentialVersion
+					}
+				}
 			}
+		}
+
+		// If that didn't work, try the simpler approach: split by underscore and find valid semver
+		if version == "" {
+			parts := strings.Split(nameWithoutExt, "_")
+			for _, part := range parts {
+				if isValidSemVer(part) {
+					version = part
+					break
+				}
+			}
+		}
+
+		// Last fallback: try the whole string without underscores
+		if version == "" && isValidSemVer(nameWithoutExt) {
+			version = nameWithoutExt
 		}
 	}
 
@@ -488,11 +521,16 @@ func processLocalZipFile(zipPath string, w fyne.Window) {
 		content := widget.NewEntry()
 		content.SetPlaceHolder("e.g., 4.24.1")
 
+		message := widget.NewLabel("Could not identify a version number in the file name, please provide one")
+		message.Wrapping = fyne.TextWrapWord
+
+		formContent := container.NewVBox(message, content)
+
 		versionDialog := dialog.NewCustomConfirm(
 			"Enter Version",
 			"Install",
 			"Cancel",
-			content,
+			formContent,
 			func(confirmed bool) {
 				if !confirmed || content.Text == "" {
 					return
@@ -517,6 +555,16 @@ func processLocalZipFile(zipPath string, w fyne.Window) {
 func isValidSemVer(version string) bool {
 	_, err := semver.NewVersion(version)
 	return err == nil
+}
+
+// isAllDigits checks if a string contains only digits
+func isAllDigits(s string) bool {
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return len(s) > 0
 }
 
 // installLocalZipFile installs from a local ZIP file
