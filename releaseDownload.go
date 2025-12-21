@@ -29,12 +29,18 @@ type Release struct {
 }
 
 var (
-	showPrereleases     bool = false
-	allReleases         []string
-	releaseDropdown     *fyne.Container
-	prereleaseCheckbox  *widget.Check
-	updateTitle         *widget.RichText  // Change to RichText for Markdown support
-	downloadButtonTitle *widget.Hyperlink // New title for download button
+	showPrereleases      bool = false
+	allReleases          []string
+	releaseDropdown      *fyne.Container
+	prereleaseCheckbox   *widget.Check
+	updateTitle          *widget.RichText  // Change to RichText for Markdown support
+	downloadButtonTitle  *widget.Hyperlink // New title for download button
+	updateTitleContainer *fyne.Container   // Container for update message widgets
+	installAvailableLink *widget.Hyperlink // Hyperlink to install available version
+	releaseNotesLink     *widget.Hyperlink // Hyperlink to release notes
+	availableVersion     string            // Version available for download
+	availableVersionURL  string            // URL for release notes
+	mainWindow           fyne.Window       // Reference to main window for dialogs
 )
 
 func fetchReleases() ([]string, error) {
@@ -232,7 +238,7 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 
 			// Show download button and update title
 			downloadButtonTitle.Show()
-			updateTitle.Show()
+			updateTitleContainer.Show()
 		} else {
 			HideDownloadables()
 			recomputeVersionList(w)
@@ -247,16 +253,22 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 	<-done
 }
 
+// confirmAndDownloadVersion shows a confirmation dialog and downloads the specified version
+// This helper function is used by both the dropdown selector and the "install as new version" link
+func confirmAndDownloadVersion(version string, w fyne.Window) {
+	dialog.ShowConfirm("Confirm Download",
+		fmt.Sprintf("Do you want to download and install OWLCMS version %s?", version),
+		func(ok bool) {
+			if ok {
+				downloadReleaseWithProgress(version, w, false)
+			}
+		},
+		w)
+}
+
 func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 	selectWidget := widget.NewSelect([]string{}, func(selected string) {
-		dialog.ShowConfirm("Confirm Download",
-			fmt.Sprintf("Do you want to download and install OWLCMS version %s?", selected),
-			func(ok bool) {
-				if ok {
-					downloadReleaseWithProgress(selected, w, false)
-				}
-			},
-			w)
+		confirmAndDownloadVersion(selected, w)
 	})
 	selectWidget.PlaceHolder = "Choose a release to download"
 	populateReleaseSelect(selectWidget)
@@ -320,7 +332,7 @@ func setupReleaseDropdown(w fyne.Window) {
 	selectWidget, dropdownContainer := createReleaseDropdown(w)
 	if len(allReleases) > 0 {
 		downloadContainer.Objects = []fyne.CanvasObject{
-			updateTitle,
+			updateTitleContainer,
 			singleOrMultiVersionLabel,
 			downloadButtonTitle,
 			dropdownContainer,

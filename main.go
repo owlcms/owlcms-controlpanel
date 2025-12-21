@@ -151,9 +151,12 @@ func removeAllVersions() {
 	dialog.ShowInformation("Success", "All versions removed successfully", fyne.CurrentApp().Driver().AllWindows()[0])
 	getAllInstalledVersions()
 	updateTitle.ParseMarkdown("All Versions Removed.")
+	releaseNotesLink.Hide()
+	installAvailableLink.Hide()
 	downloadButtonTitle.SetText("Click here to install a version.")
 	downloadButtonTitle.Refresh()
 	updateTitle.Refresh()
+	updateTitleContainer.Refresh()
 	recomputeVersionList(fyne.CurrentApp().Driver().AllWindows()[0])
 }
 
@@ -191,7 +194,7 @@ func main() {
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
 	a.Settings().SetTheme(newMyTheme())
 	w := a.NewWindow("OWLCMS Control Panel")
-	w.Resize(fyne.NewSize(800, 430))
+	w.Resize(fyne.NewSize(900, 430))
 	w.Show()
 
 	// Initialize environment early
@@ -233,8 +236,28 @@ func main() {
 	w.SetContent(initialLoadingContent)
 	w.Show() // Show window immediately with loading indicator
 
+	// Store main window reference for use in other functions
+	mainWindow = w
+
 	// Initialize download titles (these won't be visible yet)
-	updateTitle = widget.NewRichTextFromMarkdown("")                                             // Initialize as RichText for Markdown
+	updateTitle = widget.NewRichTextFromMarkdown("") // Initialize as RichText for Markdown
+
+	// Initialize release notes hyperlink
+	releaseNotesLink = widget.NewHyperlink("Release Notes", nil)
+	releaseNotesLink.Hide()
+
+	// Initialize install hyperlink for available version
+	installAvailableLink = widget.NewHyperlink("install as new version", nil)
+	installAvailableLink.OnTapped = func() {
+		if availableVersion != "" {
+			confirmAndDownloadVersion(availableVersion, mainWindow)
+		}
+	}
+	installAvailableLink.Hide()
+
+	// Create container to hold update title and hyperlinks
+	updateTitleContainer = container.NewHBox(updateTitle, releaseNotesLink, installAvailableLink)
+
 	downloadButtonTitle = widget.NewHyperlink("Click here to install additional versions.", nil) // New title for download button
 	downloadButtonTitle.OnTapped = func() {
 		if !downloadsShown {
@@ -334,12 +357,12 @@ func main() {
 		prereleaseCheckbox.Hide()
 
 		releaseSelect, releaseDropdown = createReleaseDropdown(w)
-		updateTitle.Hide()
+		updateTitleContainer.Hide()
 		releaseDropdown.Hide()
 
 		if len(allReleases) > 0 {
 			downloadContainer.Objects = []fyne.CanvasObject{
-				updateTitle,
+				updateTitleContainer,
 				singleOrMultiVersionLabel,
 				downloadButtonTitle,
 				releaseDropdown,
@@ -355,7 +378,7 @@ func main() {
 
 		// Update UI and switch to main content
 		populateReleaseSelect(releaseSelect)
-		updateTitle.Show()
+		updateTitleContainer.Show()
 		releaseDropdown.Hide()
 		prereleaseCheckbox.Hide()
 
@@ -989,6 +1012,26 @@ func checkForNewerVersion() {
 	// Set the single or multi version label
 	updateExplanation()
 
+	// Helper function to set up the install link for an available version
+	setAvailableVersionLinks := func(version, releaseURL string) {
+		availableVersion = version
+		availableVersionURL = releaseURL
+		parsedURL, _ := url.Parse(releaseURL)
+		releaseNotesLink.SetURL(parsedURL)
+		releaseNotesLink.Show()
+		installAvailableLink.Show()
+		updateTitleContainer.Refresh()
+	}
+
+	// Helper function to hide the install link
+	hideAvailableVersionLinks := func() {
+		availableVersion = ""
+		availableVersionURL = ""
+		releaseNotesLink.Hide()
+		installAvailableLink.Hide()
+		updateTitleContainer.Refresh()
+	}
+
 	if latestInstalled != "" {
 		latestStable, _ := semver.NewVersion("0.0.0")
 		latestInstalledVersion, err := semver.NewVersion(latestInstalled)
@@ -1003,16 +1046,20 @@ func checkForNewerVersion() {
 						if containsPreReleaseTag(release) {
 							releaseURL = fmt.Sprintf("https://github.com/owlcms/owlcms4-prerelease/releases/tag/%s", stripVersionMetadata(release))
 							if containsPreReleaseTag(latestInstalled) {
-								updateTitle.ParseMarkdown(fmt.Sprintf("**A more recent prerelease version %s is available.** [Release Notes](%s)", releaseVersion, releaseURL))
+								updateTitle.ParseMarkdown(fmt.Sprintf("**A more recent prerelease version %s is available.**", releaseVersion))
 								updateTitle.Refresh()
 								updateTitle.Show()
+								setAvailableVersionLinks(release, releaseURL)
+								updateTitleContainer.Show()
 								return
 							}
 						} else {
 							releaseURL = fmt.Sprintf("https://github.com/owlcms/owlcms4/releases/tag/%s", stripVersionMetadata(release))
-							updateTitle.ParseMarkdown(fmt.Sprintf("**A more recent stable version %s is available.** [Release Notes](%s)", releaseVersion, releaseURL))
+							updateTitle.ParseMarkdown(fmt.Sprintf("**A more recent stable version %s is available.**", releaseVersion))
 							updateTitle.Refresh()
 							updateTitle.Show()
+							setAvailableVersionLinks(release, releaseURL)
+							updateTitleContainer.Show()
 							return
 						}
 					}
@@ -1023,6 +1070,7 @@ func checkForNewerVersion() {
 			}
 			updateTitle.Show()
 			downloadButtonTitle.Show()
+			hideAvailableVersionLinks()
 
 			var releaseURL string
 			if containsPreReleaseTag(latestInstalled) {
@@ -1046,7 +1094,7 @@ The latest stable version is %s. [Release Notes](%s)`,
 			if prereleaseCheckbox != nil {
 				prereleaseCheckbox.Hide()
 			}
-			updateTitle.Show()
+			updateTitleContainer.Show()
 			downloadButtonTitle.Show()
 			if downloadContainer != nil {
 				downloadContainer.Refresh()
@@ -1056,6 +1104,8 @@ The latest stable version is %s. [Release Notes](%s)`,
 		updateTitle.ParseMarkdown("**No version installed. Select a version to download below.**")
 		updateTitle.Refresh()
 		updateTitle.Show()
+		hideAvailableVersionLinks()
+		updateTitleContainer.Show()
 		if downloadContainer != nil {
 			downloadContainer.Refresh()
 		}
