@@ -398,7 +398,7 @@ func adjustUpdateButton(mostRecent string, version string, updateButton *widget.
 				}
 
 				confirmDialog := dialog.NewConfirm("Backup Suggestion",
-					"Before updating, we suggest that you take a backup of your current database using the 'Export Database' button of the 'Prepare Competition' page.",
+					"The update process keeps your current version intact so you can revert if needed.\n\nBut we nevertheless suggest that you take a backup of your current database using the 'Export Database' button of the 'Prepare Competition' page.",
 					func(confirm bool) {
 						if confirm {
 							updateVersion(version, mostRecent, w)
