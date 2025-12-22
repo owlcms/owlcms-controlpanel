@@ -6,6 +6,8 @@ This is a control panel for owlcms.  It is meant to:
 
 The control panel is installed once. It will automatically download the current version of owlcms and the correct version of Java when used for the first time.
 
+> BEWARE MacOS users: This version requires MacOS 15 or later to run.  Support for building for earlier versions has been removed from the
+> build environment used (GitHub).  If you need support for version 13 and 14 you will need to keep using version 2.7.
 
 ### Change Log
 - 2.8.0: When installing from a zip, 
