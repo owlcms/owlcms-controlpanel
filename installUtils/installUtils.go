@@ -37,7 +37,7 @@ func ProcessLocalZipFile(zipPath string, w fyne.Window, owlcmsInstallDir string,
 	// - "owlcms_VERSION_YYYY-MM-DD_HHMMSS.zip" (export format with timestamp)
 	// PREFIX: alphanumeric starting with a letter and ending with - or _
 	// VERSION: full semver like "1.2.3-rc.1+metadata"
-	// TIMESTAMP: Only strip _YYYY-MM-DD_HHMMSS format (ISO date + 6-digit time)
+	// TIMESTAMP: [._]YYYY-MM-DD_HHMMSS where separator before date can be . or _
 	if strings.HasSuffix(fileName, ".zip") {
 		// Remove .zip extension
 		nameWithoutExt := strings.TrimSuffix(fileName, ".zip")
@@ -46,13 +46,15 @@ func ProcessLocalZipFile(zipPath string, w fyne.Window, owlcmsInstallDir string,
 		prefixRegex := regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9]*[-_]`)
 		nameWithoutExt = prefixRegex.ReplaceAllString(nameWithoutExt, "")
 
-		// Only strip the exact export timestamp format: _YYYY-MM-DD_HHMMSS
-		dateTimeRegex := regexp.MustCompile(`_\d{4}-\d{2}-\d{2}_\d{6}$`)
+		// Strip the export timestamp format: [._]YYYY-MM-DD_HHMMSS
+		dateTimeRegex := regexp.MustCompile(`[._]\d{4}-\d{2}-\d{2}_\d{6}$`)
 		if dateTimeRegex.MatchString(nameWithoutExt) {
 			nameWithoutExt = dateTimeRegex.ReplaceAllString(nameWithoutExt, "")
-			if IsValidSemVer(nameWithoutExt) {
-				version = nameWithoutExt
-			}
+		}
+
+		// Check if what remains is a valid semver
+		if IsValidSemVer(nameWithoutExt) {
+			version = nameWithoutExt
 		}
 	}
 
@@ -315,7 +317,7 @@ func ZipCurrentSetup(w fyne.Window, owlcmsInstallDir string,
 
 			// Create filename with version and timestamp in ISO format
 			timestamp := time.Now().Format("2006-01-02_150405")
-			zipFileName := fmt.Sprintf("owlcms_%s_%s.zip", version, timestamp)
+			zipFileName := fmt.Sprintf("owlcms_%s.%s.zip", version, timestamp)
 
 			// Ask user where to save the zip file using platform-specific dialog
 			selectSaveZip(w, zipFileName, func(zipPath string, err error) {

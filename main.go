@@ -1,18 +1,14 @@
 package main
 
 import (
-	"archive/zip"
 	"fmt"
 	"image/color"
-	"io"
 	"log"
 	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"regexp"
-	"strings"
 	"syscall"
 	"time"
 

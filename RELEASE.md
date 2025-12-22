@@ -8,17 +8,22 @@ The control panel is installed once. It will automatically download the current 
 
 
 ### Change Log
-- 2.8.0-rc01: Revised import process. Local is now reset to match the current jar, and then all additions,
+- 2.8.0: When installing from a zip, 
+  - a prefix like "owlcms-" will be stripped, 
+  - the timestamp produced by "Save Installed Version as zip" will be stripped
+  - if extracting the same version multiple times, the directories will have 01 02 03 etc. added
+- 2.8.0: Revised import process. Local is now reset to match the current jar, and then all additions,
 deletions and modifications done in the imported release relative to the imported release's jar
-are applied.
+are applied.  This will make it easier for federations to provide customized kits.
+- 2.8.0: When using the "update" button on a version, that version is kept as is, as a backup.
+
+### Previous versions
 - 2.7.0: Ability to package an installation as a zip, to more easily create federation-specific kits.
 - 2.6.0: The `Install from ZIP` menu option now uses the familiar file chooser from the operating system.  This will make it easier for federations to provide customized kits.
 - 2.7.0: Will now handle +versioninfo in the file names, so that zipped installation files can
 describe what they are for (which federation, etc.)
 - 2.7.0: Ability to package an installation as a zip, to more easily create federation-specific kits.
-- 2.6.0: The `Install from ZIP` menu option now uses the familiar file chooser from the operating system.  This will make it easier for federations to provide customized kits.
-
-### Previous versions
+- 2.6.0: The `Install from ZIP` menu option now uses the familiar file chooser from the operating system.
 - 2.5.0: improved kill behaviour
 - 2.5.0: Avoid false alarms about owlcms processes already running by doing an active check.
 - 2.4.3: Fix for Raspberry Pi Java version - the latest JDK build is missing 2/3 of the expected releases, using a predetermined version instead.
