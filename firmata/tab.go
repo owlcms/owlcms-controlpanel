@@ -78,6 +78,11 @@ func getInstallDir() string {
 	}
 }
 
+// GetInstallDir returns the installation directory used by the firmata package
+func GetInstallDir() string {
+	return getInstallDir()
+}
+
 func checkJava(statusLabel *widget.Label) error {
 	statusLabel.SetText("Checking for the Java language runtime.")
 	statusLabel.Refresh()
@@ -277,7 +282,7 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 			uninstallAll()
 		}),
 	}
-	fileMenu := shared.CreateMenuButton("File", fileMenuItems)
+	fileMenu := shared.CreateMenuButton("Files", fileMenuItems)
 
 	// Create the Processes menu button with popup
 	processMenuItems := []*fyne.MenuItem{

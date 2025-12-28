@@ -14,6 +14,7 @@ import (
 	"owlcms-launcher/owlcms"
 	"owlcms-launcher/owlcms/downloadutils"
 	"owlcms-launcher/owlcms/javacheck"
+	"owlcms-launcher/shared"
 	"owlcms-launcher/tracker"
 
 	"fyne.io/fyne/v2"
@@ -95,6 +96,25 @@ func main() {
 
 	// Setup menus
 	setupMenus(w)
+
+	// Show installed modules popup
+	// Query the actual install directories from each package
+	owlp := owlcms.GetInstallDir()
+	tp := tracker.GetInstallDir()
+	fp := firmata.GetInstallDir()
+
+	mods := shared.DetectInstalledModules(owlp, tp, fp)
+
+	owlcmsCheck := widget.NewCheck("OWLCMS", nil)
+	owlcmsCheck.SetChecked(mods.OWLCMS)
+	trackerCheck := widget.NewCheck("Tracker", nil)
+	trackerCheck.SetChecked(mods.Tracker)
+	firmataCheck := widget.NewCheck("Firmata", nil)
+	firmataCheck.SetChecked(mods.Firmata)
+	checks := container.NewVBox(owlcmsCheck, trackerCheck, firmataCheck)
+
+	// Only show the checkboxes in the dialog; trace information is logged
+	dialog.ShowCustom("Installed Modules", "Close", checks, w)
 
 	// Set up signal handling
 	setupSignalHandling()

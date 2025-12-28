@@ -93,3 +93,8 @@ func getInstallDir() string {
 		return "./owlcms-tracker"
 	}
 }
+
+// GetInstallDir returns the installation directory used by the tracker package
+func GetInstallDir() string {
+	return getInstallDir()
+}

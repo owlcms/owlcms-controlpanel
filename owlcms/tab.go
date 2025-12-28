@@ -169,7 +169,7 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 			uninstallAll()
 		}),
 	}
-	fileMenu := shared.CreateMenuButton("File", fileMenuItems)
+	fileMenu := shared.CreateMenuButton("Files", fileMenuItems)
 
 	// Create the Processes menu button with popup
 	processMenuItems := []*fyne.MenuItem{
