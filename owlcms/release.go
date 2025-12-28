@@ -1,4 +1,4 @@
-package main
+package owlcms
 
 import (
 	"encoding/json"
@@ -7,14 +7,12 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
 
-	"owlcms-launcher/downloadUtils"
+	"owlcms-launcher/owlcms/downloadutils"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -24,6 +22,7 @@ import (
 	"github.com/Masterminds/semver/v3"
 )
 
+// Release represents a GitHub release
 type Release struct {
 	Name string `json:"name"`
 }
@@ -33,14 +32,13 @@ var (
 	allReleases          []string
 	releaseDropdown      *fyne.Container
 	prereleaseCheckbox   *widget.Check
-	updateTitle          *widget.RichText  // Change to RichText for Markdown support
-	downloadButtonTitle  *widget.Hyperlink // New title for download button
-	updateTitleContainer *fyne.Container   // Container for update message widgets
-	installAvailableLink *widget.Hyperlink // Hyperlink to install available version
-	releaseNotesLink     *widget.Hyperlink // Hyperlink to release notes
-	availableVersion     string            // Version available for download
-	availableVersionURL  string            // URL for release notes
-	mainWindow           fyne.Window       // Reference to main window for dialogs
+	updateTitle          *widget.RichText
+	downloadButtonTitle  *widget.Hyperlink
+	updateTitleContainer *fyne.Container
+	installAvailableLink *widget.Hyperlink
+	releaseNotesLink     *widget.Hyperlink
+	availableVersion     string
+	availableVersionURL  string
 )
 
 func fetchReleases() ([]string, error) {
@@ -49,9 +47,9 @@ func fetchReleases() ([]string, error) {
 		"https://api.github.com/repos/owlcms/owlcms4/releases",
 	}
 
-	var allReleases []Release
+	var allReleasesList []Release
 	client := &http.Client{
-		Timeout: 5 * time.Second, // Set a timeout for the HTTP request
+		Timeout: 5 * time.Second,
 	}
 
 	for _, url := range urls {
@@ -71,19 +69,18 @@ func fetchReleases() ([]string, error) {
 			return nil, fmt.Errorf("invalid response format: %w", err)
 		}
 
-		allReleases = append(allReleases, releases...)
+		allReleasesList = append(allReleasesList, releases...)
 	}
 
-	if len(allReleases) == 0 {
+	if len(allReleasesList) == 0 {
 		return nil, fmt.Errorf("no releases found")
 	}
 
-	releaseNames := make([]string, 0, len(allReleases))
-	for _, release := range allReleases {
+	releaseNames := make([]string, 0, len(allReleasesList))
+	for _, release := range allReleasesList {
 		releaseNames = append(releaseNames, release.Name)
 	}
 
-	// Sort the release names in semver order, most recent at the top
 	sort.Slice(releaseNames, func(i, j int) bool {
 		v1, err1 := semver.NewVersion(releaseNames[i])
 		v2, err2 := semver.NewVersion(releaseNames[j])
@@ -94,28 +91,6 @@ func fetchReleases() ([]string, error) {
 	})
 
 	return releaseNames, nil
-}
-
-func openFileExplorer(path string) error {
-	var cmd *exec.Cmd
-
-	switch runtime.GOOS {
-	case "windows":
-		cmd = exec.Command("explorer", path)
-	case "darwin": // macOS
-		cmd = exec.Command("open", path)
-	case "linux":
-		cmd = exec.Command("xdg-open", path)
-	default:
-		return fmt.Errorf("unsupported operating system: %s", downloadUtils.GetGoos())
-	}
-
-	if err := cmd.Start(); err != nil {
-		log.Printf("Failed to open file explorer: %v\n", err)
-		return fmt.Errorf("failed to open file explorer: %w", err)
-	}
-
-	return nil
 }
 
 func populateReleaseSelect(selectWidget *widget.Select) {
@@ -146,8 +121,7 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 	fileName := fmt.Sprintf("owlcms_%s.zip", version)
 	zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, version, fileName)
 
-	// Ensure the owlcms directory exists
-	owlcmsDir := owlcmsInstallDir
+	owlcmsDir := installDir
 	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(owlcmsDir, 0755); err != nil {
 			dialog.ShowError(fmt.Errorf("creating owlcms directory: %w", err), w)
@@ -158,7 +132,6 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 	zipPath := filepath.Join(owlcmsDir, fileName)
 	extractPath := filepath.Join(owlcmsDir, version)
 
-	// Create progress dialog with progress bar
 	progressBar := widget.NewProgressBar()
 	messageLabel := widget.NewLabel(fmt.Sprintf("Downloading OWLCMS %s...", version))
 	progressContent := container.NewVBox(messageLabel, progressBar)
@@ -169,7 +142,6 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 		w)
 	progressDialog.Show()
 
-	// Create a channel to wait for download completion
 	done := make(chan bool)
 
 	go func() {
@@ -182,7 +154,6 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 		}
 		defer closeDialog()
 
-		// Download with progress tracking
 		progressCallback := func(downloaded, total int64) {
 			if total > 0 {
 				progress := float64(downloaded) / float64(total)
@@ -192,8 +163,7 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 			}
 		}
 
-		// Fix: Add nil as the last argument for the cancel channel
-		err := downloadUtils.DownloadArchive(zipURL, zipPath, progressCallback, nil)
+		err := downloadutils.DownloadArchive(zipURL, zipPath, progressCallback, nil)
 		if err != nil {
 			dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
 			done <- false
@@ -203,14 +173,13 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 		messageLabel.SetText("Extracting files...")
 		messageLabel.Refresh()
 
-		err = downloadUtils.ExtractZip(zipPath, extractPath)
+		err = downloadutils.ExtractZip(zipPath, extractPath)
 		if err != nil {
 			dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
 			done <- false
 			return
 		}
 
-		// Delete the downloaded zip file after successful extraction
 		if err := os.Remove(zipPath); err != nil {
 			log.Printf("Warning: Could not delete downloaded zip file: %v", err)
 		}
@@ -223,20 +192,16 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 
 		dialog.ShowInformation("Installation Complete", message, w)
 
-		// Initialize UI after installation
 		if isInitialDownload {
-			// Initialize version list and release dropdown first
 			recomputeVersionList(w)
 			setupReleaseDropdown(w)
 			checkForNewerVersion()
 
-			// Show necessary containers
 			stopContainer.Hide()
 			versionContainer.Show()
 			downloadContainer.Show()
 			statusLabel.Hide()
 
-			// Show download button and update title
 			downloadButtonTitle.Show()
 			updateTitleContainer.Show()
 		} else {
@@ -249,12 +214,9 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 		done <- true
 	}()
 
-	// Wait for download completion
 	<-done
 }
 
-// confirmAndDownloadVersion shows a confirmation dialog and downloads the specified version
-// This helper function is used by both the dropdown selector and the "install as new version" link
 func confirmAndDownloadVersion(version string, w fyne.Window) {
 	dialog.ShowConfirm("Confirm Download",
 		fmt.Sprintf("Do you want to download and install OWLCMS version %s?", version),
@@ -271,15 +233,18 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 		confirmAndDownloadVersion(selected, w)
 	})
 	selectWidget.PlaceHolder = "Choose a release to download"
+
+	// Create prerelease checkbox if not already created
+	if prereleaseCheckbox == nil {
+		prereleaseCheckbox = widget.NewCheck("Show Prereleases", func(checked bool) {
+			showPrereleases = checked
+			populateReleaseSelect(selectWidget)
+		})
+	}
+	prereleaseCheckbox.Hide()
+
 	populateReleaseSelect(selectWidget)
-	if prereleaseCheckbox != nil {
-		prereleaseCheckbox.Hide()
-	}
-	// Put the select widget and the prerelease checkbox side-by-side
-	horiz := container.New(layout.NewHBoxLayout(), selectWidget)
-	if prereleaseCheckbox != nil {
-		horiz.Add(prereleaseCheckbox)
-	}
+	horiz := container.New(layout.NewHBoxLayout(), selectWidget, prereleaseCheckbox)
 	releaseDropdown = horiz
 	releaseDropdown.Resize(fyne.NewSize(300, 200))
 

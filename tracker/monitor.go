@@ -1,18 +1,20 @@
-package main
+package tracker
 
 import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
+	"syscall"
 	"time"
+
+	"owlcms-launcher/tracker/downloadutils"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 )
-
-var killedByUs bool
 
 // checkPort tries to connect to localhost:port and returns nil if successful
 func checkPort() error {
@@ -33,8 +35,8 @@ func monitorProcess(cmd *exec.Cmd) chan error {
 			done <- cmd.Wait()
 		}()
 
-		// Try connecting to port 8080 for up to 60 seconds
-		timeout := time.After(60 * time.Second)
+		// Try connecting to the port for up to 30 seconds (Node.js starts faster than Java)
+		timeout := time.After(30 * time.Second)
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
 
@@ -63,31 +65,40 @@ func monitorProcess(cmd *exec.Cmd) chan error {
 	return result
 }
 
-func stopProcess(currentProcess *exec.Cmd, currentVersion string, stopButton *widget.Button, downloadGroup, versionContainer *fyne.Container, statusLabel *widget.Label, w fyne.Window) {
-	log.Printf("Stopping OWLCMS %s...\n", currentVersion)
-	statusLabel.SetText(fmt.Sprintf("Stopping OWLCMS %s...", currentVersion))
+func stopProcess(proc *exec.Cmd, version string, stopBtn *widget.Button, downloadGroup, versionCont *fyne.Container, statusLbl *widget.Label, w fyne.Window) {
+	log.Printf("Stopping owlcms-tracker %s...\n", version)
+	statusLbl.SetText(fmt.Sprintf("Stopping owlcms-tracker %s...", version))
 
-	if currentProcess == nil || currentProcess.Process == nil {
+	if proc == nil || proc.Process == nil {
 		return
 	}
-	pid := currentProcess.Process.Pid
+	pid := proc.Process.Pid
 	killedByUs = true
 
-	err := GracefullyStopProcess(pid)
-	if err != nil {
-		killedByUs = false
-		dialog.ShowError(fmt.Errorf("failed to stop OWLCMS %s (PID: %d): %w", currentVersion, pid, err), w)
-		return
+	var err error
+	if downloadutils.GetGoos() == "windows" {
+		err = proc.Process.Signal(os.Interrupt)
+	} else {
+		err = proc.Process.Signal(syscall.SIGINT)
 	}
 
-	log.Printf("OWLCMS %s (PID: %d) has been stopped\n", currentVersion, pid)
-	statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) has been stopped", currentVersion, pid))
+	if err != nil {
+		log.Printf("Failed to send interrupt signal to owlcms-tracker %s (PID: %d): %v\n", version, pid, err)
+		err = proc.Process.Kill()
+		if err != nil {
+			killedByUs = false
+			dialog.ShowError(fmt.Errorf("failed to stop owlcms-tracker %s (PID: %d): %w", version, pid, err), w)
+			return
+		}
+	}
+
+	log.Printf("owlcms-tracker %s (PID: %d) has been stopped\n", version, pid)
+	statusLbl.SetText(fmt.Sprintf("owlcms-tracker %s (PID: %d) has been stopped", version, pid))
 	currentProcess = nil
-	stopButton.Hide()
-	urlLink.Hide()    // Hide the URL when stopping
-	appDirLink.Hide() // Hide the application directory link when stopping
+	stopBtn.Hide()
+	urlLink.Hide() // Hide the URL when stopping
 	checkForNewerVersion()
 	downloadGroup.Show()
-	versionContainer.Show()
-	releaseJavaLock()
+	versionCont.Show()
+	releaseTrackerLock()
 }

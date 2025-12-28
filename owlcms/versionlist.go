@@ -1,11 +1,14 @@
-package main
+package owlcms
 
 import (
+	"archive/zip"
+	"crypto/sha256"
 	"fmt"
+	"image/color"
 	"io"
+	"io/fs"
 	"log"
 	"os"
-	"owlcms-launcher/downloadUtils"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -13,13 +16,14 @@ import (
 	"syscall"
 	"time"
 
-	customdialog "owlcms-launcher/dialog" // Alias our custom dialog package
-
-	"archive/zip"
-	"crypto/sha256"
-	"io/fs"
+	customdialog "owlcms-launcher/owlcms/dialog"
+	"owlcms-launcher/owlcms/downloadutils"
+	"owlcms-launcher/owlcms/installutils"
+	"owlcms-launcher/shared"
+	"owlcms-launcher/tracker"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
@@ -32,7 +36,7 @@ var (
 )
 
 func getAllInstalledVersions() []string {
-	owlcmsDir := owlcmsInstallDir
+	owlcmsDir := installDir
 	entries, err := os.ReadDir(owlcmsDir)
 	if err != nil {
 		return nil
@@ -60,7 +64,7 @@ func getAllInstalledVersions() []string {
 }
 
 func findLatestInstalled() string {
-	owlcmsDir := owlcmsInstallDir
+	owlcmsDir := installDir
 	entries, err := os.ReadDir(owlcmsDir)
 	if err != nil {
 		return ""
@@ -86,7 +90,7 @@ func findLatestInstalled() string {
 }
 
 func findLatestStableInstalled() string {
-	owlcmsDir := owlcmsInstallDir
+	owlcmsDir := installDir
 	entries, err := os.ReadDir(owlcmsDir)
 	if err != nil {
 		return ""
@@ -111,7 +115,7 @@ func findLatestStableInstalled() string {
 }
 
 func findLatestPrereleaseInstalled() string {
-	owlcmsDir := owlcmsInstallDir
+	owlcmsDir := installDir
 	entries, err := os.ReadDir(owlcmsDir)
 	if err != nil {
 		return ""
@@ -136,7 +140,7 @@ func findLatestPrereleaseInstalled() string {
 	return versions[0].String()
 }
 
-func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
+func createVersionList(w fyne.Window, stopBtn *widget.Button) *widget.List {
 	versions := getAllInstalledVersions()
 
 	versionList = widget.NewList(
@@ -168,7 +172,7 @@ func createVersionList(w fyne.Window, stopButton *widget.Button) *widget.List {
 			buttonContainer := grid.Objects[1].(*fyne.Container)
 			buttonContainer.RemoveAll()
 
-			createLaunchButton(w, version, stopButton, buttonContainer)
+			createLaunchButton(w, version, stopBtn, buttonContainer)
 			createFilesButton(version, w, buttonContainer)
 			if len(allReleases) > 0 {
 				createUpdateButton(version, w, buttonContainer)
@@ -228,8 +232,8 @@ func createImportButton(versions []string, version string, w fyne.Window, button
 					return
 				}
 
-				sourceDir := filepath.Join(owlcmsInstallDir, sourceVersion)
-				destDir := filepath.Join(owlcmsInstallDir, version)
+				sourceDir := filepath.Join(installDir, sourceVersion)
+				destDir := filepath.Join(installDir, version)
 
 				if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
 					dialog.ShowError(fmt.Errorf("source version %s does not exist", sourceVersion), w)
@@ -317,7 +321,7 @@ func createRemoveButton(version string, w fyne.Window, buttonContainer *fyne.Con
 					return
 				}
 
-				err := os.RemoveAll(filepath.Join(owlcmsInstallDir, version))
+				err := os.RemoveAll(filepath.Join(installDir, version))
 				if err != nil {
 					dialog.ShowError(fmt.Errorf("failed to remove OWLCMS %s: %w", version, err), w)
 					return
@@ -340,8 +344,8 @@ func createFilesButton(version string, w fyne.Window, buttonContainer *fyne.Cont
 	filesButton.Resize(fyne.NewSize(80, 25))
 	filesButton.SetText("Files")
 	filesButton.OnTapped = func() {
-		versionDir := filepath.Join(owlcmsInstallDir, version)
-		if err := openFileExplorer(versionDir); err != nil {
+		versionDir := filepath.Join(installDir, version)
+		if err := shared.OpenFileExplorer(versionDir); err != nil {
 			dialog.ShowError(fmt.Errorf("failed to open file explorer for %s: %w", versionDir, err), w)
 		}
 	}
@@ -349,7 +353,7 @@ func createFilesButton(version string, w fyne.Window, buttonContainer *fyne.Cont
 	return filesButton
 }
 
-func createLaunchButton(w fyne.Window, version string, stopButton *widget.Button, buttonContainer *fyne.Container) {
+func createLaunchButton(w fyne.Window, version string, stopBtn *widget.Button, buttonContainer *fyne.Container) {
 	launchButton := widget.NewButton("Launch", nil)
 	launchButton.Resize(fyne.NewSize(80, 25))
 	launchButton.Importance = widget.HighImportance
@@ -366,7 +370,7 @@ func createLaunchButton(w fyne.Window, version string, stopButton *widget.Button
 			return
 		}
 
-		if err := launchOwlcms(version, launchButton, stopButton); err != nil {
+		if err := launchOwlcms(version, launchButton, stopBtn); err != nil {
 			dialog.ShowError(err, w)
 			return
 		}
@@ -381,7 +385,7 @@ func adjustUpdateButton(mostRecent string, version string, updateButton *widget.
 		if compare.GreaterThan(x) {
 			updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
 			updateButton.OnTapped = func() {
-				currentOS := downloadUtils.GetGoos()
+				currentOS := downloadutils.GetGoos()
 				if currentOS == "linux" || currentOS == "darwin" {
 					data, err := os.ReadFile(pidFilePath)
 					if err == nil && len(data) > 0 {
@@ -421,7 +425,7 @@ func adjustUpdateButton(mostRecent string, version string, updateButton *widget.
 
 func updateVersion(existingVersion string, targetVersion string, w fyne.Window) {
 	// Note the timestamp of the current version's top-level directory
-	currentVersionDir := filepath.Join(owlcmsInstallDir, existingVersion)
+	currentVersionDir := filepath.Join(installDir, existingVersion)
 	existingVersionDir := currentVersionDir
 
 	// Download and extract the version given by string
@@ -433,8 +437,8 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	}
 	fileName := fmt.Sprintf("owlcms_%s.zip", targetVersion)
 	zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, targetVersion, fileName)
-	zipPath := filepath.Join(owlcmsInstallDir, fileName)
-	newVersionDir := filepath.Join(owlcmsInstallDir, targetVersion)
+	zipPath := filepath.Join(installDir, fileName)
+	newVersionDir := filepath.Join(installDir, targetVersion)
 
 	// Create a cancel channel
 	cancel := make(chan bool)
@@ -452,7 +456,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		}
 	}
 
-	err := downloadUtils.DownloadArchive(zipURL, zipPath, progressCallback, cancel)
+	err := downloadutils.DownloadArchive(zipURL, zipPath, progressCallback, cancel)
 	if err != nil {
 		if err.Error() == "download cancelled" {
 			// Handle cancellation
@@ -468,7 +472,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	}
 
 	// new version is downloaded, now extract it to its own directory
-	err = downloadUtils.ExtractZip(zipPath, newVersionDir)
+	err = downloadutils.ExtractZip(zipPath, newVersionDir)
 	if err != nil {
 		dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
 		return
@@ -976,7 +980,7 @@ func getJarFilesChecksums(jarPath string, topLevelDirs []string) (map[string]str
 			continue
 		}
 		topLevel := parts[0]
-		if !contains(topLevelDirs, topLevel) {
+		if !containsString(topLevelDirs, topLevel) {
 			continue
 		}
 		relPath := filepath.FromSlash(f.Name)
@@ -1013,7 +1017,7 @@ func getLocalFiles(dir string, topLevelDirs []string) (map[string]struct{}, erro
 
 		// Only consider files under topLevelDirs
 		topLevel := strings.Split(relPath, string(os.PathSeparator))[0]
-		if !contains(topLevelDirs, topLevel) {
+		if !containsString(topLevelDirs, topLevel) {
 			return nil
 		}
 
@@ -1098,7 +1102,7 @@ func extractLocalFromJar(jarPath, localDir string, topLevelDirs []string) error 
 			continue
 		}
 		topLevel := parts[0]
-		if !contains(topLevelDirs, topLevel) {
+		if !containsString(topLevelDirs, topLevel) {
 			continue
 		}
 
@@ -1142,8 +1146,8 @@ func extractLocalFromJar(jarPath, localDir string, topLevelDirs []string) error 
 	return nil
 }
 
-// contains returns true if s is in list.
-func contains(list []string, s string) bool {
+// containsString returns true if s is in list.
+func containsString(list []string, s string) bool {
 	for _, v := range list {
 		if v == s {
 			return true
@@ -1288,6 +1292,97 @@ func recomputeVersionList(w fyne.Window) {
 	// "Installed Versions" label: not bold, left-aligned
 	borderTopLabel := widget.NewLabelWithStyle("Installed Versions", fyne.TextAlignLeading, fyne.TextStyle{Bold: false})
 
+	// Create the File menu button with popup
+	fileMenuItems := []*fyne.MenuItem{
+		fyne.NewMenuItem("Open OWLCMS Installation Directory", func() {
+			if err := shared.OpenFileExplorer(installDir); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to open installation directory: %w", err), w)
+			}
+		}),
+		fyne.NewMenuItem("Install OWLCMS version from ZIP", func() {
+			selectLocalZip(w, func(path string, err error) {
+				if err != nil {
+					dialog.ShowError(fmt.Errorf("file selection failed: %w", err), w)
+					return
+				}
+				if path == "" {
+					return
+				}
+				installutils.ProcessLocalZipFile(path, w, installDir, copyFile, updateExplanation, recomputeVersionList, checkForNewerVersion)
+			})
+		}),
+		fyne.NewMenuItem("Save installed OWLCMS version as ZIP", func() {
+			installutils.ZipCurrentSetup(w, installDir, getAllInstalledVersions, selectSaveZip)
+		}),
+		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("Remove All OWLCMS Versions", func() {
+			removeAllVersions()
+		}),
+		fyne.NewMenuItem("Remove OWLCMS Java", func() {
+			removeJava()
+		}),
+		fyne.NewMenuItem("Remove All OWLCMS Stored Data and Configurations", func() {
+			uninstallAll()
+		}),
+	}
+	fileMenu := shared.CreateMenuButton("File", fileMenuItems)
+
+	// Create the Processes menu button with popup
+	processMenuItems := []*fyne.MenuItem{
+		fyne.NewMenuItem("Kill Already Running Process", func() {
+			if err := killLockingProcess(); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to kill already running process: %w", err), w)
+			} else {
+				dialog.ShowInformation("Success", "Successfully killed the already running process", w)
+			}
+		}),
+	}
+	processMenu := shared.CreateMenuButton("Processes", processMenuItems)
+
+	// Create the Options menu button with popup
+	// Set menu item text based on current state
+	var menuItemText string
+	if GetTrackerConnectionEnabled() {
+		menuItemText = "✗ Stop connecting to local tracker"
+	} else {
+		menuItemText = "✓ Automatically connect to local tracker"
+	}
+
+	optionsMenuItems := []*fyne.MenuItem{
+		fyne.NewMenuItem(menuItemText, func() {
+			// Get the tracker port
+			trackerPort := tracker.GetPort()
+			trackerURL := fmt.Sprintf("ws://127.0.0.1:%s/ws", trackerPort)
+
+			// Toggle the connection
+			if GetTrackerConnectionEnabled() {
+				// Disable
+				if err := DeleteProperty("OWLCMS_VIDEODATA"); err != nil {
+					dialog.ShowError(fmt.Errorf("failed to disable tracker connection: %w", err), w)
+				} else {
+					dialog.ShowInformation("Tracker Connection", "Tracker connection disabled. Restart OWLCMS for changes to take effect.", w)
+				}
+			} else {
+				// Enable
+				if err := SaveProperty("OWLCMS_VIDEODATA", trackerURL); err != nil {
+					dialog.ShowError(fmt.Errorf("failed to enable tracker connection: %w", err), w)
+				} else {
+					dialog.ShowInformation("Tracker Connection", fmt.Sprintf("Tracker connection enabled on port %s. OWLCMS will connect to Tracker once it is started. Restart OWLCMS for changes to take effect.", trackerPort), w)
+				}
+			}
+		}),
+	}
+
+	optionsMenu := shared.CreateMenuButton("Options", optionsMenuItems)
+
+	// Add small vertical padding (just a few mm)
+	spacer := canvas.NewRectangle(color.Transparent)
+	spacer.SetMinSize(fyne.NewSize(1, 5)) // 5 pixels vertical spacing
+	topContainer := container.NewVBox(
+		spacer,
+		container.NewHBox(borderTopLabel, fileMenu, processMenu, optionsMenu),
+	)
+
 	numVersions := len(getAllInstalledVersions())
 	versionScroll := container.NewVScroll(newVersionList)
 	center := container.NewStack(versionScroll)
@@ -1301,11 +1396,11 @@ func recomputeVersionList(w fyne.Window) {
 	}
 
 	content := container.NewBorder(
-		borderTopLabel, // Top (not bold, left-aligned)
-		nil,            // Bottom
-		nil,            // Left
-		nil,            // Right
-		center,         // Center: expands to fill available space
+		topContainer, // Top (label and menu with padding)
+		nil,          // Bottom
+		nil,          // Left
+		nil,          // Right
+		center,       // Center: expands to fill available space
 	)
 
 	versionContainer.Objects = nil

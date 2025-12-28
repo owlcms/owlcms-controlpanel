@@ -1,7 +1,7 @@
 //go:build linux
 // +build linux
 
-package main
+package owlcms
 
 import (
 	"fyne.io/fyne/v2"

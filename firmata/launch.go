@@ -1,4 +1,4 @@
-package main
+package firmata
 
 import (
 	"fmt"
@@ -8,35 +8,30 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 
-	"owlcms-launcher/javacheck"
+	"owlcms-launcher/firmata/downloadutils"
+	"owlcms-launcher/firmata/javacheck"
 
 	"fyne.io/fyne/v2/widget"
 	"github.com/gofrs/flock"
+	"github.com/shirou/gopsutil/process"
 )
 
 var (
-	lockFilePath = filepath.Join(owlcmsInstallDir, "java.lock")
-	pidFilePath  = filepath.Join(owlcmsInstallDir, "java.pid")
+	lockFilePath = filepath.Join(installDir, "java.lock")
+	pidFilePath  = filepath.Join(installDir, "java.pid")
 	javaPID      int          // Add a global variable to store the Java process PID
 	lock         *flock.Flock // Add a global variable to store the lock
 )
 
 func acquireJavaLock() (*flock.Flock, error) {
-	// Check if PID file exists and read it
 	data, err := os.ReadFile(pidFilePath)
 	if err == nil && len(data) > 0 {
 		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 		if err == nil && pid != 0 {
-			// Check if the process is actually running before alerting
-			if IsProcessRunning(pid) {
-				log.Printf("Another instance of OWLCMS is already running with PID %d", pid)
-				return nil, fmt.Errorf("another instance of OWLCMS is already running with PID %d", pid)
-			} else {
-				log.Printf("Stale PID file found (PID %d is not running), removing and proceeding", pid)
-				os.Remove(pidFilePath)
-				os.Remove(lockFilePath) // Also remove the lock file if it exists
-			}
+			log.Printf("Another instance of owlcms-firmata is already running with PID %d", pid)
+			return nil, fmt.Errorf("another instance of owlcms-firmata is already running with PID %d", pid)
 		} else {
 			log.Printf("Failed to parse PID from PID file: %v", err)
 			os.Remove(pidFilePath)
@@ -49,14 +44,11 @@ func acquireJavaLock() (*flock.Flock, error) {
 }
 
 func releaseJavaLock() {
-
 	log.Println("Released Java lock")
 	if lock != nil {
 		lock.Unlock()
 		lock = nil
 	}
-
-	// remove the lock file and PID file, ignore if not present
 	os.Remove(lockFilePath)
 	os.Remove(pidFilePath)
 }
@@ -72,18 +64,29 @@ func killLockingProcess() error {
 		return fmt.Errorf("failed to parse PID from PID file: %w", err)
 	}
 
-	err = GracefullyStopProcess(pid)
+	proc, err := process.NewProcess(int32(pid))
 	if err != nil {
 		releaseJavaLock()
-		return err
+		return fmt.Errorf("failed to find process with PID %d: %w", pid, err)
 	}
 
+	if downloadutils.GetGoos() == "windows" && !downloadutils.IsWSL() {
+		if err := proc.Terminate(); err != nil {
+			releaseJavaLock()
+			return fmt.Errorf("failed to terminate process with PID %d: %w", pid, err)
+		}
+	} else {
+		if err := proc.SendSignal(syscall.SIGKILL); err != nil {
+			releaseJavaLock()
+			return fmt.Errorf("failed to kill process with PID %d: %w", pid, err)
+		}
+	}
 	releaseJavaLock()
 	log.Printf("Killed process with PID %d\n", pid)
 	return nil
 }
 
-func launchOwlcms(version string, launchButton, stopButton *widget.Button) error {
+func launchFirmata(version string, launchButton *widget.Button) error {
 	currentVersion = version // Store current version
 
 	// Acquire lock file
@@ -104,7 +107,7 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 		return fmt.Errorf("another program is running on port %s", GetPort())
 	}
 
-	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s...", version))
+	statusLabel.SetText(fmt.Sprintf("Starting owlcms-firmata %s...", version))
 	statusLabel.Refresh()
 	statusLabel.Show() // Show the status label when starting Java
 	// Store current directory to restore it later
@@ -113,19 +116,19 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 		return fmt.Errorf("getting current directory: %w", err)
 	}
 
-	// Ensure the owlcms directory exists
-	owlcmsDir := owlcmsInstallDir
+	// Ensure the firmata directory exists
+	owlcmsDir := installDir
 	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(owlcmsDir, 0755); err != nil {
-			return fmt.Errorf("creating owlcms directory: %w", err)
+			return fmt.Errorf("creating firmata directory: %w", err)
 		}
 	}
 
-	// Look for owlcms.jar in the version directory
-	jarPath := filepath.Join(owlcmsDir, version, "owlcms.jar")
+	// Look for firmata.jar in the version directory
+	jarPath := filepath.Join(owlcmsDir, version, "owlcms-firmata.jar")
 	if _, err := os.Stat(jarPath); os.IsNotExist(err) {
 		launchButton.Show() // Show launch button again if start fails
-		return fmt.Errorf("owlcms.jar not found in %s directory", jarPath)
+		return fmt.Errorf("'owlcms-firmata.jar' not found in %s directory", jarPath)
 	}
 
 	// Change to version directory
@@ -144,15 +147,9 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 		return fmt.Errorf("failed to find local Java: %w", err)
 	}
 
-	if err := InitEnv(); err != nil {
-		statusLabel.SetText(fmt.Sprintf("Failed to initialize environment: %v", err))
-		launchButton.Show()
-		goBackToMainScreen()
-		releaseJavaLock()
-		return fmt.Errorf("failed to initialize environment: %w", err)
-	}
+	InitEnv()
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("OWLCMS_LAUNCHER=%s", version))
+	env = append(env, fmt.Sprintf("FIRMATA_LAUNCHER=%s", version))
 
 	// Add all properties from env.properties to the process env
 	for _, key := range environment.Keys() {
@@ -161,23 +158,17 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 		env = append(env, fmt.Sprintf("%s=%s", key, value))
 	}
 
-	// // Log all environment variables before starting Java
-	// log.Printf("Environment variables for OWLCMS %s:", version)
-	// for _, envVar := range env {
-	// 	log.Printf("  %s", envVar)
-	// }
-
 	// Start the Java process
-	cmd := exec.Command(localJava, "-jar", "owlcms.jar")
+	cmd := exec.Command(localJava, "-jar", "owlcms-firmata.jar", "--port", GetPort(), "--device-configs", "./config")
 	cmd.Env = env
-	log.Printf("Starting OWLCMS %s with command: %v\n", version, cmd.Args)
+	log.Printf("Starting owlcms-firmata %s with command: %v\n", version, cmd.Args)
 	if err := cmd.Start(); err != nil {
-		statusLabel.SetText(fmt.Sprintf("Failed to start OWLCMS %s", version))
+		statusLabel.SetText(fmt.Sprintf("Failed to start owlcms-firmata %s", version))
 		releaseJavaLock()
 		launchButton.Show() // Show launch button again if start fails
 		goBackToMainScreen()
-		log.Printf("Failed to start OWLCMS %s: %v\n", version, err)
-		return fmt.Errorf("failed to start OWLCMS %s: %w", version, err)
+		log.Printf("Failed to start owlcms-firmata %s: %v\n", version, err)
+		return fmt.Errorf("failed to start owlcms-firmata %s: %w", version, err)
 	}
 
 	// Store the PID in the PID file and globally
@@ -188,23 +179,14 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 		log.Printf("Wrote PID %d to PID file %s\n", javaPID, pidFilePath)
 	}
 
-	log.Printf("Launching OWLCMS %s (PID: %d), waiting for port %s...\n", version, javaPID, GetPort())
-	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s (PID: %d), waiting for port %s.\nFull startup can take up to 30 seconds.", version, javaPID, GetPort()))
+	log.Printf("Launching owlcms-firmata %s (PID: %d), waiting for port %s...\n", version, javaPID, GetPort())
+	statusLabel.SetText(fmt.Sprintf("Starting owlcms-firmata %s (PID: %d), waiting for port %s.\nFull startup can take up to 30 seconds.", version, javaPID, GetPort()))
 	currentProcess = cmd
-	stopButton.SetText(fmt.Sprintf("Stop OWLCMS %s", version))
+	stopButton.SetText(fmt.Sprintf("Stop owlcms-firmata %s", version))
 	stopButton.Show()
 	stopContainer.Show()
 	downloadContainer.Hide()
 	versionContainer.Hide()
-
-	// Show the application directory link immediately
-	appDir := filepath.Join(owlcmsInstallDir, version)
-	appDirLink.SetText(fmt.Sprintf("Open OWLCMS %s directory", version))
-	appDirLink.SetURL(nil) // Not a web URL, so clear
-	appDirLink.OnTapped = func() {
-		openFileExplorer(appDir)
-	}
-	appDirLink.Show()
 
 	// Monitor the process in background
 	monitorChan := monitorProcess(cmd)
@@ -212,8 +194,8 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 	// Wait for monitoring result in background
 	go func() {
 		if err := <-monitorChan; err != nil {
-			log.Printf("OWLCMS process %d failed to start properly: %v\n", javaPID, err)
-			statusLabel.SetText(fmt.Sprintf("OWLCMS process %d failed to start properly", javaPID))
+			log.Printf("owlcms-firmata process %d failed to start properly: %v\n", javaPID, err)
+			statusLabel.SetText(fmt.Sprintf("owlcms-firmata process %d failed to start properly", javaPID))
 			stopButton.Hide()
 			stopContainer.Hide()
 			launchButton.Show()
@@ -224,21 +206,12 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 			return
 		}
 
-		log.Printf("OWLCMS process %d is ready (port %s responding)\n", javaPID, GetPort())
-		statusLabel.SetText(fmt.Sprintf("OWLCMS running (PID: %d) on port %s", javaPID, GetPort()))
+		log.Printf("owlcms-firmata process %d is ready (port %s responding)\n", javaPID, GetPort())
+		statusLabel.SetText(fmt.Sprintf("owlcms-firmata running (PID: %d) on port %s", javaPID, GetPort()))
 		url := fmt.Sprintf("http://localhost:%s", GetPort())
 		urlLink.SetURLFromString(url)
-		urlLink.SetText("Open OWLCMS in a browser")
+		urlLink.SetText("Open owlcms-firmata in a browser")
 		urlLink.Show()
-
-		// Set up the application directory link
-		appDir := filepath.Join(owlcmsInstallDir, version)
-		appDirLink.SetText(fmt.Sprintf("Open OWLCMS %s directory", version))
-		appDirLink.SetURL(nil) // Not a web URL, so clear
-		appDirLink.OnTapped = func() {
-			openFileExplorer(appDir)
-		}
-		appDirLink.Show()
 
 		// Process is stable, wait for it to end
 		err := cmd.Wait()
@@ -246,15 +219,15 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 
 		if killedByUs {
 			// If we killed it, just report normal termination
-			log.Printf("OWLCMS %s (PID: %d) was stopped by user\n", version, pid)
-			statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) was stopped by user", version, pid))
+			log.Printf("owlcms-firmata %s (PID: %d) was stopped by user\n", version, pid)
+			statusLabel.SetText(fmt.Sprintf("owlcms-firmata %s (PID: %d) was stopped by user", version, pid))
 		} else if err != nil {
 			// Only report error if it wasn't killed by us
-			log.Printf("OWLCMS %s (PID: %d) terminated with error: %v\n", version, pid, err)
-			statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) terminated with error", version, pid))
+			log.Printf("owlcms-firmata %s (PID: %d) terminated with error: %v\n", version, pid, err)
+			statusLabel.SetText(fmt.Sprintf("owlcms-firmata %s (PID: %d) terminated with error", version, pid))
 		} else {
-			log.Printf("OWLCMS %s (PID: %d) exited normally\n", version, pid)
-			statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) exited normally", version, pid))
+			log.Printf("owlcms-firmata %s (PID: %d) exited normally\n", version, pid)
+			statusLabel.SetText(fmt.Sprintf("owlcms-firmata %s (PID: %d) exited normally", version, pid))
 		}
 
 		currentProcess = nil
@@ -264,8 +237,6 @@ func launchOwlcms(version string, launchButton, stopButton *widget.Button) error
 		launchButton.Show()
 		downloadContainer.Show()
 		versionContainer.Show()
-		urlLink.Hide()
-		appDirLink.Hide()
 		releaseJavaLock()
 	}()
 

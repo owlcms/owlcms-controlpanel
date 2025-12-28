@@ -1,4 +1,4 @@
-package installUtils
+package installutils
 
 import (
 	"archive/zip"
@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"owlcms-launcher/downloadUtils"
+	"owlcms-launcher/owlcms/downloadutils"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -245,7 +245,7 @@ func InstallLocalZipFile(zipPath, version string, w fyne.Window, owlcmsInstallDi
 
 		// Use the original copied file for extraction
 		log.Printf("Extracting ZIP file to: %s\n", finalExtractPath)
-		err := downloadUtils.ExtractZip(destOriginalPath, finalExtractPath)
+		err := downloadutils.ExtractZip(destOriginalPath, finalExtractPath)
 		if err != nil {
 			progressDialog.Hide()
 			dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)

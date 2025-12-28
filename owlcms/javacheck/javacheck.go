@@ -16,10 +16,10 @@ import (
 	"strconv"
 	"strings"
 
-	customdialog "owlcms-launcher/dialog" // Alias our custom dialog package
-	"owlcms-launcher/downloadUtils"
+	customdialog "owlcms-launcher/owlcms/dialog"
+	"owlcms-launcher/owlcms/downloadutils"
 
-	"fyne.io/fyne/v2" // Standard Fyne dialog package
+	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -87,20 +87,17 @@ func FindLocalJava() (string, error) {
 	// Check for java executable
 	var javaExe string
 	var javaPath string
-	goos := downloadUtils.GetGoos()
+	goos := downloadutils.GetGoos()
 
 	if goos == "windows" && !isWSL() {
 		javaExe = "javaw.exe"
 		javaPath = filepath.Join(javaDir, latestJDK, "bin", javaExe)
-		// log.Printf("*** goos=%s javaPath=%s\n", goos, javaPath)
 	} else if goos == "darwin" {
 		javaExe = "java"
 		javaPath = filepath.Join(javaDir, latestJDK, "Contents", "Home", "bin", javaExe)
-		// log.Printf("*** goos=%s javaPath=%s\n", goos, javaPath)
 	} else if goos == "linux" {
 		javaExe = "java"
 		javaPath = filepath.Join(javaDir, latestJDK, "bin", javaExe)
-		// log.Printf("*** goos=%s javaPath=%s\n", goos, javaPath)
 	} else {
 		log.Printf("*** Unsupported OS: %s\n", goos)
 		return "", fmt.Errorf("unsupported OS: %s", goos)
@@ -114,7 +111,6 @@ func FindLocalJava() (string, error) {
 		log.Printf("*** Found local Java %s at: %s\n", latestJDK, javaPath)
 		return javaPath, nil
 	}
-
 }
 
 // CheckJava checks for Java 17 or later and downloads/installs it if necessary.
@@ -171,14 +167,14 @@ func CheckJava(statusLabel *widget.Label) error {
 
 	// Show activity while getting the download URL
 	progressBar.SetValue(0.05)
-	url, err := getTemurinDownloadURL()
+	downloadURL, err := getTemurinDownloadURL()
 	if err != nil {
 		progressDialog.Hide()
 		return fmt.Errorf("getting Temurin download URL: %w", err)
 	}
 
 	archivePath := filepath.Join(javaDir, "temurin")
-	if downloadUtils.GetGoos() == "windows" && !isWSL() {
+	if downloadutils.GetGoos() == "windows" && !isWSL() {
 		archivePath += ".zip"
 	} else {
 		archivePath += ".tar.gz"
@@ -191,7 +187,7 @@ func CheckJava(statusLabel *widget.Label) error {
 		}
 	}
 
-	if err := downloadUtils.DownloadArchive(url, archivePath, progressCallback, cancel); err != nil {
+	if err := downloadutils.DownloadArchive(downloadURL, archivePath, progressCallback, cancel); err != nil {
 		progressDialog.Hide()
 		if err.Error() == "download cancelled" {
 			// Handle cancellation
@@ -207,13 +203,13 @@ func CheckJava(statusLabel *widget.Label) error {
 
 	// Show extraction progress
 	progressBar.SetValue(0.9)
-	if downloadUtils.GetGoos() == "windows" && !isWSL() {
-		if err := downloadUtils.ExtractZip(archivePath, javaDir); err != nil {
+	if downloadutils.GetGoos() == "windows" && !isWSL() {
+		if err := downloadutils.ExtractZip(archivePath, javaDir); err != nil {
 			progressDialog.Hide()
 			return fmt.Errorf("error extracting Temurin zip: %w", err)
 		}
 	} else {
-		if err := downloadUtils.ExtractTarGz(archivePath, javaDir); err != nil {
+		if err := downloadutils.ExtractTarGz(archivePath, javaDir); err != nil {
 			progressDialog.Hide()
 			return fmt.Errorf("extracting Temurin tar.gz: %w", err)
 		}
@@ -341,11 +337,11 @@ func getTemurinDownloadURL() (string, error) {
 	}
 
 	// Print environment info for debugging
-	log.Printf("Running on: OS=%s, ARCH=%s, WSL=%v\n", downloadUtils.GetGoos(), runtime.GOARCH, isWSL())
+	log.Printf("Running on: OS=%s, ARCH=%s, WSL=%v\n", downloadutils.GetGoos(), runtime.GOARCH, isWSL())
 
 	// Always use Linux pattern for WSL/Linux, but with correct version
 	var pattern string
-	goos := downloadUtils.GetGoos()
+	goos := downloadutils.GetGoos()
 	if goos == "darwin" {
 		switch runtime.GOARCH {
 		case "amd64":
@@ -374,7 +370,7 @@ func getTemurinDownloadURL() (string, error) {
 			return "", fmt.Errorf("unsupported architecture: %s", runtime.GOARCH)
 		}
 	} else {
-		return "", fmt.Errorf("unsupported OS: %s", downloadUtils.GetGoos())
+		return "", fmt.Errorf("unsupported OS: %s", downloadutils.GetGoos())
 	}
 
 	log.Printf("Looking for asset: %s\n", pattern)
@@ -393,7 +389,7 @@ func getTemurinDownloadURL() (string, error) {
 func findJava() (string, error) {
 	javaHome := os.Getenv("JAVA_HOME")
 	javaCommand := "java"
-	if downloadUtils.GetGoos() == "windows" && !isWSL() {
+	if downloadutils.GetGoos() == "windows" && !isWSL() {
 		javaCommand = "javaw"
 	}
 	if javaHome != "" {

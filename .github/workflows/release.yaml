@@ -25,9 +25,9 @@ jobs:
 
     - name: Set up Go
       if: ${{ env.BUILD_MAC == 'true' }}
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@v5
       with:
-        go-version: '1.23.4'
+        go-version: '1.25.5'
 
     - name: Install gh CLI
       if: ${{ env.BUILD_MAC == 'true' }}
@@ -137,9 +137,9 @@ jobs:
         sudo dpkg -i gh_2.32.0_linux_amd64.deb
 
     - name: Set up Go
-      uses: actions/setup-go@v2
+      uses: actions/setup-go@v5
       with:
-        go-version: '1.23.4'
+        go-version: '1.25.5'
 
     - name: Install fyne-cross
       run: |
