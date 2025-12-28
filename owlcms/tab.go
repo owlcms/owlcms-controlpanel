@@ -2,14 +2,19 @@ package owlcms
 
 import (
 	"fmt"
+	"image/color"
 	"log"
 	"net/url"
 	"os"
 	"path/filepath"
 
+	"owlcms-launcher/owlcms/installutils"
 	"owlcms-launcher/owlcms/javacheck"
+	"owlcms-launcher/shared"
+	"owlcms-launcher/tracker"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
@@ -108,8 +113,15 @@ func CreateTab(w fyne.Window, app fyne.App) *fyne.Container {
 	// Set a fixed height for the bottom container
 	downloadContainer.Resize(fyne.NewSize(800, 180))
 
+	// Create menu bar
+	menuBar := createMenuBar(w)
+
+	// Add small spacer under the menu bar to increase top area
+	topSpacer := canvas.NewRectangle(color.Transparent)
+	topSpacer.SetMinSize(fyne.NewSize(1, 8))
+
 	mainContent := container.NewBorder(
-		stopContainer,     // Top (hidden except when stopping)
+		container.NewVBox(menuBar, topSpacer, stopContainer), // Top (menu bar, spacer and stop container)
 		downloadContainer, // Bottom (fixed height, always visible)
 		nil,               // Left
 		nil,               // Right
@@ -120,6 +132,101 @@ func CreateTab(w fyne.Window, app fyne.App) *fyne.Container {
 	go initializeOwlcmsTab(w, app)
 
 	return mainContent
+}
+
+// createMenuBar creates the menu bar with File, Processes, and Options menus
+func createMenuBar(w fyne.Window) *fyne.Container {
+	// Create the File menu button with popup
+	fileMenuItems := []*fyne.MenuItem{
+		fyne.NewMenuItem("Open OWLCMS Installation Directory", func() {
+			if err := shared.OpenFileExplorer(installDir); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to open installation directory: %w", err), w)
+			}
+		}),
+		fyne.NewMenuItem("Install OWLCMS version from ZIP", func() {
+			selectLocalZip(w, func(path string, err error) {
+				if err != nil {
+					dialog.ShowError(fmt.Errorf("file selection failed: %w", err), w)
+					return
+				}
+				if path == "" {
+					return
+				}
+				installutils.ProcessLocalZipFile(path, w, installDir, copyFile, updateExplanation, recomputeVersionList, checkForNewerVersion)
+			})
+		}),
+		fyne.NewMenuItem("Save installed OWLCMS version as ZIP", func() {
+			installutils.ZipCurrentSetup(w, installDir, getAllInstalledVersions, selectSaveZip)
+		}),
+		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("Remove All OWLCMS Versions", func() {
+			removeAllVersions()
+		}),
+		fyne.NewMenuItem("Remove OWLCMS Java", func() {
+			removeJava()
+		}),
+		fyne.NewMenuItem("Remove All OWLCMS Stored Data and Configurations", func() {
+			uninstallAll()
+		}),
+	}
+	fileMenu := shared.CreateMenuButton("File", fileMenuItems)
+
+	// Create the Processes menu button with popup
+	processMenuItems := []*fyne.MenuItem{
+		fyne.NewMenuItem("Kill Already Running Process", func() {
+			if err := killLockingProcess(); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to kill already running process: %w", err), w)
+			} else {
+				dialog.ShowInformation("Success", "Successfully killed the already running process", w)
+			}
+		}),
+	}
+	processMenu := shared.CreateMenuButton("Processes", processMenuItems)
+
+	// Create the Options menu button with popup
+	// Set menu item text based on current state
+	var menuItemText string
+	if GetTrackerConnectionEnabled() {
+		menuItemText = "\u2717 Stop connecting to local tracker"
+	} else {
+		menuItemText = "\u2713 Automatically connect to local tracker"
+	}
+
+	optionsMenuItems := []*fyne.MenuItem{
+		fyne.NewMenuItem(menuItemText, func() {
+			// Get the tracker port
+			trackerPort := tracker.GetPort()
+			trackerURL := fmt.Sprintf("ws://127.0.0.1:%s/ws", trackerPort)
+
+			// Toggle the connection
+			if GetTrackerConnectionEnabled() {
+				// Disable
+				if err := DeleteProperty("OWLCMS_VIDEODATA"); err != nil {
+					dialog.ShowError(fmt.Errorf("failed to disable tracker connection: %w", err), w)
+				} else {
+					dialog.ShowInformation("Tracker Connection", "Tracker connection disabled. Restart OWLCMS for changes to take effect.", w)
+				}
+			} else {
+				// Enable
+				if err := SaveProperty("OWLCMS_VIDEODATA", trackerURL); err != nil {
+					dialog.ShowError(fmt.Errorf("failed to enable tracker connection: %w", err), w)
+				} else {
+					dialog.ShowInformation("Tracker Connection", fmt.Sprintf("Tracker connection enabled on port %s. OWLCMS will connect to Tracker once it is started. Restart OWLCMS for changes to take effect.", trackerPort), w)
+				}
+			}
+		}),
+	}
+
+	optionsMenu := shared.CreateMenuButton("Options", optionsMenuItems)
+
+	// Add small vertical padding
+	spacer := canvas.NewRectangle(color.Transparent)
+	spacer.SetMinSize(fyne.NewSize(1, 5))
+
+	return container.NewVBox(
+		spacer,
+		container.NewHBox(fileMenu, processMenu, optionsMenu),
+	)
 }
 
 // initializeOwlcmsTab handles the async initialization of the OWLCMS tab
@@ -285,7 +392,8 @@ func checkForNewerVersion() {
 
 		if releaseVersion.GreaterThan(latestInstalledVersion) {
 			log.Printf("Found newer version: %s\n", releaseVersion)
-			releaseURL := fmt.Sprintf("https://github.com/owlcms/owlcms4/releases/tag/%s", releaseVersion)
+			// Use helper to get the correct releases/tag URL (prerelease vs stable)
+			releaseURL := GetReleaseTagURL(release)
 
 			var versionType string
 			if containsPreReleaseTag(release) {
@@ -323,9 +431,12 @@ func checkForNewerVersion() {
 	}
 
 	// If we get here, no newer version was found
-	releaseURL := fmt.Sprintf("https://github.com/owlcms/owlcms4/releases/tag/%s", latestInstalled)
+	// Choose the correct releases repo for prerelease installs
+	releaseURL := GetReleaseTagURL(latestInstalled)
 	parsedURL, _ := url.Parse(releaseURL)
 	releaseNotesLink.SetURL(parsedURL)
+	// Ensure the release notes hyperlink is visible for both stable and prerelease cases
+	releaseNotesLink.Show()
 
 	messageBox := container.NewHBox(
 		widget.NewLabel(fmt.Sprintf("You are using %s version %s", func() string {
@@ -401,7 +512,7 @@ func updateExplanation() {
 }
 
 func computeVersionScrollHeight(numVersions int) float32 {
-	minHeight := 0
+	minHeight := 140 // ensure a reasonable minimum vertical space for the version list
 	rowHeight := 50
 	return float32(minHeight + (rowHeight * min(numVersions, 4)))
 }

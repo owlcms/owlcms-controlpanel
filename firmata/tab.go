@@ -11,8 +11,10 @@ import (
 
 	"owlcms-launcher/firmata/downloadutils"
 	"owlcms-launcher/firmata/javacheck"
+	"owlcms-launcher/shared"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
@@ -104,8 +106,8 @@ func goBackToMainScreen() {
 }
 
 func computeVersionScrollHeight(numVersions int) float32 {
-	minHeight := 0  // minimum height
-	rowHeight := 50 // approximate height per row
+	minHeight := 140 // minimum height to provide adequate vertical space
+	rowHeight := 50  // approximate height per row
 	return float32(minHeight + (rowHeight * min(numVersions, 4)))
 }
 
@@ -234,12 +236,15 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	// Set a fixed height for the bottom container to match OWLCMS tab
 	downloadContainer.Resize(fyne.NewSize(800, 180))
 
+	// Create menu bar
+	menuBar := createMenuBar(w)
+
 	mainContent := container.NewBorder(
-		stopContainer,     // Top
-		downloadContainer, // Bottom
-		nil,               // Left
-		nil,               // Right
-		versionContainer,  // Center (now a NewStack, expands to fill space)
+		container.NewVBox(menuBar, stopContainer), // Top (menu bar and stop container)
+		downloadContainer,                         // Bottom
+		nil,                                       // Left
+		nil,                                       // Right
+		versionContainer,                          // Center (now a NewStack, expands to fill space)
 	)
 	statusLabel.SetText("Checking installation status...")
 	statusLabel.Refresh()
@@ -250,6 +255,50 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	go initializeFirmataTab(w)
 
 	return mainContent
+}
+
+// createMenuBar creates the menu bar with File and Processes menus
+func createMenuBar(w fyne.Window) *fyne.Container {
+	// Create the File menu button with popup
+	fileMenuItems := []*fyne.MenuItem{
+		fyne.NewMenuItem("Open Firmata Installation Directory", func() {
+			if err := shared.OpenFileExplorer(installDir); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to open installation directory: %w", err), w)
+			}
+		}),
+		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("Remove All Firmata Versions", func() {
+			removeAllVersions()
+		}),
+		fyne.NewMenuItem("Remove Firmata Java", func() {
+			removeJava()
+		}),
+		fyne.NewMenuItem("Remove All Firmata Stored Data and Configurations", func() {
+			uninstallAll()
+		}),
+	}
+	fileMenu := shared.CreateMenuButton("File", fileMenuItems)
+
+	// Create the Processes menu button with popup
+	processMenuItems := []*fyne.MenuItem{
+		fyne.NewMenuItem("Kill Already Running Process", func() {
+			if err := killLockingProcess(); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to kill already running process: %w", err), w)
+			} else {
+				dialog.ShowInformation("Success", "Successfully killed the already running process", w)
+			}
+		}),
+	}
+	processMenu := shared.CreateMenuButton("Processes", processMenuItems)
+
+	// Add small vertical padding
+	spacer := canvas.NewRectangle(color.Transparent)
+	spacer.SetMinSize(fyne.NewSize(1, 5))
+
+	return container.NewVBox(
+		spacer,
+		container.NewHBox(fileMenu, processMenu),
+	)
 }
 
 // initializeFirmataTab handles the async initialization of the Firmata tab
@@ -465,6 +514,8 @@ func checkForNewerVersion() {
 					// Create hyperlinks for Release Notes and install option
 					parsedURL, _ := url.Parse(releaseURL)
 					releaseNotesLink := widget.NewHyperlink("Release Notes", parsedURL)
+					// Ensure hyperlink visible for prerelease/stable announcement
+					releaseNotesLink.Show()
 					installLink := widget.NewHyperlink("install as additional version", nil)
 					installLink.OnTapped = func() {
 						ShowDownloadables()
@@ -486,6 +537,8 @@ func checkForNewerVersion() {
 			releaseURL := fmt.Sprintf("https://github.com/jflamy/owlcms-firmata/releases/tag/%s", latestInstalled)
 			parsedURL, _ := url.Parse(releaseURL)
 			releaseNotesLink := widget.NewHyperlink("Release Notes", parsedURL)
+			// Ensure hyperlink visible for installed prerelease/stable
+			releaseNotesLink.Show()
 			messageBox := container.NewHBox(
 				widget.NewLabel(fmt.Sprintf("You are using %s version %s", func() string {
 					if containsPreReleaseTag(latestInstalled) {

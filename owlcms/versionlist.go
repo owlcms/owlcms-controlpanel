@@ -18,9 +18,7 @@ import (
 
 	customdialog "owlcms-launcher/owlcms/dialog"
 	"owlcms-launcher/owlcms/downloadutils"
-	"owlcms-launcher/owlcms/installutils"
 	"owlcms-launcher/shared"
-	"owlcms-launcher/tracker"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -1289,102 +1287,10 @@ func recomputeVersionList(w fyne.Window) {
 	versionContainer.Objects = nil // Clear the container
 	newVersionList := createVersionList(w, stopButton)
 
-	// "Installed Versions" label: not bold, left-aligned
-	borderTopLabel := widget.NewLabelWithStyle("Installed Versions", fyne.TextAlignLeading, fyne.TextStyle{Bold: false})
-
-	// Create the File menu button with popup
-	fileMenuItems := []*fyne.MenuItem{
-		fyne.NewMenuItem("Open OWLCMS Installation Directory", func() {
-			if err := shared.OpenFileExplorer(installDir); err != nil {
-				dialog.ShowError(fmt.Errorf("failed to open installation directory: %w", err), w)
-			}
-		}),
-		fyne.NewMenuItem("Install OWLCMS version from ZIP", func() {
-			selectLocalZip(w, func(path string, err error) {
-				if err != nil {
-					dialog.ShowError(fmt.Errorf("file selection failed: %w", err), w)
-					return
-				}
-				if path == "" {
-					return
-				}
-				installutils.ProcessLocalZipFile(path, w, installDir, copyFile, updateExplanation, recomputeVersionList, checkForNewerVersion)
-			})
-		}),
-		fyne.NewMenuItem("Save installed OWLCMS version as ZIP", func() {
-			installutils.ZipCurrentSetup(w, installDir, getAllInstalledVersions, selectSaveZip)
-		}),
-		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("Remove All OWLCMS Versions", func() {
-			removeAllVersions()
-		}),
-		fyne.NewMenuItem("Remove OWLCMS Java", func() {
-			removeJava()
-		}),
-		fyne.NewMenuItem("Remove All OWLCMS Stored Data and Configurations", func() {
-			uninstallAll()
-		}),
-	}
-	fileMenu := shared.CreateMenuButton("File", fileMenuItems)
-
-	// Create the Processes menu button with popup
-	processMenuItems := []*fyne.MenuItem{
-		fyne.NewMenuItem("Kill Already Running Process", func() {
-			if err := killLockingProcess(); err != nil {
-				dialog.ShowError(fmt.Errorf("failed to kill already running process: %w", err), w)
-			} else {
-				dialog.ShowInformation("Success", "Successfully killed the already running process", w)
-			}
-		}),
-	}
-	processMenu := shared.CreateMenuButton("Processes", processMenuItems)
-
-	// Create the Options menu button with popup
-	// Set menu item text based on current state
-	var menuItemText string
-	if GetTrackerConnectionEnabled() {
-		menuItemText = "✗ Stop connecting to local tracker"
-	} else {
-		menuItemText = "✓ Automatically connect to local tracker"
-	}
-
-	optionsMenuItems := []*fyne.MenuItem{
-		fyne.NewMenuItem(menuItemText, func() {
-			// Get the tracker port
-			trackerPort := tracker.GetPort()
-			trackerURL := fmt.Sprintf("ws://127.0.0.1:%s/ws", trackerPort)
-
-			// Toggle the connection
-			if GetTrackerConnectionEnabled() {
-				// Disable
-				if err := DeleteProperty("OWLCMS_VIDEODATA"); err != nil {
-					dialog.ShowError(fmt.Errorf("failed to disable tracker connection: %w", err), w)
-				} else {
-					dialog.ShowInformation("Tracker Connection", "Tracker connection disabled. Restart OWLCMS for changes to take effect.", w)
-				}
-			} else {
-				// Enable
-				if err := SaveProperty("OWLCMS_VIDEODATA", trackerURL); err != nil {
-					dialog.ShowError(fmt.Errorf("failed to enable tracker connection: %w", err), w)
-				} else {
-					dialog.ShowInformation("Tracker Connection", fmt.Sprintf("Tracker connection enabled on port %s. OWLCMS will connect to Tracker once it is started. Restart OWLCMS for changes to take effect.", trackerPort), w)
-				}
-			}
-		}),
-	}
-
-	optionsMenu := shared.CreateMenuButton("Options", optionsMenuItems)
-
-	// Add small vertical padding (just a few mm)
-	spacer := canvas.NewRectangle(color.Transparent)
-	spacer.SetMinSize(fyne.NewSize(1, 5)) // 5 pixels vertical spacing
-	topContainer := container.NewVBox(
-		spacer,
-		container.NewHBox(borderTopLabel, fileMenu, processMenu, optionsMenu),
-	)
-
 	numVersions := len(getAllInstalledVersions())
 	versionScroll := container.NewVScroll(newVersionList)
+	// Ensure the version scroll has enough height to display up to 4 rows
+	versionScroll.SetMinSize(fyne.NewSize(0, computeVersionScrollHeight(numVersions)))
 	center := container.NewStack(versionScroll)
 
 	if numVersions == 0 {
@@ -1395,13 +1301,9 @@ func recomputeVersionList(w fyne.Window) {
 		versionContainer.Show()
 	}
 
-	content := container.NewBorder(
-		topContainer, // Top (label and menu with padding)
-		nil,          // Bottom
-		nil,          // Left
-		nil,          // Right
-		center,       // Center: expands to fill available space
-	)
+	spacer := canvas.NewRectangle(color.Transparent)
+	spacer.SetMinSize(fyne.NewSize(1, 8))
+	content := container.NewVBox(spacer, center)
 
 	versionContainer.Objects = nil
 	versionContainer.Add(content)

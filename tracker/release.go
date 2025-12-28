@@ -305,6 +305,8 @@ func checkForNewerVersion() {
 					// Create hyperlinks for Release Notes and install option
 					parsedURL, _ := url.Parse(releaseURL)
 					releaseNotesLink := widget.NewHyperlink("Release Notes", parsedURL)
+					// Ensure hyperlink visible for prerelease/stable announcement
+					releaseNotesLink.Show()
 					installLink := widget.NewHyperlink("install as additional version", nil)
 					installLink.OnTapped = func() {
 						ShowDownloadables()
@@ -326,6 +328,8 @@ func checkForNewerVersion() {
 			releaseURL := fmt.Sprintf("https://github.com/jflamy/owlcms-tracker/releases/tag/%s", latestInstalled)
 			parsedURL, _ := url.Parse(releaseURL)
 			releaseNotesLink := widget.NewHyperlink("Release Notes", parsedURL)
+			// Ensure hyperlink visible for installed prerelease/stable
+			releaseNotesLink.Show()
 			messageBox := container.NewHBox(
 				widget.NewLabel(fmt.Sprintf("You are using %s version %s", func() string {
 					if containsPreReleaseTag(latestInstalled) {

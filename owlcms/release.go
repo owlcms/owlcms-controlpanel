@@ -217,6 +217,15 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 	<-done
 }
 
+// GetReleaseTagURL returns the GitHub releases/tag URL for the given version string,
+// using the prerelease repository when the version indicates a prerelease.
+func GetReleaseTagURL(version string) string {
+	if containsPreReleaseTag(version) {
+		return fmt.Sprintf("https://github.com/owlcms/owlcms4-prerelease/releases/tag/%s", version)
+	}
+	return fmt.Sprintf("https://github.com/owlcms/owlcms4/releases/tag/%s", version)
+}
+
 func confirmAndDownloadVersion(version string, w fyne.Window) {
 	dialog.ShowConfirm("Confirm Download",
 		fmt.Sprintf("Do you want to download and install OWLCMS version %s?", version),

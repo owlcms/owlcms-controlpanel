@@ -505,51 +505,10 @@ func recomputeVersionList(w fyne.Window) {
 	versionContainer.Objects = nil // Clear the container
 	newVersionList := createVersionList(w)
 
-	// "Installed Versions" label: not bold, left-aligned
-	borderTopLabel := widget.NewLabelWithStyle("Installed Versions", fyne.TextAlignLeading, fyne.TextStyle{Bold: false})
-
-	// Create the File menu button with popup
-	fileMenuItems := []*fyne.MenuItem{
-		fyne.NewMenuItem("Open owlcms-firmata Installation Directory", func() {
-			if err := shared.OpenFileExplorer(installDir); err != nil {
-				dialog.ShowError(fmt.Errorf("failed to open installation directory: %w", err), w)
-			}
-		}),
-		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("Remove All owlcms-firmata Versions", func() {
-			removeAllVersions()
-		}),
-		fyne.NewMenuItem("Remove owlcms-firmata Java", func() {
-			removeJava()
-		}),
-		fyne.NewMenuItem("Remove All Stored owlcms-firmata Data and Configurations", func() {
-			uninstallAll()
-		}),
-	}
-	fileMenu := shared.CreateMenuButton("File", fileMenuItems)
-
-	// Create the Processes menu button with popup
-	processMenuItems := []*fyne.MenuItem{
-		fyne.NewMenuItem("Kill Already Running Process", func() {
-			if err := killLockingProcess(); err != nil {
-				dialog.ShowError(fmt.Errorf("failed to kill already running process: %w", err), w)
-			} else {
-				dialog.ShowInformation("Success", "Successfully killed the already running process", w)
-			}
-		}),
-	}
-	processMenu := shared.CreateMenuButton("Processes", processMenuItems)
-
-	// Add small vertical padding (just a few mm)
-	spacer := canvas.NewRectangle(color.Transparent)
-	spacer.SetMinSize(fyne.NewSize(1, 5)) // 5 pixels vertical spacing
-	topContainer := container.NewVBox(
-		spacer,
-		container.NewHBox(borderTopLabel, fileMenu, processMenu),
-	)
-
 	numVersions := len(getAllInstalledVersions())
 	versionScroll := container.NewVScroll(newVersionList)
+	// Ensure the version scroll has enough height to display up to 4 rows
+	versionScroll.SetMinSize(fyne.NewSize(0, computeVersionScrollHeight(numVersions)))
 	center := container.NewStack(versionScroll)
 
 	if numVersions == 0 {
@@ -560,13 +519,9 @@ func recomputeVersionList(w fyne.Window) {
 		versionContainer.Show()
 	}
 
-	content := container.NewBorder(
-		topContainer, // Top (label and menu with padding)
-		nil,          // Bottom
-		nil,          // Left
-		nil,          // Right
-		center,       // Center: expands to fill available space
-	)
+	spacer := canvas.NewRectangle(color.Transparent)
+	spacer.SetMinSize(fyne.NewSize(1, 8))
+	content := container.NewVBox(spacer, center)
 
 	versionContainer.Objects = nil
 	versionContainer.Add(content)

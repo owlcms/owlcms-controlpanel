@@ -1,12 +1,17 @@
 package tracker
 
 import (
+	"fmt"
+	"image/color"
 	"log"
 	"net/http"
 	"os/exec"
 	"time"
 
+	"owlcms-launcher/shared"
+
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
@@ -91,8 +96,15 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	// Set a fixed height for the bottom container
 	downloadContainer.Resize(fyne.NewSize(800, 180))
 
+	// Create menu bar
+	menuBar := createMenuBar(w)
+
+	// Add small spacer under the menu bar to increase top area
+	topSpacer := canvas.NewRectangle(color.Transparent)
+	topSpacer.SetMinSize(fyne.NewSize(1, 8))
+
 	mainContent := container.NewBorder(
-		stopContainer,     // Top
+		container.NewVBox(menuBar, topSpacer, stopContainer), // Top (menu bar, spacer and stop container)
 		downloadContainer, // Bottom
 		nil,               // Left
 		nil,               // Right
@@ -107,6 +119,47 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	go initializeTab(w)
 
 	return mainContent
+}
+
+// createMenuBar creates the menu bar with File and Processes menus
+func createMenuBar(w fyne.Window) *fyne.Container {
+	// Create the File menu button with popup
+	fileMenuItems := []*fyne.MenuItem{
+		fyne.NewMenuItem("Open Tracker Installation Directory", func() {
+			if err := shared.OpenFileExplorer(installDir); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to open installation directory: %w", err), w)
+			}
+		}),
+		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("Remove All Tracker Versions", func() {
+			removeAllVersions()
+		}),
+		fyne.NewMenuItem("Remove All Tracker Stored Data and Configurations", func() {
+			uninstallAll()
+		}),
+	}
+	fileMenu := shared.CreateMenuButton("File", fileMenuItems)
+
+	// Create the Processes menu button with popup
+	processMenuItems := []*fyne.MenuItem{
+		fyne.NewMenuItem("Kill Already Running Process", func() {
+			if err := killLockingProcess(); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to kill already running process: %w", err), w)
+			} else {
+				dialog.ShowInformation("Success", "Successfully killed the already running process", w)
+			}
+		}),
+	}
+	processMenu := shared.CreateMenuButton("Processes", processMenuItems)
+
+	// Add small vertical padding
+	spacer := canvas.NewRectangle(color.Transparent)
+	spacer.SetMinSize(fyne.NewSize(1, 5))
+
+	return container.NewVBox(
+		spacer,
+		container.NewHBox(fileMenu, processMenu),
+	)
 }
 
 // initializeTab handles the async initialization of the Tracker tab
@@ -192,6 +245,14 @@ func initializeTab(w fyne.Window) {
 	downloadContainer.Refresh()
 
 	log.Println("Tracker tab setup done.")
+}
+
+// computeVersionScrollHeight returns a minimum height for the version list scroll
+// so it can display up to 4 rows without being too small.
+func computeVersionScrollHeight(numVersions int) float32 {
+	minHeight := 140 // minimum height to provide adequate vertical space
+	rowHeight := 50  // approximate height per row
+	return float32(minHeight + (rowHeight * min(numVersions, 4)))
 }
 
 // HideDownloadables hides the download dropdown
