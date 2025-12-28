@@ -128,8 +128,23 @@ func CreateTab(w fyne.Window, app fyne.App) *fyne.Container {
 		versionContainer,  // Center (expands to fill space)
 	)
 
-	// Start initialization in a goroutine
-	go initializeOwlcmsTab(w, app)
+	// If OWLCMS install directory does not exist, show explanation and Install button
+	if _, err := os.Stat(installDir); os.IsNotExist(err) {
+		shared.ShowUninstalledTabContent(versionContainer, "asset/owlcms.md", func() {
+			mostRecent, err := getMostRecentStableRelease()
+			log.Printf("OWLCMS Install button: getMostRecentStableRelease -> mostRecent=%q err=%v", mostRecent, err)
+			if err == nil && mostRecent != "" {
+				log.Printf("OWLCMS Install: starting downloadReleaseWithProgress(%s)", mostRecent)
+				downloadReleaseWithProgress(mostRecent, w, false)
+			} else {
+				log.Println("OWLCMS Install: no latest stable found, showing download UI")
+				ShowDownloadables()
+			}
+		}, func() { initializeOwlcmsTab(w, app) })
+	} else {
+		// Start initialization in a goroutine
+		go initializeOwlcmsTab(w, app)
+	}
 
 	return mainContent
 }
@@ -285,16 +300,11 @@ func initializeOwlcmsTab(w fyne.Window, app fyne.App) {
 	}
 
 	if numVersions == 0 && internetAvailable {
-		// Download the latest stable version
-		statusLabel.SetText("No OWLCMS version found. Downloading latest stable version...")
-		mostRecent, err := getMostRecentStableRelease()
-		if err != nil {
-			dialog.ShowError(fmt.Errorf("failed to get latest stable version: %w", err), w)
-			return
-		}
-		log.Printf("Downloading initial version: %s", mostRecent)
-		downloadReleaseWithProgress(mostRecent, w, true)
-		return
+		// Do not auto-install. Show explanation and allow user to install via UI.
+		message := widget.NewLabel("No OWLCMS version installed. Use the Install button to fetch a version.")
+		updateTitleContainer.Objects = []fyne.CanvasObject{message}
+		updateTitleContainer.Refresh()
+		// leave downloads available for user to select
 	}
 
 	// Initialize version list
@@ -439,6 +449,8 @@ func checkForNewerVersion() {
 	releaseNotesLink.Show()
 
 	messageBox := container.NewHBox(
+		// Log what we think is installed for debugging
+		log.Printf("OWLCMS:updateTitle - latestInstalled=%q installedVersions=%v", latestInstalled, getAllInstalledVersions())
 		widget.NewLabel(fmt.Sprintf("You are using %s version %s", func() string {
 			if containsPreReleaseTag(latestInstalled) {
 				return "prerelease"

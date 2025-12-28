@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"log"
 	"net/http"
+	"os"
 	"os/exec"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 
 var (
 	installDir                = getInstallDir()
+	tabRoot                   *fyne.Container
 	currentProcess            *exec.Cmd
 	currentVersion            string
 	statusLabel               *widget.Label
@@ -110,12 +112,29 @@ func CreateTab(w fyne.Window) *fyne.Container {
 		nil,               // Right
 		versionContainer,  // Center (expands to fill space)
 	)
+	tabRoot = mainContent
 	statusLabel.SetText("Checking installation status...")
 	statusLabel.Refresh()
 	statusLabel.Show()
 	stopContainer.Show()
 
-	// Start initialization in a goroutine
+	// If the installation directory does not exist, show the shared explanation/install UI
+	if _, err := os.Stat(installDir); os.IsNotExist(err) {
+		shared.ShowUninstalledTabContent(versionContainer, "asset/tracker.md", func() {
+			latest, err := getMostRecentStableRelease()
+			log.Printf("Tracker Install button: getMostRecentStableRelease -> latest=%q err=%v", latest, err)
+			if err == nil && latest != "" {
+				log.Printf("Tracker Install: starting downloadAndInstallVersion(%s)", latest)
+				downloadAndInstallVersion(latest, w)
+			} else {
+				log.Println("Tracker Install: no latest stable found, showing download UI")
+				ShowDownloadables()
+			}
+		}, func() { initializeTab(w) })
+		return mainContent
+	}
+
+	// Start initialization in a goroutine for installed case
 	go initializeTab(w)
 
 	return mainContent
@@ -136,6 +155,8 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 		}),
 		fyne.NewMenuItem("Remove All Tracker Stored Data and Configurations", func() {
 			uninstallAll()
+			// Update UI to explanation/install mode
+			resetToExplainMode()
 		}),
 	}
 	fileMenu := shared.CreateMenuButton("Files", fileMenuItems)
@@ -222,15 +243,9 @@ func initializeTab(w fyne.Window) {
 	releaseDropdown.Hide()
 	prereleaseCheckbox.Hide()
 
-	// If no version is installed, get the latest stable version
-	if len(getAllInstalledVersions()) == 0 && len(allReleases) > 0 {
-		statusLabel.SetText("No versions installed. Getting latest stable version...")
-		for _, release := range allReleases {
-			if !containsPreReleaseTag(release) {
-				downloadAndInstallVersion(release, w)
-				break
-			}
-		}
+	// If no version is installed, do NOT auto-install. Leave downloads available for user.
+	if len(getAllInstalledVersions()) == 0 {
+		log.Println("No Tracker versions installed; not auto-installing. Waiting for user action.")
 	}
 
 	// Check if a more recent version is available
@@ -289,4 +304,12 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// resetToExplainMode updates the tab UI to show the explanation and Install button
+func resetToExplainMode() {
+	if versionContainer == nil {
+		return
+	}
+	shared.ShowUninstalledTabContent(versionContainer, "asset/tracker.md", func() { ShowDownloadables() }, nil)
 }

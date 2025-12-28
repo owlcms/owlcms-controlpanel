@@ -256,8 +256,23 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	statusLabel.Show()
 	stopContainer.Show()
 
-	// Start initialization in a goroutine
-	go initializeFirmataTab(w)
+	// If Firmata install directory does not exist, show explanation and Install button
+	if _, err := os.Stat(installDir); os.IsNotExist(err) {
+		shared.ShowUninstalledTabContent(versionContainer, "asset/firmata.md", func() {
+			latest, err := getMostRecentStableRelease()
+			log.Printf("Firmata Install button: getMostRecentStableRelease -> latest=%q err=%v", latest, err)
+			if err == nil && latest != "" {
+				log.Printf("Firmata Install: starting downloadAndInstallVersion(%s)", latest)
+				downloadAndInstallVersion(latest, w)
+			} else {
+				log.Println("Firmata Install: no latest stable found, showing download UI")
+				ShowDownloadables()
+			}
+		}, func() { initializeFirmataTab(w) })
+	} else {
+		// Start initialization in a goroutine
+		go initializeFirmataTab(w)
+	}
 
 	return mainContent
 }
@@ -378,17 +393,9 @@ func initializeFirmataTab(w fyne.Window) {
 	prereleaseCheckbox.Hide()
 	log.Printf("Fetched %d releases\n", len(releases))
 
-	// If no version is installed, get the latest stable version
+	// If no version is installed, do NOT auto-install. Leave download UI for user.
 	if len(getAllInstalledVersions()) == 0 {
-		for _, release := range allReleases {
-			version := extractSemverTag(release)
-			if !containsPreReleaseTag(version) {
-				// Automatically download and install the latest stable version
-				log.Printf("Downloading and installing latest stable version %s\n", version)
-				downloadAndInstallVersion(version, w)
-				break
-			}
-		}
+		log.Println("No Firmata versions installed; not auto-installing. Waiting for user action.")
 	}
 
 	// Check if a more recent version is available
@@ -544,6 +551,8 @@ func checkForNewerVersion() {
 			releaseNotesLink := widget.NewHyperlink("Release Notes", parsedURL)
 			// Ensure hyperlink visible for installed prerelease/stable
 			releaseNotesLink.Show()
+			// Log what we think is installed for debugging
+			log.Printf("Firmata:updateTitle - latestInstalled=%q installedVersions=%v", latestInstalled, getAllInstalledVersions())
 			messageBox := container.NewHBox(
 				widget.NewLabel(fmt.Sprintf("You are using %s version %s", func() string {
 					if containsPreReleaseTag(latestInstalled) {

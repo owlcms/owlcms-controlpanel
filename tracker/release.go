@@ -330,6 +330,8 @@ func checkForNewerVersion() {
 			releaseNotesLink := widget.NewHyperlink("Release Notes", parsedURL)
 			// Ensure hyperlink visible for installed prerelease/stable
 			releaseNotesLink.Show()
+			// Log what we think is installed for debugging
+			log.Printf("Tracker:updateTitle - latestInstalled=%q installedVersions=%v", latestInstalled, getAllInstalledVersions())
 			messageBox := container.NewHBox(
 				widget.NewLabel(fmt.Sprintf("You are using %s version %s", func() string {
 					if containsPreReleaseTag(latestInstalled) {
