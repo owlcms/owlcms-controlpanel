@@ -1,5 +1,5 @@
 #!/bin/bash -x
-export TAG=v2.8.0
+export TAG=v3.0.0-rc01
 git tag -d ${TAG}
 git push origin --delete ${TAG}
 gh release delete ${TAG} --repo owlcms/owlcms-controlpanel --yes

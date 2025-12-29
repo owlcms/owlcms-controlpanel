@@ -10,6 +10,11 @@ The control panel is installed once. It will automatically download the current 
 > build environment used (GitHub).  If you need support for version 13 and 14 you will need to keep using version 2.7.
 
 ### Change Log
+- 3.0.0: Major Release
+  - The control panel now controls owlcms, owlcms-tracker and owlcms-firmata from the same application (jury replays will come later)
+  - You can therefore run, if you need to, more than one application on the same machine, from the same panel.
+
+### Previous versions
 - 2.8.0: When installing from a zip, 
   - a prefix like "owlcms-" will be stripped, 
   - the timestamp produced by "Save Installed Version as zip" will be stripped
@@ -18,8 +23,6 @@ The control panel is installed once. It will automatically download the current 
 deletions and modifications done in the imported release relative to the imported release's jar
 are applied.  This will make it easier for federations to provide customized kits.
 - 2.8.0: When using the "update" button on a version, that version is kept as is, as a backup.
-
-### Previous versions
 - 2.7.0: Ability to package an installation as a zip, to more easily create federation-specific kits.
 - 2.6.0: The `Install from ZIP` menu option now uses the familiar file chooser from the operating system.  This will make it easier for federations to provide customized kits.
 - 2.7.0: Will now handle +versioninfo in the file names, so that zipped installation files can
