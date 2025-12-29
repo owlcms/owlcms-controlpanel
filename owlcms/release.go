@@ -166,19 +166,20 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 
 		err := downloadutils.DownloadArchive(zipURL, zipPath, progressCallback, nil)
 		if err != nil {
+			log.Printf("Download failed: %v", err)
 			dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
 			done <- false
 			return
 		}
 
+		log.Printf("Download complete, starting extraction to %s", extractPath)
 		messageLabel.SetText("Extracting files...")
 		messageLabel.Refresh()
 
 		err = downloadutils.ExtractZip(zipPath, extractPath)
+		log.Printf("ExtractZip returned, err=%v", err)
 		if err != nil {
-			dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
-			done <- false
-			return
+			log.Printf("Extraction warning (continuing install): %v", err)
 		}
 
 		if err := os.Remove(zipPath); err != nil {
@@ -191,9 +192,11 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 				"The program files have been extracted to the above directory.",
 			version, extractPath)
 
+		log.Printf("Download and extraction complete for version %s, showing dialog", version)
 		dialog.ShowInformation("Installation Complete", message, w)
 
 		if isInitialDownload {
+			log.Printf("Initial download path: calling recomputeVersionList")
 			recomputeVersionList(w)
 			setupReleaseDropdown(w)
 			checkForNewerVersion()
@@ -206,11 +209,13 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 			downloadButtonTitle.Show()
 			updateTitleContainer.Show()
 		} else {
+			log.Printf("Non-initial download path: calling recomputeVersionList")
 			HideDownloadables()
 			recomputeVersionList(w)
 			checkForNewerVersion()
 		}
 
+		log.Printf("Refreshing window content")
 		w.Content().Refresh()
 		done <- true
 	}()

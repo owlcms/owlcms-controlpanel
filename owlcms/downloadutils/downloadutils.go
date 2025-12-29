@@ -137,7 +137,6 @@ func ExtractZip(src, dest string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open zip file %s: %w", src, err)
 	}
-	defer r.Close()
 
 	for _, f := range r.File {
 		if f.Name == "Procfile" || f.Name == "system.properties" {
@@ -182,9 +181,14 @@ func ExtractZip(src, dest string) error {
 		}
 	}
 
-	// Remove the downloaded ZIP file
+	// Close the reader before removing the file; keeping it open blocks deletion on Windows.
+	if err := r.Close(); err != nil {
+		return fmt.Errorf("failed to close zip file %s: %w", src, err)
+	}
+
+	// Remove the downloaded ZIP file; if something holds the file (e.g., AV), log and continue
 	if err := os.Remove(src); err != nil {
-		return fmt.Errorf("failed to remove downloaded file %s: %w", src, err)
+		log.Printf("warning: could not remove downloaded file %s: %v", src, err)
 	}
 
 	return nil

@@ -1291,11 +1291,12 @@ func copyFiles(srcDir, destDir string, alwaysCopy bool) error {
 }
 
 func recomputeVersionList(w fyne.Window) {
-	log.Println("Reinitializing version list")
+	installed := getAllInstalledVersions()
+	log.Printf("recomputeVersionList called; installed versions from disk: %v", installed)
 	versionContainer.Objects = nil // Clear the container
 	newVersionList := createVersionList(w, stopButton)
 
-	numVersions := len(getAllInstalledVersions())
+	numVersions := len(installed)
 	versionScroll := container.NewVScroll(newVersionList)
 	// Ensure the version scroll has enough height to display up to 4 rows
 	versionScroll.SetMinSize(fyne.NewSize(0, computeVersionScrollHeight(numVersions)))
