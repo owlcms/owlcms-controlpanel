@@ -113,11 +113,19 @@ func CreateTab(w fyne.Window, app fyne.App) *fyne.Container {
 	// Configure stop button behavior (confirm before stopping)
 	stopButton.OnTapped = func() {
 		log.Println("Stop button tapped")
-		dialog.ShowConfirm("Confirm Stop", "Stopping OWLCMS will stop the current competition on all platforms. Make sure this is a correct time to stop.", func(confirm bool) {
-			if confirm {
-				stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
-			}
-		}, w)
+		confirmDialog := dialog.NewConfirm(
+			"Confirm Stop",
+			"Stopping OWLCMS will stop the current competition on all platforms. Make sure this is a correct time to stop.",
+			func(confirm bool) {
+				if confirm {
+					stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+				}
+			},
+			w,
+		)
+		confirmDialog.SetConfirmText("Stop")
+		confirmDialog.SetDismissText("Cancel")
+		confirmDialog.Show()
 	}
 	stopButton.Hide()
 	stopContainer.Hide()
@@ -146,7 +154,7 @@ func CreateTab(w fyne.Window, app fyne.App) *fyne.Container {
 		return mainContent
 	} else {
 		// Start initialization in a goroutine
-		go initializeOwlcmsTab(w, app)
+		go initializeOwlcmsTab(w)
 	}
 
 	return mainContent
@@ -254,7 +262,7 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 }
 
 // initializeOwlcmsTab handles the async initialization of the OWLCMS tab
-func initializeOwlcmsTab(w fyne.Window, app fyne.App) {
+func initializeOwlcmsTab(w fyne.Window) {
 	// Check Java first
 	statusLabel.SetText("Checking for Java runtime...")
 	javaLoc, err := javacheck.FindLocalJava()

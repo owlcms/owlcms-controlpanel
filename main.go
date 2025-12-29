@@ -27,6 +27,8 @@ import (
 
 var owlcmsInstallDir = getInstallDir()
 
+var exitInProgress bool
+
 func init() {
 	javacheck.InitJavaCheck(owlcmsInstallDir, owlcms.GetTemurinVersion)
 }
@@ -74,7 +76,8 @@ func getInstallDir() string {
 }
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Llongfile)
+	log.SetOutput(shared.NewLogPathShorteningWriter(os.Stderr))
 	log.Println("Starting OWLCMS Launcher")
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
 	a.Settings().SetTheme(newMyTheme())
@@ -127,9 +130,64 @@ func main() {
 	w.ShowAndRun()
 }
 
+func anyProgramRunning() bool {
+	return owlcms.IsRunning() || tracker.IsRunning() || firmata.IsRunning()
+}
+
+func stopAllRunningProcesses(w fyne.Window) {
+	owlcms.StopRunningProcess(w)
+	tracker.StopRunningProcess(w)
+	firmata.StopRunningProcess(w)
+}
+
+func requestExit(w fyne.Window) {
+	if exitInProgress {
+		return
+	}
+
+	running := anyProgramRunning()
+	message := "Exit the Control Panel?"
+	confirmText := "Exit"
+	if running {
+		message = "A program is running. Exiting will stop it and may affect users."
+		confirmText = "Stop and Exit"
+	}
+
+	confirmDialog := dialog.NewConfirm(
+		"Confirm Exit",
+		message,
+		func(confirm bool) {
+			if !confirm {
+				return
+			}
+
+			exitInProgress = true
+			if running {
+				log.Println("Exiting launcher - stopping all running processes")
+				stopAllRunningProcesses(w)
+			}
+
+			// Avoid re-triggering our close intercept (especially when Quit is from the menu).
+			w.SetCloseIntercept(nil)
+			w.Close()
+		},
+		w,
+	)
+	confirmDialog.SetConfirmText(confirmText)
+	confirmDialog.SetDismissText("Cancel")
+	confirmDialog.Show()
+}
+
 // setupMenus sets up the application menu bar
 func setupMenus(w fyne.Window) {
-	fileMenu := fyne.NewMenu("File")
+	// Use "Quit" on all platforms - Fyne checks for this exact label
+	// and won't add its own duplicate if it finds one.
+	fileMenu := fyne.NewMenu(
+		"File",
+		fyne.NewMenuItem("Quit", func() {
+			requestExit(w)
+		}),
+	)
 	helpMenu := fyne.NewMenu("Help",
 		fyne.NewMenuItem("Documentation", func() {
 			linkURL, _ := url.Parse("https://owlcms.github.io/owlcms4-prerelease/#/LocalControlPanel")
@@ -151,28 +209,15 @@ func setupMenus(w fyne.Window) {
 // setupCleanupOnExit sets up cleanup when the window is closed
 func setupCleanupOnExit(w fyne.Window) {
 	w.SetCloseIntercept(func() {
-		// Check if any program is running
-		if owlcms.IsRunning() || tracker.IsRunning() || firmata.IsRunning() {
-			confirmDialog := dialog.NewConfirm(
-				"Confirm Exit",
-				"A program is running. Closing the window will stop it and may affect users.",
-				func(confirm bool) {
-					if !confirm {
-						log.Println("Closing launcher - stopping all running processes")
-						owlcms.StopRunningProcess(w)
-						tracker.StopRunningProcess(w)
-						firmata.StopRunningProcess(w)
-						w.Close()
-					}
-				},
-				w,
-			)
-			confirmDialog.SetConfirmText("Cancel")
-			confirmDialog.SetDismissText("Stop")
-			confirmDialog.Show()
-		} else {
+		if exitInProgress {
+			// Allow close to proceed without re-confirming.
+			w.SetCloseIntercept(nil)
 			w.Close()
+			return
 		}
+
+		// Check if any program is running
+		requestExit(w)
 	})
 }
 

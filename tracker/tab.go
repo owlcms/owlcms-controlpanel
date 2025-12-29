@@ -101,11 +101,19 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	// Configure stop button behavior (confirm before stopping)
 	stopButton.OnTapped = func() {
 		log.Println("Stop button tapped")
-		dialog.ShowConfirm("Confirm Stop", "Stop the running Tracker process?", func(confirm bool) {
-			if confirm {
-				stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
-			}
-		}, w)
+		confirmDialog := dialog.NewConfirm(
+			"Confirm Stop",
+			"Stop the running Tracker process?",
+			func(confirm bool) {
+				if confirm {
+					stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+				}
+			},
+			w,
+		)
+		confirmDialog.SetConfirmText("Stop")
+		confirmDialog.SetDismissText("Cancel")
+		confirmDialog.Show()
 	}
 	stopButton.Hide()
 	stopContainer.Hide()
