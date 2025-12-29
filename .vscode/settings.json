@@ -1,5 +1,15 @@
 {
     "cSpell.words": [
         "fyne"
-    ]
+    ],
+    "go.toolsEnvVars": {
+        "GOOS": "windows",
+        "GOARCH": "amd64"
+    },
+    "gopls": {
+        "build.env": {
+            "GOOS": "windows",
+            "GOARCH": "amd64"
+        }
+    }
 }

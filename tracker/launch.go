@@ -309,6 +309,7 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 	}
 
 	cmd = exec.Command(nodeExe, scriptToRun)
+	shared.ConfigureNoConsoleWindow(cmd)
 
 	cmd.Env = env
 	cmd.Dir = versionDir
