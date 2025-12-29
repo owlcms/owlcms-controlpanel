@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"owlcms-launcher/firmata/downloadutils"
+	"owlcms-launcher/shared"
 
 	"fyne.io/fyne/v2/widget"
 )
@@ -151,14 +152,14 @@ func CheckJava(statusLabel *widget.Label) error {
 
 	// Ensure the firmata directory exists
 	if _, err := os.Stat(firmataInstallDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(firmataInstallDir, 0755); err != nil {
+		if err := shared.EnsureDir0755(firmataInstallDir); err != nil {
 			return fmt.Errorf("creating firmata directory: %w", err)
 		}
 	}
 
 	javaDir = filepath.Join(firmataInstallDir, "java17")
 	if _, err := os.Stat(javaDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(javaDir, 0755); err != nil {
+		if err := shared.EnsureDir0755(javaDir); err != nil {
 			return fmt.Errorf("creating java directory: %w", err)
 		}
 	}

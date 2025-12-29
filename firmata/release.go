@@ -145,7 +145,7 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 		// Ensure the firmata directory exists
 		owlcmsDir := installDir
 		if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
-			if err := os.MkdirAll(owlcmsDir, 0755); err != nil {
+			if err := shared.EnsureDir0755(owlcmsDir); err != nil {
 				dialog.ShowError(fmt.Errorf("creating firmata directory: %w", err), w)
 				return
 			}
@@ -168,7 +168,11 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 
 				go func() {
 					extractPath := filepath.Join(owlcmsDir, version)
-					os.Mkdir(extractPath, 0755)
+					if err := shared.EnsureDir0755(extractPath); err != nil {
+						progressDialog.Hide()
+						dialog.ShowError(fmt.Errorf("creating firmata version directory: %w", err), w)
+						return
+					}
 					extractPath = filepath.Join(extractPath, fileName)
 
 					// Download the file using downloadutils

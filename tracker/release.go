@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"owlcms-launcher/shared"
 	"owlcms-launcher/tracker/downloadutils"
 
 	"fyne.io/fyne/v2"
@@ -175,7 +176,7 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 	// Ensure the tracker directory exists
 	trackerDir := installDir
 	if _, err := os.Stat(trackerDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(trackerDir, 0755); err != nil {
+		if err := shared.EnsureDir0755(trackerDir); err != nil {
 			progressDialog.Hide()
 			dialog.ShowError(fmt.Errorf("creating tracker directory: %w", err), w)
 			return
@@ -335,7 +336,11 @@ func checkForNewerVersion() {
 					releaseNotesLink.Show()
 					installLink := widget.NewHyperlink("install as additional version", nil)
 					installLink.OnTapped = func() {
-						ShowDownloadables()
+						versionToInstall := release
+						if versionToInstall == "" {
+							return
+						}
+						confirmAndDownloadVersion(versionToInstall, mainWindow)
 					}
 
 					messageBox := container.NewHBox(

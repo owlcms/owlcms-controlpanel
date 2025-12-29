@@ -207,7 +207,7 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 
 	owlcmsDir := installDir
 	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(owlcmsDir, 0755); err != nil {
+		if err := shared.EnsureDir0755(owlcmsDir); err != nil {
 			return fmt.Errorf("creating owlcms directory: %w", err)
 		}
 	}

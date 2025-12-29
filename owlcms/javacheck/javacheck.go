@@ -18,6 +18,7 @@ import (
 
 	customdialog "owlcms-launcher/owlcms/dialog"
 	"owlcms-launcher/owlcms/downloadutils"
+	"owlcms-launcher/shared"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
@@ -142,7 +143,7 @@ func CheckJava(statusLabel *widget.Label) error {
 
 	// Ensure the owlcms directory exists
 	if _, err := os.Stat(owlcmsInstallDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(owlcmsInstallDir, 0755); err != nil {
+		if err := shared.EnsureDir0755(owlcmsInstallDir); err != nil {
 			progressDialog.Hide()
 			return fmt.Errorf("creating owlcms directory: %w", err)
 		}
@@ -159,7 +160,7 @@ func CheckJava(statusLabel *widget.Label) error {
 	}
 
 	if _, err := os.Stat(javaDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(javaDir, 0755); err != nil {
+		if err := shared.EnsureDir0755(javaDir); err != nil {
 			progressDialog.Hide()
 			return fmt.Errorf("creating java directory: %w", err)
 		}

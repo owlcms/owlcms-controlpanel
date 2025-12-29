@@ -12,6 +12,7 @@ import (
 
 	"owlcms-launcher/firmata/downloadutils"
 	"owlcms-launcher/firmata/javacheck"
+	"owlcms-launcher/shared"
 
 	"fyne.io/fyne/v2/widget"
 	"github.com/gofrs/flock"
@@ -119,7 +120,7 @@ func launchFirmata(version string, launchButton *widget.Button) error {
 	// Ensure the firmata directory exists
 	owlcmsDir := installDir
 	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(owlcmsDir, 0755); err != nil {
+		if err := shared.EnsureDir0755(owlcmsDir); err != nil {
 			return fmt.Errorf("creating firmata directory: %w", err)
 		}
 	}

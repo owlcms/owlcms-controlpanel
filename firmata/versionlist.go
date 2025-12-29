@@ -388,7 +388,10 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	jarURL := fmt.Sprintf("%s/%s/%s", urlPrefix, targetVersion, fileName)
 
 	extractDir := filepath.Join(installDir, targetVersion)
-	os.Mkdir(extractDir, 0755)
+	if err := shared.EnsureDir0755(extractDir); err != nil {
+		dialog.ShowError(fmt.Errorf("creating install directory: %w", err), w)
+		return
+	}
 	extractPath := filepath.Join(extractDir, fileName)
 
 	progressDialog := dialog.NewCustom(
@@ -471,7 +474,7 @@ func copyFiles(srcDir, destDir string, alwaysCopy bool) error {
 		destPath := filepath.Join(destDir, relPath)
 
 		if info.IsDir() {
-			return os.MkdirAll(destPath, info.Mode())
+			return shared.EnsureDir0755(destPath)
 		}
 
 		if !alwaysCopy {
@@ -490,6 +493,9 @@ func copyFiles(srcDir, destDir string, alwaysCopy bool) error {
 		}
 		defer srcFile.Close()
 
+		if err := shared.EnsureDir0755(filepath.Dir(destPath)); err != nil {
+			return err
+		}
 		destFile, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode())
 		if err != nil {
 			return err
