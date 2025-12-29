@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"owlcms-launcher/shared"
 	"owlcms-launcher/tracker/downloadutils"
 
 	"github.com/magiconair/properties"
@@ -43,7 +44,7 @@ func InitEnv() error {
 		log.Printf("env.properties file not found at %s, creating with default values", envFilePath)
 
 		// Ensure the directory exists before creating the file
-		if err := os.MkdirAll(installDir, 0755); err != nil {
+		if err := shared.EnsureDir0755(installDir); err != nil {
 			return err
 		}
 

@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"owlcms-launcher/shared"
 	"path/filepath"
 
 	"owlcms-launcher/owlcms/downloadutils"
@@ -90,7 +91,7 @@ func InitEnv() error {
 	if _, err := os.Stat(envFilePath); os.IsNotExist(err) {
 		log.Printf("env.properties file not found at %s, creating with default values", envFilePath)
 
-		if err := os.MkdirAll(installDir, 0755); err != nil {
+		if err := shared.EnsureDir0755(installDir); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", installDir, err)
 		}
 

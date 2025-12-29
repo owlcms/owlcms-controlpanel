@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"owlcms-launcher/owlcms/downloadutils"
+	"owlcms-launcher/shared"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -209,7 +210,7 @@ func InstallLocalZipFile(zipPath, version string, w fyne.Window, owlcmsInstallDi
 	// Ensure the owlcms directory exists
 	owlcmsDir := owlcmsInstallDir
 	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(owlcmsDir, 0755); err != nil {
+		if err := shared.EnsureDir0755(owlcmsDir); err != nil {
 			progressDialog.Hide()
 			dialog.ShowError(fmt.Errorf("creating owlcms directory: %w", err), w)
 			return

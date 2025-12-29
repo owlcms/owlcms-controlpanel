@@ -169,6 +169,9 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 				dialog.ShowError(fmt.Errorf("failed to open installation directory: %w", err), w)
 			}
 		}),
+		fyne.NewMenuItem("Refresh Available Versions", func() {
+			refreshAvailableVersions(w)
+		}),
 		fyne.NewMenuItem("Install OWLCMS version from ZIP", func() {
 			selectLocalZip(w, func(path string, err error) {
 				if err != nil {
@@ -259,6 +262,25 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 		spacer,
 		container.NewHBox(fileMenu, processMenu, optionsMenu),
 	)
+}
+
+func refreshAvailableVersions(w fyne.Window) {
+	go func() {
+		releases, err := fetchReleases()
+		if err != nil {
+			dialog.ShowError(fmt.Errorf("failed to refresh available versions: %w", err), w)
+			return
+		}
+		allReleases = releases
+
+		// Refresh any UI that depends on the remote release list.
+		recomputeVersionList(w)
+		setupReleaseDropdown(w)
+		checkForNewerVersion()
+		if downloadContainer != nil {
+			downloadContainer.Refresh()
+		}
+	}()
 }
 
 // initializeOwlcmsTab handles the async initialization of the OWLCMS tab

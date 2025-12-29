@@ -1046,7 +1046,7 @@ func streamChecksum(r io.Reader) (string, error) {
 
 // copyFile copies a file from src to dst, overwriting dst if it exists.
 func copyFile(src, dst string) error {
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+	if err := shared.EnsureDir0755(filepath.Dir(dst)); err != nil {
 		return err
 	}
 	in, err := os.Open(src)
@@ -1054,6 +1054,7 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	defer in.Close()
+
 	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
@@ -1078,7 +1079,11 @@ func copyDirectoryRecursive(src, dst string) error {
 		dstPath := filepath.Join(dst, relPath)
 
 		if info.IsDir() {
-			return os.MkdirAll(dstPath, info.Mode())
+			return shared.EnsureDir0755(dstPath)
+		}
+
+		if err := shared.EnsureDir0755(filepath.Dir(dstPath)); err != nil {
+			return err
 		}
 
 		return copyFile(path, dstPath)
@@ -1109,14 +1114,14 @@ func extractLocalFromJar(jarPath, localDir string, topLevelDirs []string) error 
 		targetPath := filepath.Join(localDir, relPath)
 
 		if f.FileInfo().IsDir() {
-			if err := os.MkdirAll(targetPath, f.Mode()); err != nil {
+			if err := shared.EnsureDir0755(targetPath); err != nil {
 				return err
 			}
 			continue
 		}
 
 		// Create parent directory
-		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+		if err := shared.EnsureDir0755(filepath.Dir(targetPath)); err != nil {
 			return err
 		}
 
@@ -1253,7 +1258,7 @@ func copyFiles(srcDir, destDir string, alwaysCopy bool) error {
 		destPath := filepath.Join(destDir, relPath)
 
 		if info.IsDir() {
-			return os.MkdirAll(destPath, info.Mode())
+			return shared.EnsureDir0755(destPath)
 		}
 
 		if !alwaysCopy {
@@ -1271,6 +1276,9 @@ func copyFiles(srcDir, destDir string, alwaysCopy bool) error {
 		}
 		defer srcFile.Close()
 
+		if err := shared.EnsureDir0755(filepath.Dir(destPath)); err != nil {
+			return err
+		}
 		destFile, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode())
 		if err != nil {
 			return err

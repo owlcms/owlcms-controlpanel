@@ -215,7 +215,7 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 	// Ensure the tracker directory exists
 	trackerDir := installDir
 	if _, err := os.Stat(trackerDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(trackerDir, 0755); err != nil {
+		if err := shared.EnsureDir0755(trackerDir); err != nil {
 			return fmt.Errorf("creating tracker directory: %w", err)
 		}
 	}
@@ -317,7 +317,7 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 	appDir := filepath.Join(installDir, version)
 	logPath := filepath.Join(appDir, "logs", "tracker.log")
 	_ = os.Remove(logPath)
-	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+	if err := shared.EnsureDir0755(filepath.Dir(logPath)); err != nil {
 		log.Printf("Failed to create log directory: %v", err)
 	}
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)

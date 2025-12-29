@@ -293,6 +293,9 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 				dialog.ShowError(fmt.Errorf("failed to open installation directory: %w", err), w)
 			}
 		}),
+		fyne.NewMenuItem("Refresh Available Versions", func() {
+			refreshAvailableVersions(w)
+		}),
 		fyne.NewMenuItemSeparator(),
 		// Commented out: remove all versions via Files menu (use Uninstall instead)
 		// fyne.NewMenuItem("Remove All Firmata Versions", func() {
@@ -328,6 +331,33 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 		spacer,
 		container.NewHBox(fileMenu, processMenu),
 	)
+}
+
+func refreshAvailableVersions(w fyne.Window) {
+	go func() {
+		releases, err := fetchReleases()
+		if err != nil {
+			dialog.ShowError(fmt.Errorf("failed to refresh available versions: %w", err), w)
+			return
+		}
+		allReleases = releases
+
+		// If the dropdown exists, repopulate it.
+		if releaseDropdown != nil {
+			for _, obj := range releaseDropdown.Objects {
+				if selectWidget, ok := obj.(*widget.Select); ok {
+					populateReleaseSelect(selectWidget)
+					break
+				}
+			}
+		}
+
+		recomputeVersionList(w)
+		checkForNewerVersion()
+		if downloadContainer != nil {
+			downloadContainer.Refresh()
+		}
+	}()
 }
 
 // initializeFirmataTab handles the async initialization of the Firmata tab
@@ -460,7 +490,7 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 	// Ensure the firmata directory exists
 	owlcmsDir := installDir
 	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(owlcmsDir, 0755); err != nil {
+		if err := shared.EnsureDir0755(owlcmsDir); err != nil {
 			dialog.ShowError(fmt.Errorf("creating firmata directory: %w", err), w)
 			return
 		}
@@ -476,7 +506,11 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 
 	go func() {
 		extractPath := filepath.Join(owlcmsDir, version)
-		os.Mkdir(extractPath, 0755)
+		if err := shared.EnsureDir0755(extractPath); err != nil {
+			progressDialog.Hide()
+			dialog.ShowError(fmt.Errorf("creating firmata version directory: %w", err), w)
+			return
+		}
 		extractPath = filepath.Join(extractPath, fileName)
 
 		// Download the file using downloadutils
@@ -534,6 +568,7 @@ func checkForNewerVersion() {
 				if err == nil && releaseVersion.GreaterThan(latestInstalledVersion) {
 					log.Printf("Found newer version: %s\n", releaseVersion)
 					releaseURL := fmt.Sprintf("https://github.com/jflamy/owlcms-firmata/releases/tag/%s", releaseVersion)
+					versionToInstall := extractSemverTag(release)
 
 					var versionType string
 					if containsPreReleaseTag(release) {
@@ -553,7 +588,20 @@ func checkForNewerVersion() {
 					releaseNotesLink.Show()
 					installLink := widget.NewHyperlink("install as additional version", nil)
 					installLink.OnTapped = func() {
-						ShowDownloadables()
+						if versionToInstall == "" {
+							return
+						}
+						dialog.ShowConfirm(
+							"Confirm Download",
+							fmt.Sprintf("Do you want to download and install owlcms-firmata version %s?", versionToInstall),
+							func(ok bool) {
+								if !ok {
+									return
+								}
+								downloadAndInstallVersion(versionToInstall, mainWindow)
+							},
+							mainWindow,
+						)
 					}
 
 					messageBox := container.NewHBox(

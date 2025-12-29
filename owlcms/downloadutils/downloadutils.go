@@ -137,6 +137,7 @@ func ExtractZip(src, dest string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open zip file %s: %w", src, err)
 	}
+	defer r.Close()
 
 	for _, f := range r.File {
 		if f.Name == "Procfile" || f.Name == "system.properties" {
@@ -146,11 +147,13 @@ func ExtractZip(src, dest string) error {
 		fpath := filepath.Join(dest, f.Name)
 
 		if f.FileInfo().IsDir() {
-			os.MkdirAll(fpath, os.ModePerm)
+			if err := shared.EnsureDir0755(fpath); err != nil {
+				return fmt.Errorf("failed to create directory: %w", err)
+			}
 			continue
 		}
 
-		if err := os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
+		if err := shared.EnsureDir0755(filepath.Dir(fpath)); err != nil {
 			return fmt.Errorf("failed to create directory: %w", err)
 		}
 
@@ -178,8 +181,6 @@ func ExtractZip(src, dest string) error {
 			return fmt.Errorf("failed to change file times: %w", err)
 		}
 	}
-
-	r.Close() // Close the zip file after extracting
 
 	// Remove the downloaded ZIP file
 	if err := os.Remove(src); err != nil {
@@ -223,7 +224,7 @@ func ExtractTarGz(tarGzPath, dest string) error {
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(target, 0755); err != nil {
+			if err := shared.EnsureDir0755(target); err != nil {
 				gzr.Close()
 				r.Close()
 				return err
@@ -234,6 +235,12 @@ func ExtractTarGz(tarGzPath, dest string) error {
 				return err
 			}
 		case tar.TypeReg:
+			// Ensure parent directories are 0755
+			if err := shared.EnsureDir0755(filepath.Dir(target)); err != nil {
+				gzr.Close()
+				r.Close()
+				return err
+			}
 			outFile, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
 			if err != nil {
 				gzr.Close()

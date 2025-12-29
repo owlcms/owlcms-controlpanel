@@ -105,7 +105,7 @@ func ExtractZip(zipPath, destDir string) error {
 	defer r.Close()
 
 	// Create the destination directory if it doesn't exist
-	if err := os.MkdirAll(destDir, 0755); err != nil {
+	if err := shared.EnsureDir0755(destDir); err != nil {
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
@@ -118,11 +118,13 @@ func ExtractZip(zipPath, destDir string) error {
 		}
 
 		if f.FileInfo().IsDir() {
-			os.MkdirAll(fpath, os.ModePerm)
+			if err := shared.EnsureDir0755(fpath); err != nil {
+				return fmt.Errorf("failed to create directory: %w", err)
+			}
 			continue
 		}
 
-		if err := os.MkdirAll(filepath.Dir(fpath), os.ModePerm); err != nil {
+		if err := shared.EnsureDir0755(filepath.Dir(fpath)); err != nil {
 			return fmt.Errorf("failed to create directory: %w", err)
 		}
 
@@ -144,6 +146,7 @@ func ExtractZip(zipPath, destDir string) error {
 		if err != nil {
 			return fmt.Errorf("failed to extract file: %w", err)
 		}
+
 	}
 
 	// Delete the zip file after successful extraction
