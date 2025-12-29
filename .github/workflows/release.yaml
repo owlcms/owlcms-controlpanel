@@ -87,17 +87,17 @@ jobs:
     - name: Build for macOS amd64
       if: ${{ env.BUILD_MAC == 'true' }}
       run: |
-        rm -f owlcms
         export GOOS=darwin
         export GOARCH=amd64
         export CGO_ENABLED=1
-        go build -o owlcms .
+        mkdir -p build
+        go build -o build/owlcms .
 
     - name: Package for macOS amd64
       if: ${{ env.BUILD_MAC == 'true' }}
       run: |
         rm -rf owlcms.app
-        fyne package -os darwin -icon Icon.png -name owlcms -executable owlcms
+        fyne package -os darwin -icon Icon.png -name owlcms -executable build/owlcms
 
     - name: Move macOS amd64 app to dist directory
       if: ${{ env.BUILD_MAC == 'true' }}
