@@ -23,23 +23,6 @@ The control panel is installed once. It will automatically download the current 
 deletions and modifications done in the imported release relative to the imported release's jar
 are applied.  This will make it easier for federations to provide customized kits.
 - 2.8.0: When using the "update" button on a version, that version is kept as is, as a backup.
-- 2.7.0: Ability to package an installation as a zip, to more easily create federation-specific kits.
-- 2.6.0: The `Install from ZIP` menu option now uses the familiar file chooser from the operating system.  This will make it easier for federations to provide customized kits.
-- 2.7.0: Will now handle +versioninfo in the file names, so that zipped installation files can
-describe what they are for (which federation, etc.)
-- 2.7.0: Ability to package an installation as a zip, to more easily create federation-specific kits.
-- 2.6.0: The `Install from ZIP` menu option now uses the familiar file chooser from the operating system.
-- 2.5.0: improved kill behaviour
-- 2.5.0: Avoid false alarms about owlcms processes already running by doing an active check.
-- 2.4.3: Fix for Raspberry Pi Java version - the latest JDK build is missing 2/3 of the expected releases, using a predetermined version instead.
-- 2.4.3: Make the Java version fetched configurable instead of being "latest".  Can be overridden as TEMURIN_VERSION in env.properties
-- 2.4.2: Show a link to the configuration files of the running owlcms version while it is running
-- 2.4.1: Fix Raspberry Pi Desktop file to not require an execution confirmation
-- 2.4.0: Ability to install from a downloaded zip, making it easier for federations to prepare a kit with their own templates and settings
-- 2.4.0: The update procedure now preserves additions, changes and deletions made in the version being updated.
-- 2.4.0: Don't warn users about control panel updates that are prerelease
-- 2.4.0: Accept any valid semver version as a directory, allowing 57.1.0+federation as a valid name with metadata
-- 2.4.0: On Raspberry Pi, the desktop icon no longer prompts for execution.
 
 ### Installing the Control Panel
 
