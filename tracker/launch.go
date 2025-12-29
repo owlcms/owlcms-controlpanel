@@ -11,8 +11,8 @@ import (
 	"strings"
 	"syscall"
 
-	"owlcms-launcher/tracker/downloadutils"
 	"owlcms-launcher/shared"
+	"owlcms-launcher/tracker/downloadutils"
 
 	"fyne.io/fyne/v2/widget"
 	"github.com/gofrs/flock"
