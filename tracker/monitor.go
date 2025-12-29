@@ -14,6 +14,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
+	"github.com/shirou/gopsutil/process"
 )
 
 // checkPort tries to connect to localhost:port and returns nil if successful
@@ -29,31 +30,30 @@ func checkPort() error {
 func monitorProcess(cmd *exec.Cmd) chan error {
 	result := make(chan error, 1)
 	go func() {
-		// Start a goroutine to wait for process exit
-		done := make(chan error, 1)
-		go func() {
-			done <- cmd.Wait()
-		}()
-
 		// Try connecting to the port for up to 30 seconds (Node.js starts faster than Java)
 		timeout := time.After(30 * time.Second)
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
 
+		pid := int32(0)
+		if cmd != nil && cmd.Process != nil {
+			pid = int32(cmd.Process.Pid)
+		}
+
 		for {
 			select {
-			case err := <-done:
-				// Process exited before port was available
-				if err != nil {
-					result <- fmt.Errorf("process failed: %w", err)
-				} else {
-					result <- fmt.Errorf("process exited before becoming ready")
-				}
-				return
 			case <-timeout:
 				result <- fmt.Errorf("timed out waiting for process to become ready")
 				return
 			case <-ticker.C:
+				// If the process exited before the port became ready, fail fast.
+				if pid != 0 {
+					if exists, _ := process.PidExists(pid); !exists {
+						result <- fmt.Errorf("process exited before becoming ready")
+						return
+					}
+				}
+
 				if err := checkPort(); err == nil {
 					// Port is responding, process is ready
 					result <- nil
@@ -97,6 +97,12 @@ func stopProcess(proc *exec.Cmd, version string, stopBtn *widget.Button, downloa
 	currentProcess = nil
 	stopBtn.Hide()
 	urlLink.Hide() // Hide the URL when stopping
+	if appDirLink != nil {
+		appDirLink.Hide()
+	}
+	if tailLogLink != nil {
+		tailLogLink.Hide()
+	}
 	checkForNewerVersion()
 	downloadGroup.Show()
 	versionCont.Show()

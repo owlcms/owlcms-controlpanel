@@ -23,7 +23,10 @@ import (
 )
 
 var (
-	installDir                = getInstallDir()
+	installDir = getInstallDir()
+	// TEMPORARY TEST FLAG: when true, treat Firmata as not installed.
+	// Keep variable for testing; default to false to use real detection.
+	forceUninstalledFirmata   = false
 	currentProcess            *exec.Cmd
 	currentVersion            string // Add to track current version
 	statusLabel               *widget.Label
@@ -145,7 +148,7 @@ func removeAllVersions() {
 	downloadButtonTitle.SetText("Click here to install a version.")
 	downloadButtonTitle.Refresh()
 	updateTitle.Refresh()
-	recomputeVersionList(fyne.CurrentApp().Driver().AllWindows()[0])
+	recomputeVersionList(mainWindow)
 }
 
 func uninstallAll() {
@@ -158,7 +161,8 @@ func uninstallAll() {
 			} else {
 				log.Println("All data removed successfully")
 				dialog.ShowInformation("Success", "All data removed successfully", fyne.CurrentApp().Driver().AllWindows()[0])
-				fyne.CurrentApp().Quit()
+				// Do not quit the control panel; refresh UI to show uninstalled explanation
+				recomputeVersionList(mainWindow)
 			}
 		}
 	}, fyne.CurrentApp().Driver().AllWindows()[0])
@@ -230,10 +234,14 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	}
 	singleOrMultiVersionLabel = widget.NewLabel("")
 
-	// Configure stop button behavior
+	// Configure stop button behavior (confirm before stopping)
 	stopButton.OnTapped = func() {
 		log.Println("Stop button tapped")
-		stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+		dialog.ShowConfirm("Confirm Stop", "Stop the running Firmata process?", func(confirm bool) {
+			if confirm {
+				stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+			}
+		}, w)
 	}
 	stopButton.Hide()
 	stopContainer.Hide()
@@ -256,19 +264,10 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	statusLabel.Show()
 	stopContainer.Show()
 
-	// If Firmata install directory does not exist, show explanation and Install button
-	if _, err := os.Stat(installDir); os.IsNotExist(err) {
-		shared.ShowUninstalledTabContent(versionContainer, "asset/firmata.md", func() {
-			latest, err := getMostRecentStableRelease()
-			log.Printf("Firmata Install button: getMostRecentStableRelease -> latest=%q err=%v", latest, err)
-			if err == nil && latest != "" {
-				log.Printf("Firmata Install: starting downloadAndInstallVersion(%s)", latest)
-				downloadAndInstallVersion(latest, w)
-			} else {
-				log.Println("Firmata Install: no latest stable found, showing download UI")
-				ShowDownloadables()
-			}
-		}, func() { initializeFirmataTab(w) })
+	// If Firmata install directory does not exist, reset tab to explanation mode
+	if forceUninstalledFirmata || func() bool { _, err := os.Stat(installDir); return os.IsNotExist(err) }() {
+		resetToExplainMode(w)
+		return mainContent
 	} else {
 		// Start initialization in a goroutine
 		go initializeFirmataTab(w)
@@ -287,13 +286,15 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 			}
 		}),
 		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("Remove All Firmata Versions", func() {
-			removeAllVersions()
-		}),
-		fyne.NewMenuItem("Remove Firmata Java", func() {
-			removeJava()
-		}),
-		fyne.NewMenuItem("Remove All Firmata Stored Data and Configurations", func() {
+		// Commented out: remove all versions via Files menu (use Uninstall instead)
+		// fyne.NewMenuItem("Remove All Firmata Versions", func() {
+		// 	removeAllVersions()
+		// }),
+		// Commented out: remove bundled Java via Files menu
+		// fyne.NewMenuItem("Remove Firmata Java", func() {
+		// 	removeJava()
+		// }),
+		fyne.NewMenuItem("Uninstall Firmata", func() {
 			uninstallAll()
 		}),
 	}
@@ -330,9 +331,11 @@ func initializeFirmataTab(w fyne.Window) {
 	// Check for internet connection before anything else
 	internetAvailable := CheckForInternet()
 	if internetAvailable && !javaAvailable {
-		// Check for Java before anything else
-		if err := checkJava(statusLabel); err != nil {
-			dialog.ShowError(fmt.Errorf("failed to fetch Java: %w", err), w)
+		// Determine the Temurin version to fetch for Firmata, then perform Java
+		// check/install using the shared helper.
+		ver := javacheck.GetTemurinVersion()
+		if err := shared.CheckAndInstallJava(ver, statusLabel, w, checkJava); err != nil {
+			return
 		}
 	}
 
@@ -411,17 +414,29 @@ func initializeFirmataTab(w fyne.Window) {
 // HideDownloadables hides the download dropdown and prerelease checkbox
 func HideDownloadables() {
 	downloadsShown = false
-	releaseDropdown.Hide()
-	prereleaseCheckbox.Hide()
-	downloadContainer.Refresh()
+	if releaseDropdown != nil {
+		releaseDropdown.Hide()
+	}
+	if prereleaseCheckbox != nil {
+		prereleaseCheckbox.Hide()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Refresh()
+	}
 }
 
 // ShowDownloadables shows the download dropdown and prerelease checkbox
 func ShowDownloadables() {
 	downloadsShown = true
-	releaseDropdown.Show()
-	prereleaseCheckbox.Show()
-	downloadContainer.Refresh()
+	if releaseDropdown != nil {
+		releaseDropdown.Show()
+	}
+	if prereleaseCheckbox != nil {
+		prereleaseCheckbox.Show()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Refresh()
+	}
 }
 
 func downloadAndInstallVersion(version string, w fyne.Window) {

@@ -2,6 +2,7 @@ package tracker
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -10,13 +11,101 @@ import (
 	"strings"
 	"syscall"
 
-	"owlcms-launcher/shared"
 	"owlcms-launcher/tracker/downloadutils"
+	"owlcms-launcher/shared"
 
 	"fyne.io/fyne/v2/widget"
 	"github.com/gofrs/flock"
 	"github.com/shirou/gopsutil/process"
 )
+
+const tailviewerPath = `C:\Program Files\Tailviewer\Tailviewer.exe`
+
+func bashSingleQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+func configureTailLogLink(version, appDir string) {
+	if tailLogLink == nil {
+		return
+	}
+
+	goos := shared.GetGoos()
+	if goos != "windows" && goos != "darwin" && goos != "linux" {
+		tailLogLink.Hide()
+		return
+	}
+
+	logPath := filepath.Join(appDir, "logs", "tracker.log")
+	tailLogLink.SetText(fmt.Sprintf("Tail tracker %s logs", version))
+	tailLogLink.SetURL(nil)
+	tailLogLink.OnTapped = func() {
+		switch goos {
+		case "windows":
+			if _, err := os.Stat(tailviewerPath); err == nil {
+				if err := exec.Command(tailviewerPath, logPath).Start(); err != nil {
+					log.Printf("Failed to start Tailviewer: %v", err)
+					if statusLabel != nil {
+						statusLabel.SetText("Failed to start Tailviewer")
+					}
+				}
+				return
+			}
+			// Fallback: open a new PowerShell window tailing the log
+			escaped := strings.ReplaceAll(logPath, "'", "''")
+			psCmd := fmt.Sprintf("Get-Content -Path '%s' -Wait -Tail 10", escaped)
+			if err := exec.Command("cmd", "/c", "start", "powershell", "-NoExit", "-Command", psCmd).Start(); err != nil {
+				log.Printf("Failed to start PowerShell tail: %v", err)
+				if statusLabel != nil {
+					statusLabel.SetText("Failed to open PowerShell tail")
+				}
+			}
+		case "darwin":
+			p := strings.ReplaceAll(logPath, "\\", "\\\\")
+			p = strings.ReplaceAll(p, "\"", "\\\"")
+			script := fmt.Sprintf(`tell application "Terminal" to do script "tail -n 10 -f \\\"%s\\\""`, p)
+			if err := exec.Command("osascript", "-e", script, "-e", `tell application "Terminal" to activate`).Start(); err != nil {
+				log.Printf("Failed to start Terminal tail: %v", err)
+				if statusLabel != nil {
+					statusLabel.SetText("Failed to open Terminal tail")
+				}
+			}
+		case "linux":
+			cmd := fmt.Sprintf("tail -n 10 -f %s", bashSingleQuote(logPath))
+			try := func(name string, args ...string) bool {
+				if _, err := exec.LookPath(name); err != nil {
+					return false
+				}
+				if err := exec.Command(name, args...).Start(); err != nil {
+					log.Printf("Failed to start %s for tail: %v", name, err)
+					return false
+				}
+				return true
+			}
+			if try("x-terminal-emulator", "-e", "bash", "-lc", cmd) {
+				return
+			}
+			if try("gnome-terminal", "--", "bash", "-lc", cmd) {
+				return
+			}
+			if try("konsole", "-e", "bash", "-lc", cmd) {
+				return
+			}
+			if try("xfce4-terminal", "-e", "bash", "-lc", cmd) {
+				return
+			}
+			if try("xterm", "-e", "bash", "-lc", cmd) {
+				return
+			}
+			log.Printf("No terminal emulator found to tail logs")
+			if statusLabel != nil {
+				statusLabel.SetText("No terminal emulator found to tail logs")
+			}
+		}
+	}
+
+	tailLogLink.Show()
+}
 
 var (
 	lockFilePath = filepath.Join(getInstallDir(), "tracker.lock")
@@ -223,6 +312,23 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 
 	cmd.Env = env
 	cmd.Dir = versionDir
+
+	// Capture stdout/stderr to logs/tracker.log (remove previous file first)
+	appDir := filepath.Join(installDir, version)
+	logPath := filepath.Join(appDir, "logs", "tracker.log")
+	_ = os.Remove(logPath)
+	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+		log.Printf("Failed to create log directory: %v", err)
+	}
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Printf("Failed to open tracker log file %s: %v", logPath, err)
+		logFile = nil
+	} else {
+		cmd.Stdout = io.MultiWriter(logFile)
+		cmd.Stderr = io.MultiWriter(logFile)
+	}
+
 	log.Printf("Starting owlcms-tracker %s\n", version)
 	log.Printf("  Working directory: %s\n", cmd.Dir)
 	log.Printf("  Command: %s %s\n", nodeExe, mainScript)
@@ -234,6 +340,9 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 		launchButton.Show()
 		goBackToMainScreen()
 		log.Printf("Failed to start owlcms-tracker %s: %v\n", version, err)
+		if logFile != nil {
+			_ = logFile.Close()
+		}
 		return fmt.Errorf("failed to start owlcms-tracker %s: %w", version, err)
 	}
 
@@ -253,6 +362,14 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 	stopContainer.Show()
 	downloadContainer.Hide()
 	versionContainer.Hide()
+
+	appDirLink.SetText(fmt.Sprintf("Open tracker %s directory", version))
+	appDirLink.SetURL(nil)
+	appDirLink.OnTapped = func() {
+		shared.OpenFileExplorer(appDir)
+	}
+	appDirLink.Show()
+	configureTailLogLink(version, appDir)
 
 	// Monitor the process in background
 	monitorChan := monitorProcess(cmd)
@@ -278,16 +395,27 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 		urlLink.SetURLFromString(url)
 		urlLink.SetText("Open owlcms-tracker in a browser")
 		urlLink.Show()
+
+		appDirLink.SetText(fmt.Sprintf("Open tracker %s directory", version))
+		appDirLink.SetURL(nil)
+		appDirLink.OnTapped = func() {
+			shared.OpenFileExplorer(appDir)
+		}
+		appDirLink.Show()
+		configureTailLogLink(version, appDir)
 		stopContainer.Refresh()
 
-		// Open the browser automatically
-		if err := shared.OpenBrowser(url); err != nil {
-			log.Printf("Failed to open browser: %v\n", err)
-		}
+		// Auto-opening the browser is disabled here — leave the link for the user to click
+		// if err := shared.OpenBrowser(url); err != nil {
+		//     log.Printf("Failed to open browser: %v\n", err)
+		// }
 
 		// Process is stable, wait for it to end
 		err := cmd.Wait()
 		pid := cmd.Process.Pid
+		if logFile != nil {
+			_ = logFile.Close()
+		}
 
 		if killedByUs {
 			// If we killed it, just report normal termination
@@ -309,6 +437,13 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 		launchButton.Show()
 		downloadContainer.Show()
 		versionContainer.Show()
+		urlLink.Hide()
+		if appDirLink != nil {
+			appDirLink.Hide()
+		}
+		if tailLogLink != nil {
+			tailLogLink.Hide()
+		}
 		releaseTrackerLock()
 	}()
 
@@ -320,4 +455,11 @@ func goBackToMainScreen() {
 	stopContainer.Hide()
 	downloadContainer.Show()
 	versionContainer.Show()
+	urlLink.Hide()
+	if appDirLink != nil {
+		appDirLink.Hide()
+	}
+	if tailLogLink != nil {
+		tailLogLink.Hide()
+	}
 }

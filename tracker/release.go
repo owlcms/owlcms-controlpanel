@@ -218,6 +218,8 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 
 		progressBar.SetValue(1.0)
 		log.Println("Extraction completed")
+		// Ensure the tab UI is initialized so download UI widgets exist
+		initializeTab(w)
 		updateExplanation()
 
 		progressDialog.Hide()
@@ -273,6 +275,30 @@ func getMostRecentPrerelease() (string, error) {
 		}
 	}
 	return "", fmt.Errorf("no prerelease found")
+}
+
+// InstallDefault performs the default install action for the Tracker package.
+// It selects the most recent stable release and starts the confirm+download flow,
+// or shows the download UI if no stable release is found.
+func InstallDefault(w fyne.Window) {
+	// If we haven't fetched releases yet, try to fetch them now so the
+	// Install button can auto-select the latest stable release.
+	if len(allReleases) == 0 {
+		if r, err := fetchReleases(); err == nil {
+			allReleases = r
+		} else {
+			log.Printf("Tracker InstallDefault: background fetchReleases failed: %v", err)
+		}
+	}
+
+	latest, err := getMostRecentStableRelease()
+	log.Printf("Tracker InstallDefault: getMostRecentStableRelease -> latest=%q err=%v", latest, err)
+	if err == nil && latest != "" {
+		confirmAndDownloadVersion(latest, w)
+	} else {
+		log.Println("Tracker InstallDefault: no latest stable found, showing download UI")
+		ShowDownloadables()
+	}
 }
 
 func checkForNewerVersion() {

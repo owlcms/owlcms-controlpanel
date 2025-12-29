@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"owlcms-launcher/firmata/downloadutils"
+	"owlcms-launcher/firmata/javacheck"
+	"owlcms-launcher/shared"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -271,4 +273,40 @@ func extractSemverTag(s string) string {
 		return match
 	}
 	return s
+}
+
+// InstallDefault performs the default install action for the Firmata package.
+// It will attempt to choose the most recent stable release; if not available,
+// it will show the download UI for manual selection.
+func InstallDefault(w fyne.Window) {
+	// Before installing, ensure Java runtime is available. Delegate to shared helper
+	// which will call the package-local `checkJava` implementation.
+	ver := javacheck.GetTemurinVersion()
+	if err := shared.CheckAndInstallJava(ver, statusLabel, w, checkJava); err != nil {
+		return
+	}
+
+	// Fetch releases on-demand if not already loaded
+	if len(allReleases) == 0 {
+		if r, err := fetchReleases(); err == nil {
+			allReleases = r
+		} else {
+			log.Printf("Firmata InstallDefault: background fetchReleases failed: %v", err)
+		}
+	}
+
+	latest, err := getMostRecentStableRelease()
+	log.Printf("Firmata InstallDefault: getMostRecentStableRelease -> latest=%q err=%v", latest, err)
+	if err == nil && latest != "" {
+		// Start a first-install flow: hide download UI and kick off install of the latest stable.
+		HideDownloadables()
+		if statusLabel != nil {
+			statusLabel.SetText("Installing Firmata " + latest)
+			statusLabel.Show()
+		}
+		go downloadAndInstallVersion(latest, w)
+	} else {
+		log.Println("Firmata InstallDefault: no latest stable found, showing download UI")
+		ShowDownloadables()
+	}
 }

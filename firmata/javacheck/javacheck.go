@@ -244,6 +244,17 @@ func findLatestTemurinRelease() (string, error) {
 	return release.TagName, nil
 }
 
+// GetTemurinVersion returns the Temurin release tag that should be used.
+// It returns an empty string on error so callers can fall back to defaults.
+func GetTemurinVersion() string {
+	tag, err := findLatestTemurinRelease()
+	if err != nil {
+		log.Printf("firmata javacheck: could not determine Temurin version: %v", err)
+		return ""
+	}
+	return tag
+}
+
 func getTemurinDownloadURL() (string, error) {
 	// Get the latest release tag
 	tag, err := findLatestTemurinRelease()

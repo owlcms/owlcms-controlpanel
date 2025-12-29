@@ -79,7 +79,7 @@ func main() {
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
 	a.Settings().SetTheme(newMyTheme())
 	w := a.NewWindow("OWLCMS Control Panel")
-	w.Resize(fyne.NewSize(900, 430))
+	w.Resize(fyne.NewSize(900, 600))
 
 	// Create tab contents - owlcms.CreateTab handles its own initialization
 	owlcmsTabContent := owlcms.CreateTab(w, a)
@@ -89,7 +89,7 @@ func main() {
 	mainContent := container.NewAppTabs(
 		container.NewTabItem("OWLCMS", owlcmsTabContent),
 		container.NewTabItem("Tracker", trackerTabContent),
-		container.NewTabItem("Firmata", firmataTabContent),
+		container.NewTabItem("Arduino Devices", firmataTabContent),
 	)
 
 	w.SetContent(mainContent)
@@ -113,8 +113,9 @@ func main() {
 	firmataCheck.SetChecked(mods.Firmata)
 	checks := container.NewVBox(owlcmsCheck, trackerCheck, firmataCheck)
 
-	// Only show the checkboxes in the dialog; trace information is logged
-	dialog.ShowCustom("Installed Modules", "Close", checks, w)
+	// The initial installed-modules popup is kept in code for future use
+	// but is not shown by default. To re-enable, call `dialog.ShowCustom(...)`.
+	_ = checks // keep variable referenced
 
 	// Set up signal handling
 	setupSignalHandling()
@@ -167,7 +168,7 @@ func setupCleanupOnExit(w fyne.Window) {
 				w,
 			)
 			confirmDialog.SetConfirmText("Cancel")
-			confirmDialog.SetDismissText("Stop and Exit")
+			confirmDialog.SetDismissText("Stop")
 			confirmDialog.Show()
 		} else {
 			w.Close()

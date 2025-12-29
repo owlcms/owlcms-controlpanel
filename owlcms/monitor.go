@@ -86,5 +86,8 @@ func stopProcess(process *exec.Cmd, version string, stopBtn *widget.Button, down
 	versionCont.Show()
 	urlLink.Hide()
 	appDirLink.Hide()
+	if tailLogLink != nil {
+		tailLogLink.Hide()
+	}
 	releaseJavaLock()
 }

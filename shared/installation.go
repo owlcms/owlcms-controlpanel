@@ -24,6 +24,15 @@ func DetectInstalledModules(owlcmsPath, trackerPath, firmataPath string) ModuleP
 	trackerexists := dirExists(trackerPath)
 	firmataexists := dirExists(firmataPath)
 
+	// TEMPORARY TEST OVERRIDE: force all modules to appear NOT INSTALLED.
+	// This is intentional for temporary UI testing and should be removed.
+	if true {
+		log.Printf("DetectInstalledModules: forcing all modules to false for testing")
+		owlexists = false
+		trackerexists = false
+		firmataexists = false
+	}
+
 	log.Printf("DetectInstalledModules: checked OWLCMS path=%s exists=%v", owlcmsPath, owlexists)
 	log.Printf("DetectInstalledModules: checked Tracker path=%s exists=%v", trackerPath, trackerexists)
 	log.Printf("DetectInstalledModules: checked Firmata path=%s exists=%v", firmataPath, firmataexists)

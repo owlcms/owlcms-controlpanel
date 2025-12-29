@@ -20,7 +20,10 @@ import (
 )
 
 var (
-	installDir                = getInstallDir()
+	installDir = getInstallDir()
+	// TEMPORARY TEST FLAG: when true, treat Tracker as not installed.
+	// Keep variable for testing; default to false to use real detection.
+	forceUninstalledTracker   = false
 	tabRoot                   *fyne.Container
 	currentProcess            *exec.Cmd
 	currentVersion            string
@@ -32,6 +35,8 @@ var (
 	downloadContainer         *fyne.Container
 	downloadsShown            bool
 	urlLink                   *widget.Hyperlink
+	appDirLink                *widget.Hyperlink
+	tailLogLink               *widget.Hyperlink
 	mainWindow                fyne.Window
 	killedByUs                bool
 )
@@ -72,7 +77,13 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	urlLink = widget.NewHyperlink("", nil)
 	urlLink.Hide()
 
-	stopContainer = container.NewVBox(widget.NewSeparator(), stopButton, statusLabel, urlLink)
+	// App directory + log tail links (shown when running)
+	appDirLink = widget.NewHyperlink("", nil)
+	appDirLink.Hide()
+	tailLogLink = widget.NewHyperlink("", nil)
+	tailLogLink.Hide()
+
+	stopContainer = container.NewVBox(widget.NewSeparator(), stopButton, statusLabel, urlLink, appDirLink, tailLogLink)
 
 	// Initialize download titles
 	updateTitle = widget.NewRichTextFromMarkdown("")
@@ -87,10 +98,14 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	}
 	singleOrMultiVersionLabel = widget.NewLabel("")
 
-	// Configure stop button behavior
+	// Configure stop button behavior (confirm before stopping)
 	stopButton.OnTapped = func() {
 		log.Println("Stop button tapped")
-		stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+		dialog.ShowConfirm("Confirm Stop", "Stop the running Tracker process?", func(confirm bool) {
+			if confirm {
+				stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+			}
+		}, w)
 	}
 	stopButton.Hide()
 	stopContainer.Hide()
@@ -118,19 +133,9 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	statusLabel.Show()
 	stopContainer.Show()
 
-	// If the installation directory does not exist, show the shared explanation/install UI
-	if _, err := os.Stat(installDir); os.IsNotExist(err) {
-		shared.ShowUninstalledTabContent(versionContainer, "asset/tracker.md", func() {
-			latest, err := getMostRecentStableRelease()
-			log.Printf("Tracker Install button: getMostRecentStableRelease -> latest=%q err=%v", latest, err)
-			if err == nil && latest != "" {
-				log.Printf("Tracker Install: starting downloadAndInstallVersion(%s)", latest)
-				downloadAndInstallVersion(latest, w)
-			} else {
-				log.Println("Tracker Install: no latest stable found, showing download UI")
-				ShowDownloadables()
-			}
-		}, func() { initializeTab(w) })
+	// If the installation directory does not exist, reset the tab to explanation mode
+	if forceUninstalledTracker || func() bool { _, err := os.Stat(installDir); return os.IsNotExist(err) }() {
+		resetToExplainMode()
 		return mainContent
 	}
 
@@ -150,13 +155,12 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 			}
 		}),
 		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("Remove All Tracker Versions", func() {
-			removeAllVersions()
-		}),
-		fyne.NewMenuItem("Remove All Tracker Stored Data and Configurations", func() {
+		// Commented out: remove all versions via Files menu (use Uninstall instead)
+		// fyne.NewMenuItem("Remove All Tracker Versions", func() {
+		// 	removeAllVersions()
+		// }),
+		fyne.NewMenuItem("Uninstall Tracker", func() {
 			uninstallAll()
-			// Update UI to explanation/install mode
-			resetToExplainMode()
 		}),
 	}
 	fileMenu := shared.CreateMenuButton("Files", fileMenuItems)
@@ -273,17 +277,29 @@ func computeVersionScrollHeight(numVersions int) float32 {
 // HideDownloadables hides the download dropdown
 func HideDownloadables() {
 	downloadsShown = false
-	releaseDropdown.Hide()
-	prereleaseCheckbox.Hide()
-	downloadContainer.Refresh()
+	if releaseDropdown != nil {
+		releaseDropdown.Hide()
+	}
+	if prereleaseCheckbox != nil {
+		prereleaseCheckbox.Hide()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Refresh()
+	}
 }
 
 // ShowDownloadables shows the download dropdown
 func ShowDownloadables() {
 	downloadsShown = true
-	releaseDropdown.Show()
-	prereleaseCheckbox.Show()
-	downloadContainer.Refresh()
+	if releaseDropdown != nil {
+		releaseDropdown.Show()
+	}
+	if prereleaseCheckbox != nil {
+		prereleaseCheckbox.Show()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Refresh()
+	}
 }
 
 // CheckForInternet checks if there is internet connectivity
@@ -311,5 +327,42 @@ func resetToExplainMode() {
 	if versionContainer == nil {
 		return
 	}
-	shared.ShowUninstalledTabContent(versionContainer, "asset/tracker.md", func() { ShowDownloadables() }, nil)
+	// Clear/hide the update and download UI so leftover messages (like "You are using...")
+	if updateTitleContainer != nil {
+		updateTitleContainer.Objects = []fyne.CanvasObject{}
+		updateTitleContainer.Hide()
+		updateTitleContainer.Refresh()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Objects = []fyne.CanvasObject{}
+		downloadContainer.Hide()
+		downloadContainer.Refresh()
+	}
+	if releaseDropdown != nil {
+		releaseDropdown.Hide()
+	}
+	if prereleaseCheckbox != nil {
+		prereleaseCheckbox.Hide()
+	}
+
+	// Also hide status/stop UI
+	if statusLabel != nil {
+		statusLabel.SetText("")
+		statusLabel.Hide()
+	}
+	if stopContainer != nil {
+		stopContainer.Hide()
+	}
+	if appDirLink != nil {
+		appDirLink.Hide()
+	}
+	if tailLogLink != nil {
+		tailLogLink.Hide()
+	}
+
+	// Now show the uninstalled explanation and Install button
+	shared.ShowUninstalledTabContent(versionContainer, "asset/tracker.md", func() { InstallDefault(fyne.CurrentApp().Driver().AllWindows()[0]) }, nil)
+	// Ensure the version container is visible after switching to explanation mode
+	versionContainer.Show()
+	versionContainer.Refresh()
 }

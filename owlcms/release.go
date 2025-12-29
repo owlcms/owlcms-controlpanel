@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"owlcms-launcher/owlcms/downloadutils"
+	"owlcms-launcher/shared"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -300,6 +301,35 @@ func getMostRecentPrerelease() (string, error) {
 		return "", fmt.Errorf("no prerelease found")
 	}
 	return mostRecentPrerelease.String(), nil
+}
+
+// InstallDefault performs the default install action for the OWLCMS package.
+// It selects the most recent stable release and begins the confirm+download flow.
+func InstallDefault(w fyne.Window) {
+	// Before installing, ensure Java runtime is available. Delegate to shared helper
+	// which will call the package-local `checkJava` implementation.
+	ver := GetTemurinVersion()
+	if err := shared.CheckAndInstallJava(ver, statusLabel, w, checkJava); err != nil {
+		return
+	}
+
+	// Fetch releases on-demand if not already loaded
+	if len(allReleases) == 0 {
+		if r, err := fetchReleases(); err == nil {
+			allReleases = r
+		} else {
+			log.Printf("OWLCMS InstallDefault: background fetchReleases failed: %v", err)
+		}
+	}
+
+	latest, err := getMostRecentStableRelease()
+	log.Printf("OWLCMS InstallDefault: getMostRecentStableRelease -> latest=%q err=%v", latest, err)
+	if err == nil && latest != "" {
+		confirmAndDownloadVersion(latest, w)
+	} else {
+		log.Println("OWLCMS InstallDefault: no latest stable found, showing download UI")
+		ShowDownloadables()
+	}
 }
 
 func setupReleaseDropdown(w fyne.Window) {

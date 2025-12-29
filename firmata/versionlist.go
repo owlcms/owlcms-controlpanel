@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"owlcms-launcher/firmata/downloadutils"
+	"owlcms-launcher/firmata/javacheck"
 	"owlcms-launcher/shared"
 
 	"fyne.io/fyne/v2"
@@ -341,8 +342,8 @@ func createLaunchButton(w fyne.Window, version string, buttonContainer *fyne.Con
 		}
 
 		log.Printf("Launching version %s\n", version)
-		if err := checkJava(statusLabel); err != nil {
-			dialog.ShowError(fmt.Errorf("java check/installation failed: %w", err), w)
+		ver := javacheck.GetTemurinVersion()
+		if err := shared.CheckAndInstallJava(ver, statusLabel, w, checkJava); err != nil {
 			return
 		}
 
@@ -512,8 +513,10 @@ func recomputeVersionList(w fyne.Window) {
 	center := container.NewStack(versionScroll)
 
 	if numVersions == 0 {
-		versionScroll.Hide()
-		versionContainer.Hide()
+		// Reset the tab to explanation mode so download UI is cleared first
+		resetToExplainMode(w)
+		// No version list to add — return now so we don't overwrite the explanation
+		return
 	} else {
 		versionScroll.Show()
 		versionContainer.Show()

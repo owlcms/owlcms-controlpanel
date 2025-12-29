@@ -16,6 +16,102 @@ import (
 	"github.com/gofrs/flock"
 )
 
+const tailviewerPath = `C:\Program Files\Tailviewer\Tailviewer.exe`
+
+// TEMP TEST FLAG: when true, pretend Tailviewer is not installed so we can
+// exercise the PowerShell tail fallback.
+var forceNoTailviewer = false
+
+func bashSingleQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+func configureTailLogLink(version, appDir string) {
+	if tailLogLink == nil {
+		return
+	}
+
+	goos := shared.GetGoos()
+	if goos != "windows" && goos != "darwin" && goos != "linux" {
+		tailLogLink.Hide()
+		return
+	}
+
+	logPath := filepath.Join(appDir, "logs", "owlcms.log")
+	tailLogLink.SetText(fmt.Sprintf("Tail owlcms %s logs", version))
+	tailLogLink.SetURL(nil)
+	tailLogLink.OnTapped = func() {
+		switch goos {
+		case "windows":
+			if !forceNoTailviewer {
+				if _, err := os.Stat(tailviewerPath); err == nil {
+					if err := exec.Command(tailviewerPath, logPath).Start(); err != nil {
+						log.Printf("Failed to start Tailviewer: %v", err)
+						if statusLabel != nil {
+							statusLabel.SetText("Failed to start Tailviewer")
+						}
+					}
+					return
+				}
+			}
+			// Fallback: open a new PowerShell window tailing the log
+			escaped := strings.ReplaceAll(logPath, "'", "''")
+			psCmd := fmt.Sprintf("Get-Content -Path '%s' -Wait -Tail 10", escaped)
+			if err := exec.Command("cmd", "/c", "start", "powershell", "-NoExit", "-Command", psCmd).Start(); err != nil {
+				log.Printf("Failed to start PowerShell tail: %v", err)
+				if statusLabel != nil {
+					statusLabel.SetText("Failed to open PowerShell tail")
+				}
+			}
+		case "darwin":
+			// Open Terminal and run tail
+			p := strings.ReplaceAll(logPath, "\\", "\\\\")
+			p = strings.ReplaceAll(p, "\"", "\\\"")
+			script := fmt.Sprintf(`tell application "Terminal" to do script "tail -n 10 -f \\\"%s\\\""`, p)
+			if err := exec.Command("osascript", "-e", script, "-e", `tell application "Terminal" to activate`).Start(); err != nil {
+				log.Printf("Failed to start Terminal tail: %v", err)
+				if statusLabel != nil {
+					statusLabel.SetText("Failed to open Terminal tail")
+				}
+			}
+		case "linux":
+			// Try common terminals in priority order
+			cmd := fmt.Sprintf("tail -n 10 -f %s", bashSingleQuote(logPath))
+			try := func(name string, args ...string) bool {
+				if _, err := exec.LookPath(name); err != nil {
+					return false
+				}
+				if err := exec.Command(name, args...).Start(); err != nil {
+					log.Printf("Failed to start %s for tail: %v", name, err)
+					return false
+				}
+				return true
+			}
+			if try("x-terminal-emulator", "-e", "bash", "-lc", cmd) {
+				return
+			}
+			if try("gnome-terminal", "--", "bash", "-lc", cmd) {
+				return
+			}
+			if try("konsole", "-e", "bash", "-lc", cmd) {
+				return
+			}
+			if try("xfce4-terminal", "-e", "bash", "-lc", cmd) {
+				return
+			}
+			if try("xterm", "-e", "bash", "-lc", cmd) {
+				return
+			}
+			log.Printf("No terminal emulator found to tail logs")
+			if statusLabel != nil {
+				statusLabel.SetText("No terminal emulator found to tail logs")
+			}
+		}
+	}
+
+	tailLogLink.Show()
+}
+
 var (
 	lockFilePath   = filepath.Join(installDir, "java.lock")
 	pidFilePath    = filepath.Join(installDir, "java.pid")
@@ -188,6 +284,7 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 		shared.OpenFileExplorer(appDir)
 	}
 	appDirLink.Show()
+	configureTailLogLink(version, appDir)
 
 	monitorChan := monitorProcess(cmd)
 
@@ -219,6 +316,7 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 			shared.OpenFileExplorer(appDir)
 		}
 		appDirLink.Show()
+		configureTailLogLink(version, appDir)
 
 		err := cmd.Wait()
 		pid := cmd.Process.Pid
@@ -243,6 +341,9 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 		versionContainer.Show()
 		urlLink.Hide()
 		appDirLink.Hide()
+		if tailLogLink != nil {
+			tailLogLink.Hide()
+		}
 		releaseJavaLock()
 	}()
 

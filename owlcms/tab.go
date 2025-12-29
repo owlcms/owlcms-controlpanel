@@ -23,15 +23,19 @@ import (
 )
 
 var (
-	statusLabel               *widget.Label
-	stopButton                *widget.Button
-	versionContainer          *fyne.Container
-	stopContainer             *fyne.Container
+	statusLabel      *widget.Label
+	stopButton       *widget.Button
+	versionContainer *fyne.Container
+	stopContainer    *fyne.Container
+	// TEMPORARY TEST FLAG: when true, treat OWLCMS as not installed.
+	// Keep variable for testing; default to false to use real detection.
+	forceUninstalledOwlcms    = false
 	singleOrMultiVersionLabel *widget.Label
 	downloadContainer         *fyne.Container
 	downloadsShown            bool
 	urlLink                   *widget.Hyperlink
 	appDirLink                *widget.Hyperlink
+	tailLogLink               *widget.Hyperlink
 	mainWindow                fyne.Window
 	mainApp                   fyne.App
 )
@@ -68,10 +72,14 @@ func CreateTab(w fyne.Window, app fyne.App) *fyne.Container {
 	appDirLink = widget.NewHyperlink("", nil)
 	appDirLink.Hide()
 
+	// Create Tail logs hyperlink (only shown when running on Windows)
+	tailLogLink = widget.NewHyperlink("", nil)
+	tailLogLink.Hide()
+
 	// Initialize containers
 	downloadContainer = container.NewVBox()
 	versionContainer = container.NewStack()
-	stopContainer = container.NewVBox(widget.NewSeparator(), stopButton, statusLabel, urlLink, appDirLink)
+	stopContainer = container.NewVBox(widget.NewSeparator(), stopButton, statusLabel, urlLink, appDirLink, tailLogLink)
 
 	// Initialize download titles
 	updateTitle = widget.NewRichTextFromMarkdown("")
@@ -102,10 +110,14 @@ func CreateTab(w fyne.Window, app fyne.App) *fyne.Container {
 	}
 	singleOrMultiVersionLabel = widget.NewLabel("")
 
-	// Configure stop button behavior
+	// Configure stop button behavior (confirm before stopping)
 	stopButton.OnTapped = func() {
 		log.Println("Stop button tapped")
-		stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+		dialog.ShowConfirm("Confirm Stop", "Stopping OWLCMS will stop the current competition on all platforms. Make sure this is a correct time to stop.", func(confirm bool) {
+			if confirm {
+				stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+			}
+		}, w)
 	}
 	stopButton.Hide()
 	stopContainer.Hide()
@@ -128,19 +140,10 @@ func CreateTab(w fyne.Window, app fyne.App) *fyne.Container {
 		versionContainer,  // Center (expands to fill space)
 	)
 
-	// If OWLCMS install directory does not exist, show explanation and Install button
-	if _, err := os.Stat(installDir); os.IsNotExist(err) {
-		shared.ShowUninstalledTabContent(versionContainer, "asset/owlcms.md", func() {
-			mostRecent, err := getMostRecentStableRelease()
-			log.Printf("OWLCMS Install button: getMostRecentStableRelease -> mostRecent=%q err=%v", mostRecent, err)
-			if err == nil && mostRecent != "" {
-				log.Printf("OWLCMS Install: starting downloadReleaseWithProgress(%s)", mostRecent)
-				downloadReleaseWithProgress(mostRecent, w, false)
-			} else {
-				log.Println("OWLCMS Install: no latest stable found, showing download UI")
-				ShowDownloadables()
-			}
-		}, func() { initializeOwlcmsTab(w, app) })
+	// If OWLCMS install directory does not exist, reset tab to explanation mode
+	if forceUninstalledOwlcms || func() bool { _, err := os.Stat(installDir); return os.IsNotExist(err) }() {
+		resetToExplainMode(w)
+		return mainContent
 	} else {
 		// Start initialization in a goroutine
 		go initializeOwlcmsTab(w, app)
@@ -174,13 +177,15 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 			installutils.ZipCurrentSetup(w, installDir, getAllInstalledVersions, selectSaveZip)
 		}),
 		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("Remove All OWLCMS Versions", func() {
-			removeAllVersions()
-		}),
-		fyne.NewMenuItem("Remove OWLCMS Java", func() {
-			removeJava()
-		}),
-		fyne.NewMenuItem("Remove All OWLCMS Stored Data and Configurations", func() {
+		// Commented out: remove all versions via Files menu (use Uninstall instead)
+		// fyne.NewMenuItem("Remove All OWLCMS Versions", func() {
+		// 	removeAllVersions()
+		// }),
+		// Commented out: remove bundled Java via Files menu
+		// fyne.NewMenuItem("Remove OWLCMS Java", func() {
+		// 	removeJava()
+		// }),
+		fyne.NewMenuItem("Uninstall OWLCMS", func() {
 			uninstallAll()
 		}),
 	}
@@ -202,35 +207,39 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 	// Set menu item text based on current state
 	var menuItemText string
 	if GetTrackerConnectionEnabled() {
-		menuItemText = "\u2717 Stop connecting to local tracker"
+		menuItemText = "Disable connection to local tracker"
 	} else {
-		menuItemText = "\u2713 Automatically connect to local tracker"
+		menuItemText = "Enable connection to local tracker"
 	}
 
-	optionsMenuItems := []*fyne.MenuItem{
-		fyne.NewMenuItem(menuItemText, func() {
-			// Get the tracker port
-			trackerPort := tracker.GetPort()
-			trackerURL := fmt.Sprintf("ws://127.0.0.1:%s/ws", trackerPort)
+	trackerToggleItem := fyne.NewMenuItem(menuItemText, nil)
+	trackerToggleItem.Action = func() {
+		// Get the tracker port
+		trackerPort := tracker.GetPort()
+		trackerURL := fmt.Sprintf("ws://127.0.0.1:%s/ws", trackerPort)
 
-			// Toggle the connection
-			if GetTrackerConnectionEnabled() {
-				// Disable
-				if err := DeleteProperty("OWLCMS_VIDEODATA"); err != nil {
-					dialog.ShowError(fmt.Errorf("failed to disable tracker connection: %w", err), w)
-				} else {
-					dialog.ShowInformation("Tracker Connection", "Tracker connection disabled. Restart OWLCMS for changes to take effect.", w)
-				}
-			} else {
-				// Enable
-				if err := SaveProperty("OWLCMS_VIDEODATA", trackerURL); err != nil {
-					dialog.ShowError(fmt.Errorf("failed to enable tracker connection: %w", err), w)
-				} else {
-					dialog.ShowInformation("Tracker Connection", fmt.Sprintf("Tracker connection enabled on port %s. OWLCMS will connect to Tracker once it is started. Restart OWLCMS for changes to take effect.", trackerPort), w)
-				}
+		// Toggle the connection
+		if GetTrackerConnectionEnabled() {
+			// Disable
+			if err := DeleteProperty("OWLCMS_VIDEODATA"); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to disable tracker connection: %w", err), w)
+				return
 			}
-		}),
+			dialog.ShowInformation("Tracker Connection", "Tracker connection disabled. Restart OWLCMS for changes to take effect.", w)
+			trackerToggleItem.Label = "Enable connection to local tracker"
+			return
+		}
+
+		// Enable
+		if err := SaveProperty("OWLCMS_VIDEODATA", trackerURL); err != nil {
+			dialog.ShowError(fmt.Errorf("failed to enable tracker connection: %w", err), w)
+			return
+		}
+		dialog.ShowInformation("Tracker Connection", fmt.Sprintf("Tracker connection enabled on port %s. OWLCMS will connect to Tracker once it is started. Restart OWLCMS for changes to take effect.", trackerPort), w)
+		trackerToggleItem.Label = "Disable connection to local tracker"
 	}
+
+	optionsMenuItems := []*fyne.MenuItem{trackerToggleItem}
 
 	optionsMenu := shared.CreateMenuButton("Options", optionsMenuItems)
 
@@ -255,19 +264,17 @@ func initializeOwlcmsTab(w fyne.Window, app fyne.App) {
 	if err != nil || javaLoc == "" {
 		if !internetAvailable {
 			content := container.New(layout.NewCenterLayout(),
-				widget.NewLabel("Java is not installed and there is no internet connection.\nPlease connect and restart the program."))
+				widget.NewLabel("Java is not installed and there is no internet connection.\n\nYou can still install OWLCMS from a ZIP via Files ▾ → Install OWLCMS version from ZIP."))
 
-			dlg := dialog.NewCustom("No Internet Connection", "Exit", content, w)
-			dlg.SetOnClosed(func() {
-				app.Quit()
-			})
+			dlg := dialog.NewCustom("No Internet Connection", "OK", content, w)
 			dlg.Show()
+			resetToExplainMode(w)
 			return
 		}
 
 		statusLabel.SetText("Java runtime not found. Starting download...")
-		if err := checkJava(statusLabel); err != nil {
-			dialog.ShowError(fmt.Errorf("failed to fetch Java: %w", err), w)
+		ver := GetTemurinVersion()
+		if err := shared.CheckAndInstallJava(ver, statusLabel, w, checkJava); err != nil {
 			return
 		}
 	} else {
@@ -287,24 +294,22 @@ func initializeOwlcmsTab(w fyne.Window, app fyne.App) {
 
 	// Check if we need to download a version
 	numVersions := len(getAllInstalledVersions())
-	if numVersions == 0 && !internetAvailable {
-		d := dialog.NewInformation("No Internet Connection",
-			"You must be connected to the internet to fetch a version of the program.\nPlease connect and restart the program", w)
-		d.Resize(fyne.NewSize(400, 200))
-		d.SetDismissText("Exit")
-		d.SetOnClosed(func() {
-			app.Quit()
-		})
-		d.Show()
-		return
-	}
+	if numVersions == 0 {
+		if !internetAvailable {
+			d := dialog.NewInformation("No Internet Connection",
+				"No installed OWLCMS version is available and there is no internet connection.\n\nYou can still install OWLCMS from a ZIP via Files ▾ → Install OWLCMS version from ZIP.", w)
+			d.Resize(fyne.NewSize(400, 200))
+			d.SetDismissText("OK")
+			d.Show()
+			resetToExplainMode(w)
+			return
+		}
 
-	if numVersions == 0 && internetAvailable {
-		// Do not auto-install. Show explanation and allow user to install via UI.
-		message := widget.NewLabel("No OWLCMS version installed. Use the Install button to fetch a version.")
-		updateTitleContainer.Objects = []fyne.CanvasObject{message}
-		updateTitleContainer.Refresh()
-		// leave downloads available for user to select
+		// If we have internet but no installed versions, do not show the bottom
+		// download UI. Reset the tab to explanation mode so only the menu and
+		// embedded installation explanation are visible.
+		resetToExplainMode(w)
+		return
 	}
 
 	// Initialize version list
@@ -328,24 +333,44 @@ func initializeOwlcmsTab(w fyne.Window, app fyne.App) {
 // HideDownloadables hides the download dropdown
 func HideDownloadables() {
 	downloadsShown = false
-	releaseDropdown.Hide()
-	prereleaseCheckbox.Hide()
-	downloadContainer.Refresh()
+	if releaseDropdown != nil {
+		releaseDropdown.Hide()
+	}
+	if prereleaseCheckbox != nil {
+		prereleaseCheckbox.Hide()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Refresh()
+	}
 }
 
 // ShowDownloadables shows the download dropdown
 func ShowDownloadables() {
 	downloadsShown = true
-	releaseDropdown.Show()
-	prereleaseCheckbox.Show()
-	downloadContainer.Refresh()
+	if releaseDropdown != nil {
+		releaseDropdown.Show()
+	}
+	if prereleaseCheckbox != nil {
+		prereleaseCheckbox.Show()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Refresh()
+	}
 }
 
 func goBackToMainScreen() {
-	stopButton.Hide()
-	stopContainer.Hide()
-	downloadContainer.Show()
-	versionContainer.Show()
+	if stopButton != nil {
+		stopButton.Hide()
+	}
+	if stopContainer != nil {
+		stopContainer.Hide()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Show()
+	}
+	if versionContainer != nil {
+		versionContainer.Show()
+	}
 }
 
 // checkJava checks for Java and downloads it if not found
@@ -353,10 +378,18 @@ func checkJava(statusLabel *widget.Label) error {
 	statusLabel.SetText("Checking for the Java language runtime.")
 	statusLabel.Refresh()
 	statusLabel.Show()
-	stopButton.Hide()
-	stopContainer.Show()
-	versionContainer.Hide()
-	downloadContainer.Hide()
+	if stopButton != nil {
+		stopButton.Hide()
+	}
+	if stopContainer != nil {
+		stopContainer.Show()
+	}
+	if versionContainer != nil {
+		versionContainer.Hide()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Hide()
+	}
 
 	err := javacheck.CheckJava(statusLabel)
 	if err != nil {
@@ -448,9 +481,10 @@ func checkForNewerVersion() {
 	// Ensure the release notes hyperlink is visible for both stable and prerelease cases
 	releaseNotesLink.Show()
 
+	// Log what we think is installed for debugging
+	log.Printf("OWLCMS:updateTitle - latestInstalled=%q installedVersions=%v", latestInstalled, getAllInstalledVersions())
+
 	messageBox := container.NewHBox(
-		// Log what we think is installed for debugging
-		log.Printf("OWLCMS:updateTitle - latestInstalled=%q installedVersions=%v", latestInstalled, getAllInstalledVersions())
 		widget.NewLabel(fmt.Sprintf("You are using %s version %s", func() string {
 			if containsPreReleaseTag(latestInstalled) {
 				return "prerelease"
@@ -558,7 +592,7 @@ func removeAllVersions() {
 	downloadButtonTitle.SetText("Click here to install a version.")
 	downloadButtonTitle.Refresh()
 	updateTitle.Refresh()
-	recomputeVersionList(fyne.CurrentApp().Driver().AllWindows()[0])
+	recomputeVersionList(mainWindow)
 }
 
 func uninstallAll() {
@@ -571,7 +605,8 @@ func uninstallAll() {
 			} else {
 				log.Println("All data removed successfully")
 				dialog.ShowInformation("Success", "All data removed successfully", fyne.CurrentApp().Driver().AllWindows()[0])
-				fyne.CurrentApp().Quit()
+				// Do not quit the control panel. Refresh the UI so the uninstalled explanation appears.
+				recomputeVersionList(mainWindow)
 			}
 		}
 	}, fyne.CurrentApp().Driver().AllWindows()[0])

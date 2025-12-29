@@ -470,8 +470,10 @@ func recomputeVersionList(w fyne.Window) {
 	center := container.NewStack(versionScroll)
 
 	if numVersions == 0 {
-		versionScroll.Hide()
-		versionContainer.Hide()
+		// Reset the tab to explanation mode (clears download UI then shows explanation)
+		resetToExplainMode()
+		// No version list to add — return early
+		return
 	} else {
 		versionScroll.Show()
 		versionContainer.Show()
@@ -505,9 +507,25 @@ func removeAllVersions() {
 			os.RemoveAll(versionDir)
 		}
 	}
+	// After removing all version directories, update UI in case no versions remain
+	resetToExplainMode()
 }
 
 func uninstallAll() {
-	log.Printf("Removing all owlcms-tracker data from: %s\n", installDir)
-	os.RemoveAll(installDir)
+	dialog.ShowConfirm("Confirm Uninstall", "This will remove all the data and configurations currently stored.\nIf you proceed, this cannot be undone.", func(confirm bool) {
+		if !confirm {
+			return
+		}
+		log.Printf("Removing all owlcms-tracker data from: %s\n", installDir)
+		err := os.RemoveAll(installDir)
+		if err != nil {
+			log.Printf("Failed to remove all data: %v\n", err)
+			dialog.ShowError(fmt.Errorf("failed to remove all data: %w", err), mainWindow)
+			return
+		}
+		log.Println("All data removed successfully")
+		dialog.ShowInformation("Success", "All data removed successfully", mainWindow)
+		// Refresh the tab so the uninstalled explanation appears
+		recomputeVersionList(mainWindow)
+	}, mainWindow)
 }
