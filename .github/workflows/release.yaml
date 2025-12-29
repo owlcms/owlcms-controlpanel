@@ -43,7 +43,7 @@ jobs:
       if: ${{ env.BUILD_MAC == 'true' }}
       run: |
         # use this approach because we can't easily set ldflags in fyne-cross
-        sed -i '' "s/_TAG_/${TAG}/g" config.go
+        sed -i '' "s/_TAG_/${TAG}/g" shared/version.go
 
     - name: Install fyne
       if: ${{ env.BUILD_MAC == 'true' }}
@@ -154,7 +154,7 @@ jobs:
 
     - name: Substitute tag in config.go
       run: |
-        sed -i "s/_TAG_/${TAG}/g" config.go
+        sed -i "s/_TAG_/${TAG}/g" shared/version.go
 
     # Windows build steps
     - name: Build for Windows

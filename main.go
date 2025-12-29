@@ -199,7 +199,7 @@ func setupMenus(w fyne.Window) {
 			owlcms.CheckForUpdates(w, true)
 		}),
 		fyne.NewMenuItem("About", func() {
-			dialog.ShowInformation("About", "OWLCMS Launcher version "+owlcms.GetLauncherVersion(), w)
+			dialog.ShowInformation("About", "OWLCMS Launcher version "+shared.GetLauncherVersion(), w)
 		}),
 	)
 	menu := fyne.NewMainMenu(fileMenu, helpMenu)

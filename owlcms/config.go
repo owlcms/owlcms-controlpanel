@@ -21,21 +21,13 @@ import (
 )
 
 var (
-	launcherVersion = "2.8.0"
-	buildVersion    = "_TAG_"
-	environment     *properties.Properties
-	installDir      = getInstallDir()
+	environment *properties.Properties
+	installDir  = getInstallDir()
 )
-
-func init() {
-	if buildVersion != ("_" + "TAG" + "_") {
-		launcherVersion = buildVersion
-	}
-}
 
 // GetLauncherVersion returns the current launcher version
 func GetLauncherVersion() string {
-	return launcherVersion
+	return shared.GetLauncherVersion()
 }
 
 // GetPort returns the configured port from env.properties, defaulting to "8080"
@@ -258,7 +250,7 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 		remoteVersion = remoteVersion[1:]
 	}
 
-	currentVersion := launcherVersion
+	currentVersion := shared.GetLauncherVersion()
 	if len(currentVersion) > 0 && currentVersion[0] == 'v' {
 		currentVersion = currentVersion[1:]
 	}
@@ -285,7 +277,7 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 			}
 			link := widget.NewHyperlink("Release Notes and Installer", parsedURL)
 			content := container.NewVBox(
-				widget.NewLabel(fmt.Sprintf("A new version (%s) is available. You are currently using version %s.\nYou can simply download the new installer and install over the current version.", release.TagName, launcherVersion)),
+				widget.NewLabel(fmt.Sprintf("A new version (%s) is available. You are currently using version %s.\nYou can simply download the new installer and install over the current version.", release.TagName, shared.GetLauncherVersion())),
 				link,
 			)
 			dialog.ShowCustom("Update Available", "Close", content, win)
@@ -295,7 +287,7 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 	} else {
 		log.Println("No updates available - you are using the latest version")
 		if showConfirmation {
-			dialog.ShowInformation("No Updates", fmt.Sprintf("You are using the latest version (%s)", launcherVersion), win)
+			dialog.ShowInformation("No Updates", fmt.Sprintf("You are using the latest version (%s)", shared.GetLauncherVersion()), win)
 		}
 	}
 }
