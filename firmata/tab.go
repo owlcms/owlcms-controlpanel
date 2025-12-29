@@ -293,6 +293,9 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 				dialog.ShowError(fmt.Errorf("failed to open installation directory: %w", err), w)
 			}
 		}),
+		fyne.NewMenuItem("Refresh Available Versions", func() {
+			refreshAvailableVersions(w)
+		}),
 		fyne.NewMenuItemSeparator(),
 		// Commented out: remove all versions via Files menu (use Uninstall instead)
 		// fyne.NewMenuItem("Remove All Firmata Versions", func() {
@@ -328,6 +331,33 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 		spacer,
 		container.NewHBox(fileMenu, processMenu),
 	)
+}
+
+func refreshAvailableVersions(w fyne.Window) {
+	go func() {
+		releases, err := fetchReleases()
+		if err != nil {
+			dialog.ShowError(fmt.Errorf("failed to refresh available versions: %w", err), w)
+			return
+		}
+		allReleases = releases
+
+		// If the dropdown exists, repopulate it.
+		if releaseDropdown != nil {
+			for _, obj := range releaseDropdown.Objects {
+				if selectWidget, ok := obj.(*widget.Select); ok {
+					populateReleaseSelect(selectWidget)
+					break
+				}
+			}
+		}
+
+		recomputeVersionList(w)
+		checkForNewerVersion()
+		if downloadContainer != nil {
+			downloadContainer.Refresh()
+		}
+	}()
 }
 
 // initializeFirmataTab handles the async initialization of the Firmata tab
