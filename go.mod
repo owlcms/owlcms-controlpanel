@@ -10,6 +10,7 @@ require (
 	github.com/magiconair/properties v1.8.9
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/sqweek/dialog v0.0.0-20240226140203-065105509627
+	golang.org/x/sys v0.38.0
 )
 
 require (
@@ -23,7 +24,6 @@ require (
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
-	golang.org/x/sys v0.38.0 // indirect
 )
 
 require (
