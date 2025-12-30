@@ -274,6 +274,7 @@ func initializeTab(w fyne.Window) {
 	updateTitle.Show()
 	releaseDropdown.Hide()
 	prereleaseCheckbox.Hide()
+	downloadsShown = false
 
 	// If no version is installed, do NOT auto-install. Leave downloads available for user.
 	if len(getAllInstalledVersions()) == 0 {

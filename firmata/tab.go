@@ -422,6 +422,7 @@ func initializeFirmataTab(w fyne.Window) {
 	updateTitle.Show()
 	releaseDropdown.Hide()
 	prereleaseCheckbox.Hide()
+	downloadsShown = false
 	log.Printf("Fetched %d releases\n", len(releases))
 
 	// If no version is installed, do NOT auto-install. Leave download UI for user.

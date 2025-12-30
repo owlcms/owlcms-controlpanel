@@ -377,6 +377,12 @@ func setupReleaseDropdown(w fyne.Window) {
 			downloadButtonTitle,
 			dropdownContainer,
 		}
+		// Hide dropdown and checkbox initially; show only the link
+		dropdownContainer.Hide()
+		if prereleaseCheckbox != nil {
+			prereleaseCheckbox.Hide()
+		}
+		downloadsShown = false
 	} else {
 		downloadContainer.Objects = []fyne.CanvasObject{
 			widget.NewLabel("You are not connected to the Internet. Available updates cannot be shown."),

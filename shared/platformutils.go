@@ -81,3 +81,26 @@ func OpenFileExplorer(path string) error {
 
 	return nil
 }
+
+// OpenFile opens the specified file with the system default application
+func OpenFile(filePath string) error {
+	var cmd *exec.Cmd
+
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("explorer", filePath)
+	case "darwin":
+		cmd = exec.Command("open", filePath)
+	case "linux":
+		cmd = exec.Command("xdg-open", filePath)
+	default:
+		return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
+	}
+
+	if err := cmd.Start(); err != nil {
+		log.Printf("Failed to open file: %v\n", err)
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+
+	return nil
+}

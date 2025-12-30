@@ -621,19 +621,9 @@ func restoreLocalFilesFromPreviousVersion(newDir, oldDir string) error {
 	oldLocal := filepath.Join(oldDir, "local")
 	oldJar := filepath.Join(oldDir, "owlcms.jar")
 
-	// Create import log file
-	logFilePath := filepath.Join(newDir, "import.log")
-	logFile, err := os.Create(logFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to create import log: %w", err)
-	}
-	defer logFile.Close()
-
-	// Helper function to write to both console and log file
+	// Helper function for logging (uses standard log which goes to both console and control-panel.log)
 	logBoth := func(format string, args ...interface{}) {
-		msg := fmt.Sprintf(format, args...)
-		log.Print(msg)
-		fmt.Fprint(logFile, msg)
+		log.Printf(format, args...)
 	}
 
 	logBoth("\n=== Starting Import Process ===\n")
@@ -867,6 +857,9 @@ func restoreLocalFilesFromPreviousVersion(newDir, oldDir string) error {
 			}
 		}
 	}
+	// Track directories that may need cleanup after file deletions
+	dirsToCheck := make(map[string]bool)
+
 	for _, deleted := range filesDeletedFromOldJar {
 		targetPath := filepath.Join(newLocal, deleted)
 		if strings.HasSuffix(deleted, string(filepath.Separator)) {
@@ -875,9 +868,24 @@ func restoreLocalFilesFromPreviousVersion(newDir, oldDir string) error {
 				logBoth("Warning: failed to remove directory %s: %v\n", deleted, err)
 			}
 		} else {
-			// It's a file
+			// It's a file - track its parent directory for potential cleanup
+			parentDir := filepath.Dir(deleted)
+			if parentDir != "." {
+				dirsToCheck[parentDir] = true
+			}
 			if err := os.Remove(targetPath); err != nil && !os.IsNotExist(err) {
 				logBoth("Warning: failed to remove file %s: %v\n", deleted, err)
+			}
+		}
+	}
+
+	// Clean up any directories that became empty after file deletions
+	if len(dirsToCheck) > 0 {
+		logBoth("\nCleaning up empty directories...\n")
+		for dir := range dirsToCheck {
+			dirPath := filepath.Join(newLocal, dir)
+			if err := removeEmptyDirs(dirPath, newLocal, logBoth); err != nil {
+				logBoth("Warning: failed to clean up directory %s: %v\n", dir, err)
 			}
 		}
 	}
@@ -1004,22 +1012,29 @@ func getLocalFiles(dir string, topLevelDirs []string) (map[string]struct{}, erro
 			return walkErr
 		}
 
-		if d.IsDir() {
-			return nil
-		}
-
 		relPath, err := filepath.Rel(dir, path)
 		if err != nil {
 			return err
 		}
 
-		// Only consider files under topLevelDirs
+		// Skip the root directory itself
+		if relPath == "." {
+			return nil
+		}
+
+		// Only consider files/dirs under topLevelDirs
 		topLevel := strings.Split(relPath, string(os.PathSeparator))[0]
 		if !containsString(topLevelDirs, topLevel) {
 			return nil
 		}
 
-		result[relPath] = struct{}{}
+		// Include both directories and files
+		if d.IsDir() {
+			// Add directories with trailing separator to match JAR format
+			result[relPath+string(os.PathSeparator)] = struct{}{}
+		} else {
+			result[relPath] = struct{}{}
+		}
 		return nil
 	})
 	return result, err
@@ -1195,6 +1210,50 @@ func isCompleteDirectoryNew(currentPath string, remainingLocalFiles []string, ol
 
 	// Only consolidate if there are multiple files AND the directory didn't exist in JAR
 	return fileCount > 1
+}
+
+// removeEmptyDirs removes a directory and its parent directories if they are empty.
+// It stops at the basePath and won't go beyond it.
+func removeEmptyDirs(dirPath string, basePath string, logBoth func(string, ...interface{})) error {
+	// Ensure we don't go beyond basePath
+	relPath, err := filepath.Rel(basePath, dirPath)
+	if err != nil || strings.HasPrefix(relPath, "..") {
+		return nil
+	}
+
+	// Check if directory exists
+	info, err := os.Stat(dirPath)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return nil
+	}
+
+	// Check if directory is empty
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return err
+	}
+
+	if len(entries) == 0 {
+		// Directory is empty, remove it
+		logBoth("  - Removing empty directory: %s\n", relPath)
+		if err := os.Remove(dirPath); err != nil {
+			return err
+		}
+
+		// Recursively check parent directory
+		parentDir := filepath.Dir(dirPath)
+		if parentDir != dirPath && parentDir != basePath {
+			return removeEmptyDirs(parentDir, basePath, logBoth)
+		}
+	}
+
+	return nil
 }
 
 // isCompleteDirectoryDeleted checks if the current path is the start of a complete deleted directory

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
+	"io"
 	"log"
 	"net/url"
 	"os"
@@ -28,6 +30,7 @@ import (
 var owlcmsInstallDir = getInstallDir()
 
 var exitInProgress bool
+var controlPanelLogPath string
 
 func init() {
 	javacheck.InitJavaCheck(owlcmsInstallDir, owlcms.GetTemurinVersion)
@@ -76,8 +79,18 @@ func getInstallDir() string {
 }
 
 func main() {
+	// Set up logging to both file and stderr
+	controlPanelLogPath = filepath.Join(owlcmsInstallDir, "control-panel.log")
+	logFile, err := os.OpenFile(controlPanelLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		log.Printf("Warning: Failed to open log file: %v\n", err)
+		log.SetOutput(shared.NewLogPathShorteningWriter(os.Stderr))
+	} else {
+		// Write to both stderr and file
+		multiWriter := io.MultiWriter(os.Stderr, logFile)
+		log.SetOutput(shared.NewLogPathShorteningWriter(multiWriter))
+	}
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Llongfile)
-	log.SetOutput(shared.NewLogPathShorteningWriter(os.Stderr))
 	log.Println("Starting OWLCMS Launcher")
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
 	a.Settings().SetTheme(newMyTheme())
@@ -193,6 +206,19 @@ func setupMenus(w fyne.Window) {
 			linkURL, _ := url.Parse("https://owlcms.github.io/owlcms4-prerelease/#/LocalControlPanel")
 			link := widget.NewHyperlink("Control Panel Documentation", linkURL)
 			dialog.ShowCustom("Documentation", "Close", link, w)
+		}),
+		fyne.NewMenuItem("Show Control Panel Log", func() {
+			if controlPanelLogPath == "" {
+				dialog.ShowError(fmt.Errorf("log file path not available"), w)
+				return
+			}
+			if _, err := os.Stat(controlPanelLogPath); os.IsNotExist(err) {
+				dialog.ShowError(fmt.Errorf("log file does not exist: %s", controlPanelLogPath), w)
+				return
+			}
+			if err := shared.OpenFile(controlPanelLogPath); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to open log file: %w", err), w)
+			}
 		}),
 		fyne.NewMenuItem("Check for Updates", func() {
 			// Show confirmation dialog when checking from menu
