@@ -10,6 +10,7 @@ The control panel is installed once. It will automatically download the current 
 > build environment used (GitHub).  If you need support for version 13 and 14 you will need to keep using version 2.7.
 
 ### Change Log
+- 3.0.0-rc02: resolve differences in behavior between build and dev versions
 - 3.0.0: Major Release
   - The control panel now controls owlcms, owlcms-tracker and owlcms-firmata from the same application (jury replays will come later)
   - You can therefore run, if you need to, more than one application on the same machine, from the same panel.
