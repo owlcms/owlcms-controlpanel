@@ -10,6 +10,8 @@ The control panel is installed once. It will automatically download the current 
 > build environment used (GitHub).  If you need support for version 13 and 14 you will need to keep using version 2.7.
 
 ### Change Log
+- 3.0.0-rc04: Added entry in the main menu to show the control panel log (e.g. to see what is going on during import)
+- 3.0.0-rc04: The import process was falsely detecting directories as needing to be deleted.
 - 3.0.0-rc03: Fix user interface glitches related to the display and selection of available versions to install
 - 3.0.0-rc02: redo build using correct tag
 - 3.0.0: Major Release
