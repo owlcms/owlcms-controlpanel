@@ -82,8 +82,12 @@ func stopProcess(process *exec.Cmd, version string, stopBtn *widget.Button, down
 
 	stopBtn.Hide()
 	stopContainer.Hide()
-	downloadGroup.Show()
-	versionCont.Show()
+
+	// Restore UI using centralized mode switching (prevents desync).
+	_ = downloadGroup
+	_ = versionCont
+	setOwlcmsTabMode(w)
+
 	urlLink.Hide()
 	appDirLink.Hide()
 	if tailLogLink != nil {

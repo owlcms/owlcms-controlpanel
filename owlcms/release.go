@@ -25,7 +25,9 @@ import (
 
 // Release represents a GitHub release
 type Release struct {
-	Name string `json:"name"`
+	// GitHub Releases API fields
+	TagName string `json:"tag_name"`
+	Name    string `json:"name"`
 }
 
 var (
@@ -43,17 +45,8 @@ var (
 )
 
 func fetchReleases() ([]string, error) {
-	urls := []string{
-		"https://api.github.com/repos/owlcms/owlcms4-prerelease/releases",
-		"https://api.github.com/repos/owlcms/owlcms4/releases",
-	}
-
-	var allReleasesList []Release
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-	}
-
-	for _, url := range urls {
+	fetchFromURL := func(url string) ([]Release, error) {
+		client := &http.Client{Timeout: 5 * time.Second}
 		resp, err := client.Get(url)
 		if err != nil {
 			return nil, fmt.Errorf("network error: %w", err)
@@ -69,17 +62,55 @@ func fetchReleases() ([]string, error) {
 		if err := json.Unmarshal(body, &releases); err != nil {
 			return nil, fmt.Errorf("invalid response format: %w", err)
 		}
-
-		allReleasesList = append(allReleasesList, releases...)
+		return releases, nil
 	}
 
-	if len(allReleasesList) == 0 {
+	// Always fetch stable releases. Fetch prereleases when the checkbox is selected
+	// OR when a prerelease is already installed (so update checks keep working).
+	needPrereleases := showPrereleases
+	for _, v := range getAllInstalledVersions() {
+		if containsPreReleaseTag(v) {
+			needPrereleases = true
+			break
+		}
+	}
+
+	stableURL := "https://api.github.com/repos/owlcms/owlcms4/releases"
+	preURL := "https://api.github.com/repos/owlcms/owlcms4-prerelease/releases"
+
+	stable, err := fetchFromURL(stableURL)
+	if err != nil {
+		return nil, err
+	}
+	all := append([]Release{}, stable...)
+	if needPrereleases {
+		pre, err := fetchFromURL(preURL)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, pre...)
+	}
+
+	if len(all) == 0 {
 		return nil, fmt.Errorf("no releases found")
 	}
 
-	releaseNames := make([]string, 0, len(allReleasesList))
-	for _, release := range allReleasesList {
-		releaseNames = append(releaseNames, release.Name)
+	// Prefer tag_name (always machine-readable), fall back to name.
+	seen := map[string]struct{}{}
+	releaseNames := make([]string, 0, len(all))
+	for _, r := range all {
+		v := strings.TrimSpace(r.TagName)
+		if v == "" {
+			v = strings.TrimSpace(r.Name)
+		}
+		if v == "" {
+			continue
+		}
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		releaseNames = append(releaseNames, v)
 	}
 
 	sort.Slice(releaseNames, func(i, j int) bool {
@@ -195,25 +226,9 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 		log.Printf("Download and extraction complete for version %s, showing dialog", version)
 		dialog.ShowInformation("Installation Complete", message, w)
 
-		if isInitialDownload {
-			log.Printf("Initial download path: calling recomputeVersionList")
-			recomputeVersionList(w)
-			setupReleaseDropdown(w)
-			checkForNewerVersion()
-
-			stopContainer.Hide()
-			versionContainer.Show()
-			downloadContainer.Show()
-			statusLabel.Hide()
-
-			downloadButtonTitle.Show()
-			updateTitleContainer.Show()
-		} else {
-			log.Printf("Non-initial download path: calling recomputeVersionList")
-			HideDownloadables()
-			recomputeVersionList(w)
-			checkForNewerVersion()
-		}
+		_ = isInitialDownload // keep parameter stable even if caller distinguishes paths
+		HideDownloadables()
+		setOwlcmsTabMode(w)
 
 		log.Printf("Refreshing window content")
 		w.Content().Refresh()
@@ -249,13 +264,29 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 	})
 	selectWidget.PlaceHolder = "Choose a release to download"
 
-	// Create prerelease checkbox if not already created
-	if prereleaseCheckbox == nil {
-		prereleaseCheckbox = widget.NewCheck("Show Prereleases", func(checked bool) {
-			showPrereleases = checked
+	// IMPORTANT: The release dropdown is rebuilt at runtime (e.g. via setOwlcmsTabModeInstalled).
+	// If the checkbox were a singleton, its callback could capture an old select widget.
+	// Always create a new checkbox bound to THIS select widget.
+	prereleaseCheckbox = widget.NewCheck("Show Prereleases", func(checked bool) {
+		showPrereleases = checked
+		// Refetch so OWLCMS can include the separate prerelease repository when enabled.
+		go func() {
+			releases, err := fetchReleases()
+			if err != nil {
+				log.Printf("failed to fetch releases after prerelease toggle: %v", err)
+				return
+			}
+			// Fyne widget methods are thread-safe for basic updates.
+			allReleases = releases
 			populateReleaseSelect(selectWidget)
-		})
-	}
+			checkForNewerVersion()
+			// Keep the dropdown visible while the user is toggling prereleases.
+			ShowDownloadables()
+			if downloadContainer != nil {
+				downloadContainer.Refresh()
+			}
+		}()
+	})
 	prereleaseCheckbox.Hide()
 
 	populateReleaseSelect(selectWidget)

@@ -138,7 +138,22 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 
 	prereleaseCheckbox = widget.NewCheck("Show Prereleases", func(checked bool) {
 		showPrereleases = checked
-		populateReleaseSelect(releaseSelect)
+		// Refetch to get updated list when toggling prereleases.
+		go func() {
+			releases, err := fetchReleases()
+			if err != nil {
+				log.Printf("failed to fetch releases after prerelease toggle: %v", err)
+				return
+			}
+			allReleases = releases
+			populateReleaseSelect(releaseSelect)
+			checkForNewerVersion()
+			// Keep the dropdown visible while the user is toggling prereleases.
+			ShowDownloadables()
+			if downloadContainer != nil {
+				downloadContainer.Refresh()
+			}
+		}()
 	})
 	prereleaseCheckbox.Hide()
 

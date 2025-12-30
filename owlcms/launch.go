@@ -296,8 +296,8 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 			stopContainer.Hide()
 			launchButton.Show()
 			currentProcess = nil
-			downloadContainer.Show()
-			versionContainer.Show()
+			setOwlcmsTabMode(mainWindow)
+
 			releaseJavaLock()
 			return
 		}
@@ -337,8 +337,8 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 		stopBtn.Hide()
 		stopContainer.Hide()
 		launchButton.Show()
-		downloadContainer.Show()
-		versionContainer.Show()
+		setOwlcmsTabMode(mainWindow)
+
 		urlLink.Hide()
 		appDirLink.Hide()
 		if tailLogLink != nil {

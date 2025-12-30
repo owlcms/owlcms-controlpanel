@@ -27,7 +27,8 @@ import (
 
 // Release represents a GitHub release
 type Release struct {
-	Name string `json:"name"`
+	TagName string `json:"tag_name"`
+	Name    string `json:"name"`
 }
 
 var (
@@ -75,8 +76,20 @@ func fetchReleases() ([]string, error) {
 	}
 
 	releaseNames := make([]string, 0, len(allReleasesLocal))
+	seen := map[string]struct{}{}
 	for _, release := range allReleasesLocal {
-		releaseNames = append(releaseNames, release.Name)
+		v := strings.TrimSpace(release.TagName)
+		if v == "" {
+			v = strings.TrimSpace(release.Name)
+		}
+		if v == "" {
+			continue
+		}
+		if _, ok := seen[v]; ok {
+			continue
+		}
+		seen[v] = struct{}{}
+		releaseNames = append(releaseNames, v)
 	}
 
 	// Sort the release names in semver order, most recent at the top
@@ -115,10 +128,11 @@ func populateReleaseSelect(selectWidget *widget.Select) {
 	filteredReleases := []string{}
 	stableReleases := []string{}
 	for _, release := range allReleases {
-		if showPrereleases || !containsPreReleaseTag(release) {
+		version := extractSemverTag(release)
+		if showPrereleases || !containsPreReleaseTag(version) {
 			filteredReleases = append(filteredReleases, release)
 		}
-		if !containsPreReleaseTag(release) {
+		if !containsPreReleaseTag(version) {
 			stableReleases = append(stableReleases, release)
 		}
 	}
@@ -214,10 +228,30 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 			w)
 	})
 	selectWidget.PlaceHolder = "Choose a release to download"
+
+	// Always create a new checkbox bound to THIS select widget (dropdown is rebuilt at runtime).
+	prereleaseCheckbox = widget.NewCheck("Show Prereleases", func(checked bool) {
+		showPrereleases = checked
+		// Refetch to get updated list when toggling prereleases.
+		go func() {
+			releases, err := fetchReleases()
+			if err != nil {
+				log.Printf("failed to fetch releases after prerelease toggle: %v", err)
+				return
+			}
+			allReleases = releases
+			populateReleaseSelect(selectWidget)
+			checkForNewerVersion()
+			// Keep the dropdown visible while the user is toggling prereleases.
+			ShowDownloadables()
+			if downloadContainer != nil {
+				downloadContainer.Refresh()
+			}
+		}()
+	})
+	prereleaseCheckbox.Hide()
+
 	populateReleaseSelect(selectWidget)
-	if prereleaseCheckbox != nil {
-		prereleaseCheckbox.Hide()
-	}
 	releaseDropdown = container.New(layout.NewHBoxLayout(), selectWidget, prereleaseCheckbox)
 	releaseDropdown.Resize(fyne.NewSize(200, 200))
 

@@ -253,17 +253,7 @@ func initializeTab(w fyne.Window) {
 	// Initialize version list
 	recomputeVersionList(w)
 
-	// Create prerelease checkbox
-	var releaseSelect *widget.Select
-	prereleaseCheckbox = widget.NewCheck("Show Prereleases", func(checked bool) {
-		showPrereleases = checked
-		if releaseSelect != nil {
-			populateReleaseSelect(releaseSelect)
-		}
-	})
-	prereleaseCheckbox.Hide()
-
-	// Create release dropdown for downloads
+	// Create release dropdown (includes prerelease checkbox)
 	releaseSelect, releaseDropdownLocal := createReleaseDropdown(w)
 	releaseDropdown = releaseDropdownLocal
 
@@ -321,6 +311,9 @@ func HideDownloadables() {
 	if prereleaseCheckbox != nil {
 		prereleaseCheckbox.Hide()
 	}
+	if downloadButtonTitle != nil {
+		downloadButtonTitle.Show()
+	}
 	if downloadContainer != nil {
 		downloadContainer.Refresh()
 	}
@@ -334,6 +327,9 @@ func ShowDownloadables() {
 	}
 	if prereleaseCheckbox != nil {
 		prereleaseCheckbox.Show()
+	}
+	if downloadButtonTitle != nil {
+		downloadButtonTitle.Hide()
 	}
 	if downloadContainer != nil {
 		downloadContainer.Refresh()

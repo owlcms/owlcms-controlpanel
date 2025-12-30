@@ -150,7 +150,7 @@ func CreateTab(w fyne.Window, app fyne.App) *fyne.Container {
 
 	// If OWLCMS install directory does not exist, reset tab to explanation mode
 	if forceUninstalledOwlcms || func() bool { _, err := os.Stat(installDir); return os.IsNotExist(err) }() {
-		resetToExplainMode(w)
+		setOwlcmsTabModeUninstalled(w)
 		return mainContent
 	} else {
 		// Start initialization in a goroutine
@@ -273,13 +273,8 @@ func refreshAvailableVersions(w fyne.Window) {
 		}
 		allReleases = releases
 
-		// Refresh any UI that depends on the remote release list.
-		recomputeVersionList(w)
-		setupReleaseDropdown(w)
-		checkForNewerVersion()
-		if downloadContainer != nil {
-			downloadContainer.Refresh()
-		}
+		// Re-apply the correct mode so the version list and download section stay in sync.
+		setOwlcmsTabMode(w)
 	}()
 }
 
@@ -335,27 +330,13 @@ func initializeOwlcmsTab(w fyne.Window) {
 			return
 		}
 
-		// If we have internet but no installed versions, do not show the bottom
-		// download UI. Reset the tab to explanation mode so only the menu and
-		// embedded installation explanation are visible.
-		resetToExplainMode(w)
+		// Mode: 0 versions
+		setOwlcmsTabModeUninstalled(w)
 		return
 	}
 
-	// Initialize version list
-	recomputeVersionList(w)
-
-	// Setup release dropdown
-	setupReleaseDropdown(w)
-
-	// Check for newer version
-	checkForNewerVersion()
-
-	// Show the version container
-	stopContainer.Hide()
-	versionContainer.Show()
-	downloadContainer.Show()
-	statusLabel.Hide()
+	// Mode: ≥1 versions
+	setOwlcmsTabModeInstalled(w)
 
 	log.Println("OWLCMS tab setup done.")
 }
@@ -368,6 +349,9 @@ func HideDownloadables() {
 	}
 	if prereleaseCheckbox != nil {
 		prereleaseCheckbox.Hide()
+	}
+	if downloadButtonTitle != nil {
+		downloadButtonTitle.Show()
 	}
 	if downloadContainer != nil {
 		downloadContainer.Refresh()
@@ -383,24 +367,63 @@ func ShowDownloadables() {
 	if prereleaseCheckbox != nil {
 		prereleaseCheckbox.Show()
 	}
+	if downloadButtonTitle != nil {
+		downloadButtonTitle.Hide()
+	}
 	if downloadContainer != nil {
 		downloadContainer.Refresh()
 	}
 }
 
-func goBackToMainScreen() {
+// setOwlcmsTabModeUninstalled is the ONLY way to show the "0 installed versions" UI.
+// It must NOT show the download section.
+func setOwlcmsTabModeUninstalled(w fyne.Window) {
+	resetToExplainMode(w)
+	log.Printf("UI Mode: Uninstalled (0 versions)")
+}
+
+// setOwlcmsTabModeInstalled is the ONLY way to show the "≥1 installed versions" UI.
+// It MUST show BOTH the version list and the download section.
+func setOwlcmsTabModeInstalled(w fyne.Window) {
+	// Recompute list + download section contents first.
+	recomputeVersionList(w)
+	setupReleaseDropdown(w)
+	checkForNewerVersion()
+
 	if stopButton != nil {
 		stopButton.Hide()
 	}
 	if stopContainer != nil {
 		stopContainer.Hide()
 	}
-	if downloadContainer != nil {
-		downloadContainer.Show()
+	if statusLabel != nil {
+		statusLabel.Hide()
 	}
 	if versionContainer != nil {
 		versionContainer.Show()
+		versionContainer.Refresh()
 	}
+	if downloadContainer != nil {
+		downloadContainer.Show()
+		downloadContainer.Refresh()
+	}
+
+	log.Printf("UI Mode: Installed (versions=%d; list+download visible)", len(getAllInstalledVersions()))
+}
+
+// setOwlcmsTabMode is the single switch deciding which of the two modes to show.
+// This prevents any code path from leaving the version list visible without the
+// matching download section.
+func setOwlcmsTabMode(w fyne.Window) {
+	if len(getAllInstalledVersions()) == 0 {
+		setOwlcmsTabModeUninstalled(w)
+		return
+	}
+	setOwlcmsTabModeInstalled(w)
+}
+
+func goBackToMainScreen() {
+	setOwlcmsTabMode(mainWindow)
 }
 
 // checkJava checks for Java and downloads it if not found
@@ -417,9 +440,7 @@ func checkJava(statusLabel *widget.Label) error {
 	if versionContainer != nil {
 		versionContainer.Hide()
 	}
-	if downloadContainer != nil {
-		downloadContainer.Hide()
-	}
+	// Don't hide downloadContainer during Java check - it will be restored after
 
 	err := javacheck.CheckJava(statusLabel)
 	if err != nil {
@@ -528,7 +549,11 @@ func checkForNewerVersion() {
 	updateTitleContainer.Show()
 	downloadButtonTitle.Show()
 	if releaseDropdown != nil {
-		releaseDropdown.Hide()
+		// Only auto-hide the dropdown when downloads are not expanded.
+		// If the user is interacting with the prerelease toggle, keep it visible.
+		if !downloadsShown {
+			releaseDropdown.Hide()
+		}
 	}
 	if downloadContainer != nil {
 		downloadContainer.Refresh()
@@ -540,7 +565,6 @@ func updateExplanation() {
 		downloadContainer.Objects = []fyne.CanvasObject{
 			widget.NewLabel("You are not connected to the Internet. Available updates cannot be shown."),
 		}
-		downloadContainer.Show()
 		downloadContainer.Refresh()
 		return
 	}
@@ -622,7 +646,7 @@ func removeAllVersions() {
 	downloadButtonTitle.SetText("Click here to install a version.")
 	downloadButtonTitle.Refresh()
 	updateTitle.Refresh()
-	recomputeVersionList(mainWindow)
+	setOwlcmsTabMode(mainWindow)
 }
 
 func uninstallAll() {
@@ -636,7 +660,7 @@ func uninstallAll() {
 				log.Println("All data removed successfully")
 				dialog.ShowInformation("Success", "All data removed successfully", fyne.CurrentApp().Driver().AllWindows()[0])
 				// Do not quit the control panel. Refresh the UI so the uninstalled explanation appears.
-				recomputeVersionList(mainWindow)
+				setOwlcmsTabMode(mainWindow)
 			}
 		}
 	}, fyne.CurrentApp().Driver().AllWindows()[0])

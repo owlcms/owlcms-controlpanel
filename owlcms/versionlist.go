@@ -1303,13 +1303,9 @@ func recomputeVersionList(w fyne.Window) {
 	center := container.NewStack(versionScroll)
 
 	if numVersions == 0 {
-		// Reset the tab to explanation mode so the bottom download UI is cleared first
-		resetToExplainMode(w)
-		// No version list to add — return now so we don't overwrite the explanation
+		// Delegate UI mode switching to the centralized mode functions.
+		setOwlcmsTabModeUninstalled(w)
 		return
-	} else {
-		versionScroll.Show()
-		versionContainer.Show()
 	}
 
 	spacer := canvas.NewRectangle(color.Transparent)
@@ -1318,5 +1314,6 @@ func recomputeVersionList(w fyne.Window) {
 
 	versionContainer.Objects = nil
 	versionContainer.Add(content)
+	versionContainer.Refresh()
 	log.Println("Version list reinitialized")
 }
