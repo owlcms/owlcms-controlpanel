@@ -11,5 +11,6 @@
             "GOOS": "windows",
             "GOARCH": "amd64"
         }
-    }
+    },
+    "terminal.integrated.stickyScroll.enabled": false
 }

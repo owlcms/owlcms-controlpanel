@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"owlcms-launcher/firmata/downloadutils"
+	"owlcms-launcher/shared"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
@@ -78,7 +78,7 @@ func stopProcess(curProcess *exec.Cmd, curVersion string, stopBtn *widget.Button
 	killedByUs = true
 
 	var err error
-	if downloadutils.GetGoos() == "windows" {
+	if shared.GetGoos() == "windows" {
 		err = curProcess.Process.Signal(os.Interrupt)
 	} else {
 		err = curProcess.Process.Signal(syscall.SIGINT)

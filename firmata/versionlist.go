@@ -11,8 +11,7 @@ import (
 	"sort"
 	"time"
 
-	"owlcms-launcher/firmata/downloadutils"
-	"owlcms-launcher/firmata/javacheck"
+	customdialog "owlcms-launcher/firmata/dialog"
 	"owlcms-launcher/shared"
 
 	"fyne.io/fyne/v2"
@@ -342,7 +341,8 @@ func createLaunchButton(w fyne.Window, version string, buttonContainer *fyne.Con
 		}
 
 		log.Printf("Launching version %s\n", version)
-		ver := javacheck.GetTemurinVersion()
+		// Get version-specific Temurin version
+		ver := GetTemurinVersionForRelease(version)
 		if err := shared.CheckAndInstallJava(ver, statusLabel, w, checkJava); err != nil {
 			return
 		}
@@ -394,17 +394,26 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	}
 	extractPath := filepath.Join(extractDir, fileName)
 
-	progressDialog := dialog.NewCustom(
+	cancel := make(chan bool)
+	progressDialog, progressBar := customdialog.NewDownloadDialog(
 		"Updating owlcms-firmata",
-		"Please wait...",
-		widget.NewLabel("Downloading and extracting files..."),
-		w)
+		w,
+		cancel)
 	progressDialog.Show()
 
 	defer progressDialog.Hide()
 
-	err := downloadutils.DownloadArchive(jarURL, extractPath)
+	progressCallback := func(downloaded, total int64) {
+		if total > 0 {
+			percentage := float64(downloaded) / float64(total)
+			progressBar.SetValue(percentage)
+		}
+	}
+	err := shared.DownloadArchive(jarURL, extractPath, progressCallback, cancel)
 	if err != nil {
+		if err.Error() == "download cancelled" {
+			return
+		}
 		dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
 		return
 	}

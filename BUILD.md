@@ -36,20 +36,6 @@
      fyne-cross linux -arch amd64 --app-id app.owlcms.owlcms-launcher -name owlcms-linux
 
 ### Releasing
-- decide on a tag number
-- update the version number in release.sh to match
-- update RELEASE.md
-- commit and push all the files
-- trigger the github actions workflow by creating the tag you decided above and pushing it.
-  For example
-  
-  ```
-  git tag v1.5.2-alpha13 && git push origin --tags
-  ```
-- once the workflow has finished run release to finish the work.
-  This will eventually be fixed by extending the github actions workflow with a second job
-  
-  ```
-  ./release.sh
-  ```
+
+See [RELEASE_PROCESS.md](RELEASE_PROCESS.md) for the release process.
 

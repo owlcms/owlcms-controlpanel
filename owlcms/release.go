@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"owlcms-launcher/owlcms/downloadutils"
 	"owlcms-launcher/shared"
 
 	"fyne.io/fyne/v2"
@@ -195,7 +194,7 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 			}
 		}
 
-		err := downloadutils.DownloadArchive(zipURL, zipPath, progressCallback, nil)
+		err := shared.DownloadArchive(zipURL, zipPath, progressCallback, nil)
 		if err != nil {
 			log.Printf("Download failed: %v", err)
 			dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
@@ -207,7 +206,7 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 		messageLabel.SetText("Extracting files...")
 		messageLabel.Refresh()
 
-		err = downloadutils.ExtractZip(zipPath, extractPath)
+		err = shared.ExtractZip(zipPath, extractPath)
 		log.Printf("ExtractZip returned, err=%v", err)
 		if err != nil {
 			log.Printf("Extraction warning (continuing install): %v", err)

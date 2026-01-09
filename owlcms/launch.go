@@ -224,7 +224,9 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 	}
 	defer os.Chdir(originalDir)
 
-	localJava, err := javacheck.FindLocalJava()
+	// Get version-specific Temurin version
+	temurinVersion := GetTemurinVersionForRelease(version)
+	localJava, err := javacheck.FindLocalJavaForVersion(temurinVersion)
 	if err != nil {
 		statusLabel.SetText(fmt.Sprintf("Failed to find local Java: %v", err))
 		launchButton.Show()

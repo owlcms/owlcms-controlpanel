@@ -1,4 +1,4 @@
-package downloadutils
+package shared
 
 import (
 	"archive/tar"
@@ -11,26 +11,40 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-
-	"owlcms-launcher/shared"
 )
 
-// DownloadArchive downloads a zip file from the given URL and saves it to the specified path.
-func DownloadArchive(url, destPath string) error {
+// ProgressCallback is a function type that receives download progress updates
+type ProgressCallback func(downloaded, total int64)
+
+// DownloadArchive downloads a file and reports progress through the callback. It also accepts a cancel channel.
+func DownloadArchive(url, destPath string, progress ProgressCallback, cancel <-chan bool) error {
 	log.Printf("Attempting to download from URL: %s\n", url)
 
-	client := &http.Client{
-		Timeout: 60 * time.Second, // Set a timeout for the HTTP request
+	client := &http.Client{}
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
 	}
 
-	resp, err := client.Get(url)
+	// Call progress callback immediately to update UI before network request
+	if progress != nil {
+		progress(0, 100) // Use placeholder total size of 100
+	}
+
+	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("failed to download zip from %s: %w", url, err)
+		return fmt.Errorf("failed to download from %s: %w", url, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("server returned non-200 status: %s for %s", resp.Status, url)
+	}
+
+	// Update progress with actual total size now that we have the response
+	if progress != nil && resp.ContentLength > 0 {
+		progress(0, resp.ContentLength)
 	}
 
 	out, err := os.Create(destPath)
@@ -39,19 +53,49 @@ func DownloadArchive(url, destPath string) error {
 	}
 	defer out.Close()
 
-	_, err = io.Copy(out, resp.Body)
+	// Create a proxy reader that will report progress
+	counter := &WriteCounter{
+		Total:    resp.ContentLength,
+		Progress: progress,
+		Cancel:   cancel, // Pass the cancel channel to the counter
+	}
+
+	_, err = io.Copy(out, io.TeeReader(resp.Body, counter))
 	if err != nil {
-		return fmt.Errorf("failed to copy zip data: %w", err)
+		return fmt.Errorf("failed to copy data: %w", err)
 	}
 
 	log.Printf("Successfully downloaded file to: %s\n", destPath)
 	return nil
 }
 
-// IsWSL checks if the program is running under Windows Subsystem for Linux.
-// Delegates to shared package.
-func IsWSL() bool {
-	return shared.IsWSL()
+// WriteCounter counts bytes written and reports progress
+type WriteCounter struct {
+	Downloaded int64
+	Total      int64
+	Progress   ProgressCallback
+	Cancel     <-chan bool // Add a cancel channel
+	lastReport time.Time
+}
+
+func (wc *WriteCounter) Write(p []byte) (int, error) {
+	select {
+	case <-wc.Cancel:
+		return 0, fmt.Errorf("download cancelled") // Check for cancellation
+	default:
+		n := len(p)
+		wc.Downloaded += int64(n)
+
+		// Report progress at most every 100ms to avoid overwhelming the UI
+		if time.Since(wc.lastReport) > 100*time.Millisecond {
+			if wc.Progress != nil {
+				wc.Progress(wc.Downloaded, wc.Total)
+			}
+			wc.lastReport = time.Now()
+		}
+
+		return n, nil
+	}
 }
 
 // GetDownloadURL returns the correct download URL based on the operating system.
@@ -73,12 +117,6 @@ func GetDownloadURL(baseURL string) string {
 	return fmt.Sprintf("%s/%s", baseURL, asset)
 }
 
-// GetGoos returns the current operating system.
-// Delegates to shared package.
-func GetGoos() string {
-	return shared.GetGoos()
-}
-
 // ExtractZip extracts a zip archive to the specified destination directory.
 func ExtractZip(src, dest string) error {
 	r, err := zip.OpenReader(src)
@@ -94,13 +132,13 @@ func ExtractZip(src, dest string) error {
 		fpath := filepath.Join(dest, f.Name)
 
 		if f.FileInfo().IsDir() {
-			if err := shared.EnsureDir0755(fpath); err != nil {
+			if err := EnsureDir0755(fpath); err != nil {
 				return fmt.Errorf("failed to create directory: %w", err)
 			}
 			continue
 		}
 
-		if err := shared.EnsureDir0755(filepath.Dir(fpath)); err != nil {
+		if err := EnsureDir0755(filepath.Dir(fpath)); err != nil {
 			return fmt.Errorf("failed to create directory: %w", err)
 		}
 
@@ -134,7 +172,7 @@ func ExtractZip(src, dest string) error {
 		return fmt.Errorf("failed to close zip file %s: %w", src, err)
 	}
 
-	// Remove the downloaded ZIP file (warn only if it fails)
+	// Remove the downloaded ZIP file; if something holds the file (e.g., AV), log and continue
 	if err := os.Remove(src); err != nil {
 		log.Printf("warning: could not remove downloaded file %s: %v", src, err)
 	}
@@ -176,7 +214,7 @@ func ExtractTarGz(tarGzPath, dest string) error {
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err := shared.EnsureDir0755(target); err != nil {
+			if err := EnsureDir0755(target); err != nil {
 				gzr.Close()
 				r.Close()
 				return err
@@ -187,7 +225,8 @@ func ExtractTarGz(tarGzPath, dest string) error {
 				return err
 			}
 		case tar.TypeReg:
-			if err := shared.EnsureDir0755(filepath.Dir(target)); err != nil {
+			// Ensure parent directories are 0755
+			if err := EnsureDir0755(filepath.Dir(target)); err != nil {
 				gzr.Close()
 				r.Close()
 				return err

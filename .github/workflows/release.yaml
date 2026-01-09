@@ -375,8 +375,8 @@ jobs:
 
     - name: Prepare release notes
       run: |
-        cp RELEASE.md ./dist/RELEASE.md
-        sed -i "s/_TAG_/${TAG}/g" ./dist/RELEASE.md
+        cp ReleaseNotes.md ./dist/ReleaseNotes.md
+        sed -i "s/_TAG_/${TAG}/g" ./dist/ReleaseNotes.md
 
     # one single download for each of the job needs, in the same order
     - name: Download build_mac_artifacts
@@ -408,12 +408,12 @@ jobs:
         if [[ "${TAG}" == *"-"* ]]; then
           gh release create ${{ env.TAG }} \
             --title "owlcms Control Panel ${{ env.TAG }}" \
-            --notes-file ./dist/RELEASE.md \
+            --notes-file ./dist/ReleaseNotes.md \
             --prerelease
         else
           gh release create ${{ env.TAG }} \
             --title "owlcms Control Panel ${{ env.TAG }}" \
-            --notes-file ./dist/RELEASE.md
+            --notes-file ./dist/ReleaseNotes.md
         fi
 
     # - name: Release macOS arm64 DMG

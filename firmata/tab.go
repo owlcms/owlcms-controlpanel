@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"owlcms-launcher/firmata/downloadutils"
+	customdialog "owlcms-launcher/firmata/dialog"
 	"owlcms-launcher/firmata/javacheck"
 	"owlcms-launcher/shared"
 
@@ -41,7 +41,7 @@ var (
 )
 
 func initMain() {
-	javacheck.InitJavaCheck(installDir)
+	javacheck.InitJavaCheck(installDir, GetTemurinVersion)
 }
 
 type myTheme struct {
@@ -69,7 +69,7 @@ func (m myTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) colo
 }
 
 func getInstallDir() string {
-	switch downloadutils.GetGoos() {
+	switch shared.GetGoos() {
 	case "windows":
 		return filepath.Join(os.Getenv("APPDATA"), "firmata")
 	case "darwin":
@@ -371,7 +371,7 @@ func initializeFirmataTab(w fyne.Window) {
 	if internetAvailable && !javaAvailable {
 		// Determine the Temurin version to fetch for Firmata, then perform Java
 		// check/install using the shared helper.
-		ver := javacheck.GetTemurinVersion()
+		ver := GetTemurinVersion()
 		if err := shared.CheckAndInstallJava(ver, statusLabel, w, checkJava); err != nil {
 			return
 		}
@@ -493,12 +493,12 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 		}
 	}
 
-	// Show progress dialog
-	progressDialog := dialog.NewCustom(
+	// Show progress dialog with progress bar
+	cancel := make(chan bool)
+	progressDialog, progressBar := customdialog.NewDownloadDialog(
 		"Installing owlcms-firmata",
-		"Please wait...",
-		widget.NewLabel("Downloading and extracting files..."),
-		w)
+		w,
+		cancel)
 	progressDialog.Show()
 
 	go func() {
@@ -510,11 +510,20 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 		}
 		extractPath = filepath.Join(extractPath, fileName)
 
-		// Download the file using downloadutils
+		// Download the file using downloadutils with progress tracking
 		log.Printf("Starting download from URL: %s\n", zipURL)
-		err := downloadutils.DownloadArchive(zipURL, extractPath)
+		progressCallback := func(downloaded, total int64) {
+			if total > 0 {
+				percentage := float64(downloaded) / float64(total)
+				progressBar.SetValue(percentage)
+			}
+		}
+		err := shared.DownloadArchive(zipURL, extractPath, progressCallback, cancel)
 		if err != nil {
 			progressDialog.Hide()
+			if err.Error() == "download cancelled" {
+				return
+			}
 			dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
 			return
 		}

@@ -17,7 +17,6 @@ import (
 	"time"
 
 	customdialog "owlcms-launcher/owlcms/dialog"
-	"owlcms-launcher/owlcms/downloadutils"
 	"owlcms-launcher/shared"
 
 	"fyne.io/fyne/v2"
@@ -363,7 +362,8 @@ func createLaunchButton(w fyne.Window, version string, stopBtn *widget.Button, b
 		}
 
 		log.Printf("Launching version %s\n", version)
-		ver := GetTemurinVersion()
+		// Get version-specific Temurin version
+		ver := GetTemurinVersionForRelease(version)
 		if err := shared.CheckAndInstallJava(ver, statusLabel, w, checkJava); err != nil {
 			return
 		}
@@ -383,7 +383,7 @@ func adjustUpdateButton(mostRecent string, version string, updateButton *widget.
 		if compare.GreaterThan(x) {
 			updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
 			updateButton.OnTapped = func() {
-				currentOS := downloadutils.GetGoos()
+				currentOS := shared.GetGoos()
 				if currentOS == "linux" || currentOS == "darwin" {
 					data, err := os.ReadFile(pidFilePath)
 					if err == nil && len(data) > 0 {
@@ -454,7 +454,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		}
 	}
 
-	err := downloadutils.DownloadArchive(zipURL, zipPath, progressCallback, cancel)
+	err := shared.DownloadArchive(zipURL, zipPath, progressCallback, cancel)
 	if err != nil {
 		if err.Error() == "download cancelled" {
 			// Handle cancellation
@@ -470,7 +470,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	}
 
 	// new version is downloaded, now extract it to its own directory
-	err = downloadutils.ExtractZip(zipPath, newVersionDir)
+	err = shared.ExtractZip(zipPath, newVersionDir)
 	if err != nil {
 		dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
 		return

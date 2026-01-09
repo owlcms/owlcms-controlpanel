@@ -14,7 +14,6 @@ import (
 
 	"owlcms-launcher/firmata"
 	"owlcms-launcher/owlcms"
-	"owlcms-launcher/owlcms/downloadutils"
 	"owlcms-launcher/owlcms/javacheck"
 	"owlcms-launcher/shared"
 	"owlcms-launcher/tracker"
@@ -66,7 +65,7 @@ func (m myTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) colo
 }
 
 func getInstallDir() string {
-	switch downloadutils.GetGoos() {
+	switch shared.GetGoos() {
 	case "windows":
 		return filepath.Join(os.Getenv("APPDATA"), "owlcms")
 	case "darwin":
@@ -153,6 +152,45 @@ func stopAllRunningProcesses(w fyne.Window) {
 	firmata.StopRunningProcess(w)
 }
 
+func cleanupJavaVersions(w fyne.Window) {
+	dialog.ShowConfirm(
+		"Cleanup Java Versions",
+		"This will:\n• Scan all env.properties files to find the highest required Java version\n• Download and install that version if not present\n• Remove all older Java versions from the control panel\n• Remove all legacy Java installations from owlcms and firmata directories\n\nContinue?",
+		func(confirm bool) {
+			if !confirm {
+				return
+			}
+
+			// Create a status label for progress updates
+			statusLabel := widget.NewLabel("Scanning for Java versions...")
+			progressDialog := dialog.NewCustom("Cleaning Up Java", "Close", statusLabel, w)
+			progressDialog.Show()
+
+			// Run cleanup in goroutine to allow UI updates
+			go func() {
+				removed, err := shared.CleanupObsoleteJavaVersions(owlcms.GetInstallDir(), firmata.GetInstallDir(), statusLabel, w)
+				progressDialog.Hide()
+
+				if err != nil {
+					dialog.ShowError(fmt.Errorf("cleanup failed: %w", err), w)
+					return
+				}
+
+				if len(removed) == 0 {
+					dialog.ShowInformation("Cleanup Complete", "No obsolete Java versions found.", w)
+				} else {
+					message := "Cleanup results:\n\n"
+					for _, v := range removed {
+						message += "• " + v + "\n"
+					}
+					dialog.ShowInformation("Cleanup Complete", message, w)
+				}
+			}()
+		},
+		w,
+	)
+}
+
 func requestExit(w fyne.Window) {
 	if exitInProgress {
 		return
@@ -197,6 +235,16 @@ func setupMenus(w fyne.Window) {
 	// and won't add its own duplicate if it finds one.
 	fileMenu := fyne.NewMenu(
 		"File",
+		fyne.NewMenuItem("Open Control Panel Installation Directory", func() {
+			controlPanelDir := shared.GetControlPanelInstallDir()
+			if err := shared.OpenFile(controlPanelDir); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to open directory: %w", err), w)
+			}
+		}),
+		fyne.NewMenuItem("Cleanup Obsolete Java Versions", func() {
+			cleanupJavaVersions(w)
+		}),
+		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Quit", func() {
 			requestExit(w)
 		}),

@@ -13,8 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"owlcms-launcher/firmata/downloadutils"
-	"owlcms-launcher/firmata/javacheck"
+	customdialog "owlcms-launcher/firmata/dialog"
 	"owlcms-launcher/shared"
 
 	"fyne.io/fyne/v2"
@@ -172,12 +171,12 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 					return
 				}
 
-				// Show progress dialog
-				progressDialog := dialog.NewCustom(
+				// Show progress dialog with progress bar
+				cancel := make(chan bool)
+				progressDialog, progressBar := customdialog.NewDownloadDialog(
 					"Installing owlcms-firmata",
-					"Please wait...",
-					widget.NewLabel("Downloading and extracting files..."),
-					w)
+					w,
+					cancel)
 				progressDialog.Show()
 
 				go func() {
@@ -189,11 +188,20 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 					}
 					extractPath = filepath.Join(extractPath, fileName)
 
-					// Download the file using downloadutils
+					// Download the file using downloadutils with progress tracking
 					log.Printf("Starting download from URL: %s\n", zipURL)
-					err := downloadutils.DownloadArchive(zipURL, extractPath)
+					progressCallback := func(downloaded, total int64) {
+						if total > 0 {
+							percentage := float64(downloaded) / float64(total)
+							progressBar.SetValue(percentage)
+						}
+					}
+					err := shared.DownloadArchive(zipURL, extractPath, progressCallback, cancel)
 					if err != nil {
 						progressDialog.Hide()
+						if err.Error() == "download cancelled" {
+							return
+						}
 						dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
 						return
 					}
@@ -319,7 +327,7 @@ func extractSemverTag(s string) string {
 func InstallDefault(w fyne.Window) {
 	// Before installing, ensure Java runtime is available. Delegate to shared helper
 	// which will call the package-local `checkJava` implementation.
-	ver := javacheck.GetTemurinVersion()
+	ver := GetTemurinVersion()
 	if err := shared.CheckAndInstallJava(ver, statusLabel, w, checkJava); err != nil {
 		return
 	}

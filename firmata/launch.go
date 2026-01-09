@@ -10,7 +10,6 @@ import (
 	"strings"
 	"syscall"
 
-	"owlcms-launcher/firmata/downloadutils"
 	"owlcms-launcher/firmata/javacheck"
 	"owlcms-launcher/shared"
 
@@ -71,7 +70,7 @@ func killLockingProcess() error {
 		return fmt.Errorf("failed to find process with PID %d: %w", pid, err)
 	}
 
-	if downloadutils.GetGoos() == "windows" && !downloadutils.IsWSL() {
+	if shared.GetGoos() == "windows" && !shared.IsWSL() {
 		if err := proc.Terminate(); err != nil {
 			releaseJavaLock()
 			return fmt.Errorf("failed to terminate process with PID %d: %w", pid, err)
@@ -139,8 +138,10 @@ func launchFirmata(version string, launchButton *widget.Button) error {
 	}
 	defer os.Chdir(originalDir)
 
+	// Get version-specific Temurin version
+	temurinVersion := GetTemurinVersionForRelease(version)
 	// find the java runtime binary
-	localJava, err := javacheck.FindLocalJava()
+	localJava, err := javacheck.FindLocalJavaForVersion(temurinVersion)
 	if err != nil {
 		statusLabel.SetText(fmt.Sprintf("Failed to find local Java: %v", err))
 		launchButton.Show()

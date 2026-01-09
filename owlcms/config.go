@@ -10,8 +10,6 @@ import (
 	"owlcms-launcher/shared"
 	"path/filepath"
 
-	"owlcms-launcher/owlcms/downloadutils"
-
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
@@ -45,13 +43,39 @@ func GetPort() string {
 // GetTemurinVersion returns the configured Temurin version from env.properties
 func GetTemurinVersion() string {
 	if environment == nil {
-		return "jdk-17.0.15+6"
+		return "jdk-25"
 	}
 	version, ok := environment.Get("TEMURIN_VERSION")
 	if !ok {
-		return "jdk-17.0.15+6"
+		return "jdk-25"
 	}
 	return version
+}
+
+// GetTemurinVersionForRelease returns the Temurin version for a specific release.
+// It first checks the version-specific env.properties file, then falls back to
+// the shared env.properties file, and finally to the default value.
+func GetTemurinVersionForRelease(releaseVersion string) string {
+	// First, try to load version-specific env.properties
+	versionEnvPath := filepath.Join(installDir, releaseVersion, "env.properties")
+	if _, err := os.Stat(versionEnvPath); err == nil {
+		// Version-specific env.properties exists, try to load it
+		versionProps := properties.NewProperties()
+		content, err := os.ReadFile(versionEnvPath)
+		if err == nil {
+			if err := versionProps.Load(content, properties.UTF8); err == nil {
+				if temurinVersion, ok := versionProps.Get("TEMURIN_VERSION"); ok {
+					log.Printf("Using version-specific Temurin %s for owlcms %s", temurinVersion, releaseVersion)
+					return temurinVersion
+				}
+			}
+		}
+	}
+
+	// Fall back to shared env.properties
+	temurinVersion := GetTemurinVersion()
+	log.Printf("Using shared Temurin %s for owlcms %s", temurinVersion, releaseVersion)
+	return temurinVersion
 }
 
 // GetInstallDir returns the installation directory
@@ -65,7 +89,7 @@ func GetEnvironment() *properties.Properties {
 }
 
 func getInstallDir() string {
-	switch downloadutils.GetGoos() {
+	switch shared.GetGoos() {
 	case "windows":
 		return filepath.Join(os.Getenv("APPDATA"), "owlcms")
 	case "darwin":
@@ -89,7 +113,7 @@ func InitEnv() error {
 
 		props := properties.NewProperties()
 		props.Set("OWLCMS_PORT", "8080")
-		props.Set("TEMURIN_VERSION", "jdk-17.0.15+6")
+		props.Set("TEMURIN_VERSION", "jdk-25")
 
 		file, err := os.Create(envFilePath)
 		if err != nil {

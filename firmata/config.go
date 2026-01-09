@@ -41,6 +41,44 @@ func GetPort() string {
 	return port
 }
 
+// GetTemurinVersion returns the configured Temurin version from env.properties
+func GetTemurinVersion() string {
+	if environment == nil {
+		return "jdk-25"
+	}
+	version, ok := environment.Get("TEMURIN_VERSION")
+	if !ok {
+		return "jdk-25"
+	}
+	return version
+}
+
+// GetTemurinVersionForRelease returns the Temurin version for a specific release.
+// It first checks the version-specific env.properties file, then falls back to
+// the shared env.properties file, and finally to the default value.
+func GetTemurinVersionForRelease(releaseVersion string) string {
+	// First, try to load version-specific env.properties
+	versionEnvPath := filepath.Join(installDir, releaseVersion, "env.properties")
+	if _, err := os.Stat(versionEnvPath); err == nil {
+		// Version-specific env.properties exists, try to load it
+		versionProps := properties.NewProperties()
+		content, err := os.ReadFile(versionEnvPath)
+		if err == nil {
+			if err := versionProps.Load(content, properties.UTF8); err == nil {
+				if temurinVersion, ok := versionProps.Get("TEMURIN_VERSION"); ok {
+					log.Printf("Using version-specific Temurin %s for firmata %s", temurinVersion, releaseVersion)
+					return temurinVersion
+				}
+			}
+		}
+	}
+
+	// Fall back to shared env.properties
+	temurinVersion := GetTemurinVersion()
+	log.Printf("Using shared Temurin %s for firmata %s", temurinVersion, releaseVersion)
+	return temurinVersion
+}
+
 // InitEnv initializes the environment properties from env.properties file
 func InitEnv() {
 	log.Println("Initializing environment properties")
@@ -50,6 +88,7 @@ func InitEnv() {
 	if _, err := os.Stat(envFilePath); os.IsNotExist(err) {
 		// Create env.properties file with entry "FIRMATA_PORT=8090"
 		props.Set("FIRMATA_PORT", "8090")
+		props.Set("TEMURIN_VERSION", "jdk-25")
 		file, err := os.Create(envFilePath)
 		if err != nil {
 			log.Fatalf("Failed to create env.properties file: %v", err)

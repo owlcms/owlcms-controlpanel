@@ -10,13 +10,13 @@ import (
 	"syscall"
 	"time"
 
-	"owlcms-launcher/owlcms/downloadutils"
+	"owlcms-launcher/shared"
 )
 
 // GracefullyStopProcess attempts to stop a process with the given PID,
 // using platform-specific methods to ensure Java shutdown hooks can execute.
 func GracefullyStopProcess(pid int) error {
-	if downloadutils.GetGoos() == "windows" {
+	if shared.GetGoos() == "windows" {
 		log.Printf("Attempting graceful termination for PID %d\n", pid)
 		cmd := exec.Command("taskkill", "/PID", strconv.Itoa(pid))
 		err := cmd.Run()
@@ -85,7 +85,7 @@ func ForcefullyKillProcess(pid int) error {
 	if IsProcessRunning(pid) {
 		log.Printf("Process %d still running after Kill, using fallback termination method\n", pid)
 
-		if downloadutils.GetGoos() == "windows" {
+		if shared.GetGoos() == "windows" {
 			cmd := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(pid))
 			if out, err := cmd.CombinedOutput(); err != nil {
 				log.Printf("taskkill fallback failed: %v - %s\n", err, string(out))
@@ -105,7 +105,7 @@ func ForcefullyKillProcess(pid int) error {
 
 // IsProcessRunning checks if a process with the given PID is currently running
 func IsProcessRunning(pid int) bool {
-	if downloadutils.GetGoos() == "windows" {
+	if shared.GetGoos() == "windows" {
 		cmd := exec.Command("tasklist", "/FI", fmt.Sprintf("PID eq %d", pid), "/NH")
 		output, err := cmd.CombinedOutput()
 		if err != nil {
