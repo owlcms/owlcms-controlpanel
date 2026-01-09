@@ -12,8 +12,11 @@ import (
 	"syscall"
 
 	"owlcms-launcher/shared"
+	customdialog "owlcms-launcher/tracker/dialog"
 	"owlcms-launcher/tracker/downloadutils"
 
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 	"github.com/gofrs/flock"
 	"github.com/shirou/gopsutil/process"
@@ -262,19 +265,91 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 		}
 	}
 
-	// Find the node executable
+	// Check if Node.js is available locally, download if needed
 	var nodeExe string
-	switch goos {
-	case "windows":
-		nodeExe = filepath.Join(versionDir, "node.exe")
-	default:
-		nodeExe = filepath.Join(versionDir, "node")
+
+	// Check for NODE_VERSION requirement in env.properties
+	var requiredNodeVersion string
+	if environment != nil {
+		if version, exists := environment.Get("NODE_VERSION"); exists {
+			requiredNodeVersion = version
+			log.Printf("Found NODE_VERSION requirement: %s\n", requiredNodeVersion)
+		}
 	}
+
+	nodePath, err := shared.FindLocalNodeForVersion(requiredNodeVersion, shared.GetGoos)
+	if err != nil {
+		// No suitable Node.js found, download appropriate version
+		var targetVersion string
+		if requiredNodeVersion != "" {
+			log.Printf("No Node.js found meeting requirement %s, downloading...\n", requiredNodeVersion)
+			targetVersion = requiredNodeVersion
+		} else {
+			log.Printf("No Node.js found locally, downloading latest LTS version...")
+			var err error
+			targetVersion, err = shared.FindLatestNodeRelease("")
+			if err != nil {
+				launchButton.Show()
+				goBackToMainScreen()
+				return fmt.Errorf("failed to find latest Node.js release: %w", err)
+			}
+		}
+
+		statusLabel.SetText("Downloading Node.js...")
+		statusLabel.Refresh()
+
+		log.Printf("Target Node.js release: %s\n", targetVersion)
+
+		// Create a cancel channel for the download
+		cancel := make(chan bool)
+
+		// Get the active window for the dialog
+		var appWindow fyne.Window
+		windows := fyne.CurrentApp().Driver().AllWindows()
+		if len(windows) > 0 {
+			appWindow = windows[0]
+		}
+
+		// Show the progress dialog
+		var progressDialog dialog.Dialog
+		var progressBar *widget.ProgressBar
+		if appWindow != nil {
+			progressDialog, progressBar = customdialog.NewDownloadDialog(
+				"Installing Node.js",
+				appWindow,
+				cancel)
+			progressDialog.Show()
+			progressBar.SetValue(0.01) // Set initial activity indicator
+		}
+
+		nodePath, err = shared.DownloadAndInstallNode(targetVersion, func(downloaded, total int64) {
+			if progressBar != nil && total > 0 {
+				percentage := float64(downloaded) / float64(total)
+				progressBar.SetValue(percentage)
+			}
+		})
+
+		if progressDialog != nil {
+			progressDialog.Hide()
+		}
+
+		if err != nil {
+			launchButton.Show()
+			goBackToMainScreen()
+			return fmt.Errorf("failed to download Node.js: %w", err)
+		}
+
+		log.Printf("Successfully installed Node.js at: %s\n", nodePath)
+		statusLabel.SetText(fmt.Sprintf("Starting owlcms-tracker %s...", version))
+		statusLabel.Refresh()
+	}
+
+	nodeExe = nodePath
 
 	if _, err := os.Stat(nodeExe); os.IsNotExist(err) {
 		launchButton.Show()
 		goBackToMainScreen()
-		return fmt.Errorf("node executable not found in %s", versionDir)
+		return fmt.Errorf("node executable not found at %s", nodeExe)
 	}
 
 	// Make sure node is executable on Unix systems

@@ -251,16 +251,19 @@ func scanEnvPropertiesForJavaVersions(owlcmsInstallDir, firmataInstallDir string
 	return versions, nil
 }
 
-// CleanupObsoleteJavaVersions scans all env.properties files, finds the highest required Java version,
-// ensures it's installed, then removes all older versions and legacy installations.
+// CleanupObsoleteJavaVersions scans env.properties files in the control panel,
+// finds the highest required Java version, ensures it's installed,
+// removes older control panel Java versions, and removes legacy bundled Java
 func CleanupObsoleteJavaVersions(owlcmsInstallDir, firmataInstallDir string, statusLabel *widget.Label, w fyne.Window) ([]string, error) {
 	controlPanelDir := GetControlPanelInstallDir()
 	javaBaseDir := filepath.Join(controlPanelDir, "java")
 
 	var removed []string
 
-	// Step 1: Find all required Java versions from env.properties files
-	requiredVersions, err := scanEnvPropertiesForJavaVersions(owlcmsInstallDir, firmataInstallDir)
+	// Step 1: Find all required Java versions from env.properties files in control panel structure
+	controlPanelOwlcmsDir := filepath.Join(controlPanelDir, "owlcms")
+	controlPanelFirmataDir := filepath.Join(controlPanelDir, "firmata")
+	requiredVersions, err := scanEnvPropertiesForJavaVersions(controlPanelOwlcmsDir, controlPanelFirmataDir)
 	if err != nil {
 		return nil, fmt.Errorf("scanning env.properties files: %w", err)
 	}

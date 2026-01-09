@@ -143,7 +143,13 @@ func main() {
 }
 
 func anyProgramRunning() bool {
-	return owlcms.IsRunning() || tracker.IsRunning() || firmata.IsRunning()
+	owlcmsRunning := owlcms.IsRunning()
+	trackerRunning := tracker.IsRunning()
+	firmataRunning := firmata.IsRunning()
+
+	log.Printf("anyProgramRunning: OWLCMS=%v, Tracker=%v, Firmata=%v", owlcmsRunning, trackerRunning, firmataRunning)
+
+	return owlcmsRunning || trackerRunning || firmataRunning
 }
 
 func stopAllRunningProcesses(w fyne.Window) {
@@ -152,10 +158,26 @@ func stopAllRunningProcesses(w fyne.Window) {
 	firmata.StopRunningProcess(w)
 }
 
+func stopAllRunningProcessesForSignal() {
+	// For signal handling, stop processes directly without UI updates
+	if owlcms.IsRunning() {
+		log.Println("Signal cleanup: stopping OWLCMS process")
+		owlcms.StopRunningProcess(nil) // No window needed for signal cleanup
+	}
+	if tracker.IsRunning() {
+		log.Println("Signal cleanup: stopping Tracker process")
+		tracker.StopRunningProcess(nil) // No window needed for signal cleanup
+	}
+	if firmata.IsRunning() {
+		log.Println("Signal cleanup: stopping Firmata process")
+		firmata.StopRunningProcess(nil) // No window needed for signal cleanup
+	}
+}
+
 func cleanupJavaVersions(w fyne.Window) {
 	dialog.ShowConfirm(
 		"Cleanup Java Versions",
-		"This will:\n• Scan all env.properties files to find the highest required Java version\n• Download and install that version if not present\n• Remove all older Java versions from the control panel\n• Remove all legacy Java installations from owlcms and firmata directories\n\nContinue?",
+		"This will:\n• Scan env.properties files to find the highest required Java version\n• Download and install that version if not present\n• Remove all older Java versions from the control panel\n• Remove all legacy Java installations from owlcms and firmata directories\n\nContinue?",
 		func(confirm bool) {
 			if !confirm {
 				return
@@ -168,6 +190,7 @@ func cleanupJavaVersions(w fyne.Window) {
 
 			// Run cleanup in goroutine to allow UI updates
 			go func() {
+				// Pass legacy directories for bundled cleanup, but scanning happens in control panel
 				removed, err := shared.CleanupObsoleteJavaVersions(owlcms.GetInstallDir(), firmata.GetInstallDir(), statusLabel, w)
 				progressDialog.Hide()
 
@@ -191,6 +214,45 @@ func cleanupJavaVersions(w fyne.Window) {
 	)
 }
 
+func cleanupNodeVersions(w fyne.Window) {
+	dialog.ShowConfirm(
+		"Cleanup Node.js Versions",
+		"This will:\n• Keep only the latest Node.js version in the control panel\n• Remove all older Node.js versions from the control panel\n• Remove all bundled Node.js from tracker version directories\n\nContinue?",
+		func(confirm bool) {
+			if !confirm {
+				return
+			}
+
+			// Create a status label for progress updates
+			statusLabel := widget.NewLabel("Scanning for Node.js versions...")
+			progressDialog := dialog.NewCustom("Cleaning Up Node.js", "Close", statusLabel, w)
+			progressDialog.Show()
+
+			// Run cleanup in goroutine to allow UI updates
+			go func() {
+				removed, err := shared.CleanupObsoleteNodeVersions(statusLabel, w)
+				progressDialog.Hide()
+
+				if err != nil {
+					dialog.ShowError(fmt.Errorf("cleanup failed: %w", err), w)
+					return
+				}
+
+				if len(removed) == 0 {
+					dialog.ShowInformation("Cleanup Complete", "No obsolete Node.js versions found.", w)
+				} else {
+					message := "Cleanup results:\n\n"
+					for _, v := range removed {
+						message += "• " + v + "\n"
+					}
+					dialog.ShowInformation("Cleanup Complete", message, w)
+				}
+			}()
+		},
+		w,
+	)
+}
+
 func requestExit(w fyne.Window) {
 	if exitInProgress {
 		return
@@ -200,7 +262,7 @@ func requestExit(w fyne.Window) {
 	message := "Exit the Control Panel?"
 	confirmText := "Exit"
 	if running {
-		message = "A program is running. Exiting will stop it and may affect users."
+		message = "Running applications will be stopped. Exiting may affect users."
 		confirmText = "Stop and Exit"
 	}
 
@@ -243,6 +305,9 @@ func setupMenus(w fyne.Window) {
 		}),
 		fyne.NewMenuItem("Cleanup Obsolete Java Versions", func() {
 			cleanupJavaVersions(w)
+		}),
+		fyne.NewMenuItem("Cleanup Obsolete Node.js Versions", func() {
+			cleanupNodeVersions(w)
 		}),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Quit", func() {
@@ -304,8 +369,12 @@ func setupSignalHandling() {
 		sig := <-sigChan
 		log.Printf("Signal %v caught, cleaning up.\n", sig)
 
-		// Let owlcms package handle process cleanup
-		owlcms.HandleSignalCleanup()
+		// Check if any programs are running and log the status
+		running := anyProgramRunning()
+		if running {
+			log.Println("Stopping all running processes due to signal...")
+			stopAllRunningProcessesForSignal()
+		}
 
 		log.Println("Exiting Control Panel...")
 

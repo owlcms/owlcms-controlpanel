@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"os/exec"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -77,13 +77,37 @@ func stopProcess(proc *exec.Cmd, version string, stopBtn *widget.Button, downloa
 
 	var err error
 	if downloadutils.GetGoos() == "windows" {
-		err = proc.Process.Signal(os.Interrupt)
+		// On Windows, use taskkill for graceful termination like OWLCMS does
+		log.Printf("Using taskkill for graceful termination of owlcms-tracker %s (PID: %d)\n", version, pid)
+		cmd := exec.Command("taskkill", "/PID", strconv.Itoa(pid))
+		err = cmd.Run()
+
+		if err != nil {
+			log.Printf("Graceful termination failed for owlcms-tracker %s (PID: %d): %v\n", version, pid, err)
+		} else {
+			// Give it a moment to shut down gracefully
+			time.Sleep(500 * time.Millisecond)
+			log.Printf("owlcms-tracker %s (PID: %d) gracefully terminated\n", version, pid)
+			statusLbl.SetText(fmt.Sprintf("owlcms-tracker %s (PID: %d) gracefully terminated", version, pid))
+			currentProcess = nil
+			killedByUs = true
+			stopBtn.Hide()
+			urlLink.Hide()
+			if appDirLink != nil {
+				appDirLink.Hide()
+			}
+			if tailLogLink != nil {
+				tailLogLink.Hide()
+			}
+			return
+		}
 	} else {
 		err = proc.Process.Signal(syscall.SIGINT)
 	}
 
 	if err != nil {
 		log.Printf("Failed to send interrupt signal to owlcms-tracker %s (PID: %d): %v\n", version, pid, err)
+		log.Printf("Attempting forceful termination of owlcms-tracker %s (PID: %d)\n", version, pid)
 		err = proc.Process.Kill()
 		if err != nil {
 			killedByUs = false
