@@ -486,7 +486,7 @@ func monitorStartupLog(appDir string) {
 
 	// For testing: simulate dummy data
 	// Toggle this to true only when doing UI-only testing.
-	const startupLogTestMode = true
+	const startupLogTestMode = false
 	if startupLogTestMode {
 		log.Println("Testing mode: generating dummy startup log data")
 		showStartupLogArea()
