@@ -245,7 +245,26 @@ func GetTrackerConnectionEnabled() bool {
 
 // CheckForUpdates checks for updates to the control panel itself
 func CheckForUpdates(win fyne.Window, showConfirmation bool) {
-	const repoURL = "https://api.github.com/repos/owlcms/owlcms-controlpanel/releases/latest"
+	currentVersion := shared.GetLauncherVersion()
+	if len(currentVersion) > 0 && currentVersion[0] == 'v' {
+		currentVersion = currentVersion[1:]
+	}
+
+	currentSemver, currentErr := semver.NewVersion(currentVersion)
+	if currentErr != nil {
+		log.Printf("Failed to parse current version string: %v", currentErr)
+		return
+	}
+
+	isCurrentPrerelease := currentSemver.Prerelease() != ""
+
+	// If current is a prerelease, check all releases; otherwise just check latest stable
+	var repoURL string
+	if isCurrentPrerelease {
+		repoURL = "https://api.github.com/repos/owlcms/owlcms-controlpanel/releases"
+	} else {
+		repoURL = "https://api.github.com/repos/owlcms/owlcms-controlpanel/releases/latest"
+	}
 	log.Println("Checking for updates from:", repoURL)
 
 	resp, err := http.Get(repoURL)
@@ -260,54 +279,81 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 		return
 	}
 
-	var release struct {
+	type releaseInfo struct {
 		TagName string `json:"tag_name"`
 		HTMLURL string `json:"html_url"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		log.Printf("Failed to parse update information: %v", err)
-		return
-	}
 
-	remoteVersion := release.TagName
-	if len(remoteVersion) > 0 && remoteVersion[0] == 'v' {
-		remoteVersion = remoteVersion[1:]
-	}
+	var newerRelease *releaseInfo
+	var newerSemver *semver.Version
 
-	currentVersion := shared.GetLauncherVersion()
-	if len(currentVersion) > 0 && currentVersion[0] == 'v' {
-		currentVersion = currentVersion[1:]
-	}
-
-	remoteSemver, remoteErr := semver.NewVersion(remoteVersion)
-	currentSemver, currentErr := semver.NewVersion(currentVersion)
-
-	if remoteErr != nil || currentErr != nil {
-		log.Printf("Failed to parse version strings for comparison: remote=%v, current=%v", remoteErr, currentErr)
-		return
-	}
-
-	log.Printf("Comparing versions - Remote: %s, Current: %s", remoteSemver, currentSemver)
-	log.Printf("Remote greater than current?: %t", remoteSemver.GreaterThan(currentSemver))
-
-	if remoteSemver.GreaterThan(currentSemver) {
-		if remoteSemver.Prerelease() == "" {
-			log.Printf("Update available: %s -> %s", currentSemver, remoteSemver)
-
-			parsedURL, err := url.Parse(release.HTMLURL)
-			if err != nil {
-				log.Printf("Failed to parse release URL: %v", err)
-				return
-			}
-			link := widget.NewHyperlink("Release Notes and Installer", parsedURL)
-			content := container.NewVBox(
-				widget.NewLabel(fmt.Sprintf("A new version (%s) is available. You are currently using version %s.\nYou can simply download the new installer and install over the current version.", release.TagName, shared.GetLauncherVersion())),
-				link,
-			)
-			dialog.ShowCustom("Update Available", "Close", content, win)
-		} else {
-			log.Printf("Remote version %s is a pre-release. No update prompt will be shown.", remoteSemver)
+	if isCurrentPrerelease {
+		// Parse array of releases and find the newest one (stable or prerelease) that's newer than current
+		var releases []releaseInfo
+		if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
+			log.Printf("Failed to parse update information: %v", err)
+			return
 		}
+
+		for _, release := range releases {
+			remoteVersion := release.TagName
+			if len(remoteVersion) > 0 && remoteVersion[0] == 'v' {
+				remoteVersion = remoteVersion[1:]
+			}
+
+			remoteSemver, remoteErr := semver.NewVersion(remoteVersion)
+			if remoteErr != nil {
+				continue
+			}
+
+			if remoteSemver.GreaterThan(currentSemver) {
+				if newerSemver == nil || remoteSemver.GreaterThan(newerSemver) {
+					newerSemver = remoteSemver
+					releaseCopy := release
+					newerRelease = &releaseCopy
+				}
+			}
+		}
+	} else {
+		// Just check latest stable release
+		var release releaseInfo
+		if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+			log.Printf("Failed to parse update information: %v", err)
+			return
+		}
+
+		remoteVersion := release.TagName
+		if len(remoteVersion) > 0 && remoteVersion[0] == 'v' {
+			remoteVersion = remoteVersion[1:]
+		}
+
+		remoteSemver, remoteErr := semver.NewVersion(remoteVersion)
+		if remoteErr != nil {
+			log.Printf("Failed to parse version strings for comparison: %v", remoteErr)
+			return
+		}
+
+		if remoteSemver.GreaterThan(currentSemver) {
+			newerSemver = remoteSemver
+			newerRelease = &release
+		}
+	}
+
+	// Check if we found a newer version
+	if newerRelease != nil && newerSemver != nil {
+		log.Printf("Update available: %s -> %s", currentSemver, newerSemver)
+
+		parsedURL, err := url.Parse(newerRelease.HTMLURL)
+		if err != nil {
+			log.Printf("Failed to parse release URL: %v", err)
+			return
+		}
+		link := widget.NewHyperlink("Release Notes and Installer", parsedURL)
+		content := container.NewVBox(
+			widget.NewLabel(fmt.Sprintf("A new version (%s) is available. You are currently using version %s.\nYou can simply download the new installer and install over the current version.", newerRelease.TagName, shared.GetLauncherVersion())),
+			link,
+		)
+		dialog.ShowCustom("Update Available", "Close", content, win)
 	} else {
 		log.Println("No updates available - you are using the latest version")
 		if showConfirmation {

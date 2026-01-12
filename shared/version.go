@@ -1,7 +1,7 @@
 package shared
 
 var (
-	launcherVersion = "3.0.0"
+	launcherVersion = "3.0.0-rc05"
 	buildVersion    = "_TAG_"
 )
 
