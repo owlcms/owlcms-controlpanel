@@ -8,10 +8,14 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"owlcms-launcher/owlcms/javacheck"
 	"owlcms-launcher/shared"
 
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 	"github.com/gofrs/flock"
 )
@@ -119,6 +123,13 @@ var (
 	lock           *flock.Flock
 	currentProcess *exec.Cmd
 	currentVersion string
+)
+
+var (
+	startupLogMu       sync.Mutex
+	startupLogStopCh   chan struct{}
+	startupLogUpdating bool
+	startupLogLastText string
 )
 
 func acquireJavaLock() (*flock.Flock, error) {
@@ -244,6 +255,7 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("OWLCMS_LAUNCHER=%s", version))
+	env = append(env, fmt.Sprintf("OWLCMS_CONTROLPANEL=%s", shared.GetLauncherVersion()))
 
 	for _, key := range environment.Keys() {
 		value, _ := environment.Get(key)
@@ -278,6 +290,7 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 	stopContainer.Show()
 	downloadContainer.Hide()
 	versionContainer.Hide()
+	setOwlcmsTabModeRunning()
 
 	appDir := filepath.Join(installDir, version)
 	appDirLink.SetText(fmt.Sprintf("Open OWLCMS %s directory", version))
@@ -287,6 +300,9 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 	}
 	appDirLink.Show()
 	configureTailLogLink(version, appDir)
+
+	// Start monitoring for startup.log
+	go monitorStartupLog(appDir)
 
 	monitorChan := monitorProcess(cmd)
 
@@ -310,6 +326,9 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 		urlLink.SetURLFromString(url)
 		urlLink.SetText("Open OWLCMS in a browser")
 		urlLink.Show()
+
+		// Close the startup log area now that OWLCMS is ready
+		hideStartupLogArea()
 
 		appDir := filepath.Join(installDir, version)
 		appDirLink.SetText(fmt.Sprintf("Open OWLCMS %s directory", version))
@@ -346,8 +365,226 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 		if tailLogLink != nil {
 			tailLogLink.Hide()
 		}
+		hideStartupLogArea()
 		releaseJavaLock()
 	}()
 
 	return nil
+}
+
+// showStartupLogArea creates and shows the startup log text area
+func showStartupLogArea() {
+	// Reset/initialize stop channel for this run
+	startupLogMu.Lock()
+	if startupLogStopCh != nil {
+		select {
+		case <-startupLogStopCh:
+			// already closed
+		default:
+			close(startupLogStopCh)
+		}
+	}
+	startupLogStopCh = make(chan struct{})
+	stopCh := startupLogStopCh
+	startupLogMu.Unlock()
+
+	if startupLogText == nil {
+		startupLogText = widget.NewMultiLineEntry()
+		startupLogText.SetPlaceHolder("Waiting for startup log...")
+		startupLogText.Wrapping = fyne.TextWrapWord
+		startupLogText.OnChanged = func(s string) {
+			// Keep it non-editable while remaining visually enabled.
+			if startupLogUpdating {
+				return
+			}
+			if s != startupLogLastText {
+				startupLogUpdating = true
+				startupLogText.SetText(startupLogLastText)
+				startupLogUpdating = false
+			}
+		}
+	}
+
+	if startupLogContainer == nil {
+		// Use a Border layout so the text area expands to fill remaining space.
+		// VBox would size children to MinSize and leave unused space below.
+		header := container.NewVBox(
+			widget.NewSeparator(),
+			widget.NewLabel("Startup Progress:"),
+		)
+		scroller := container.NewScroll(startupLogText)
+		startupLogContainer = container.NewBorder(header, nil, nil, nil, scroller)
+	}
+
+	// Show within the running layout center so it can expand.
+	if startupLogHost != nil {
+		startupLogHost.Objects = []fyne.CanvasObject{startupLogContainer}
+		startupLogHost.Show()
+		startupLogHost.Refresh()
+	}
+
+	// Auto-close after 60 seconds unless OWLCMS becomes ready first.
+	go func(stopCh chan struct{}) {
+		select {
+		case <-time.After(60 * time.Second):
+			hideStartupLogArea()
+		case <-stopCh:
+			return
+		}
+	}(stopCh)
+}
+
+// appendStartupLogText adds text to the startup log display
+func appendStartupLogText(text string) {
+	if startupLogText != nil {
+		startupLogUpdating = true
+		currentText := startupLogText.Text
+		startupLogLastText = currentText + text
+		startupLogText.SetText(startupLogLastText)
+		// Move cursor to end so the latest text is visible
+		startupLogText.CursorRow = len(strings.Split(startupLogLastText, "\n")) - 1
+		startupLogUpdating = false
+	}
+}
+
+// setStartupLogText sets the complete text in the startup log display
+func setStartupLogText(text string) {
+	if startupLogText != nil {
+		startupLogUpdating = true
+		startupLogLastText = text
+		startupLogText.SetText(text)
+		// Move cursor to end so the latest text is visible
+		startupLogText.CursorRow = len(strings.Split(startupLogLastText, "\n")) - 1
+		startupLogUpdating = false
+	}
+}
+
+// hideStartupLogArea removes and hides the startup log display
+func hideStartupLogArea() {
+	startupLogMu.Lock()
+	if startupLogStopCh != nil {
+		select {
+		case <-startupLogStopCh:
+			// already closed
+		default:
+			close(startupLogStopCh)
+		}
+		startupLogStopCh = nil
+	}
+	startupLogMu.Unlock()
+
+	if startupLogHost != nil {
+		startupLogHost.Objects = nil
+		startupLogHost.Hide()
+		startupLogHost.Refresh()
+	}
+}
+
+func monitorStartupLog(appDir string) {
+	startupLogPath := filepath.Join(appDir, "logs", "startup.log")
+	log.Printf("Monitoring for startup.log at: %s\n", startupLogPath)
+
+	// For testing: simulate dummy data
+	// Toggle this to true only when doing UI-only testing.
+	const startupLogTestMode = true
+	if startupLogTestMode {
+		log.Println("Testing mode: generating dummy startup log data")
+		showStartupLogArea()
+		setStartupLogText("=== OWLCMS Test Startup Log ===\n")
+
+		// Generate dummy data for up to 60 seconds, every 5 seconds,
+		// or stop early if the startup log area is closed.
+		startupLogMu.Lock()
+		stopCh := startupLogStopCh
+		startupLogMu.Unlock()
+		go func() {
+			for i := 0; i < 12; i++ {
+				select {
+				case <-stopCh:
+					return
+				default:
+				}
+				appendStartupLogText(fmt.Sprintf("[%02d:00] Initializing component %d...\n", i*5, i+1))
+				select {
+				case <-stopCh:
+					return
+				case <-time.After(5 * time.Second):
+				}
+			}
+			appendStartupLogText("\n=== Startup dummy output complete (waiting for close/timeout) ===\n")
+		}()
+		return
+	}
+
+	// Real file monitoring
+	// Check every 500ms for up to 60 seconds
+	for i := 0; i < 120; i++ {
+		if _, err := os.Stat(startupLogPath); err == nil {
+			log.Printf("Found startup.log, starting to tail it\n")
+			showStartupLogArea()
+			// Tail the file for 60 seconds
+			go tailStartupLog(startupLogPath)
+			return
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	log.Printf("startup.log not found after monitoring period\n")
+}
+
+func tailStartupLog(logPath string) {
+	log.Printf("Tailing startup log: %s\n", logPath)
+	startupLogMu.Lock()
+	stopCh := startupLogStopCh
+	startupLogMu.Unlock()
+
+	file, err := os.Open(logPath)
+	if err != nil {
+		log.Printf("Failed to open startup.log: %v\n", err)
+		return
+	}
+	defer file.Close()
+
+	// Read initial content
+	content, err := os.ReadFile(logPath)
+	if err == nil {
+		setStartupLogText(string(content))
+	}
+
+	// Monitor for changes for 60 seconds (or until OWLCMS becomes ready)
+	startTime := time.Now()
+	lastSize := int64(0)
+	if stat, err := file.Stat(); err == nil {
+		lastSize = stat.Size()
+	}
+
+	for {
+		select {
+		case <-stopCh:
+			return
+		default:
+		}
+
+		if time.Since(startTime) > 60*time.Second {
+			log.Println("Stopping startup log tail after 60 seconds")
+			break
+		}
+
+		// Check for new content
+		if stat, err := os.Stat(logPath); err == nil {
+			if stat.Size() > lastSize {
+				// Read the entire file again
+				content, err := os.ReadFile(logPath)
+				if err == nil {
+					setStartupLogText(string(content))
+					lastSize = stat.Size()
+				}
+			}
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	// Close the startup log display
+	hideStartupLogArea()
 }

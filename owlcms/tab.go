@@ -36,6 +36,12 @@ var (
 	urlLink                   *widget.Hyperlink
 	appDirLink                *widget.Hyperlink
 	tailLogLink               *widget.Hyperlink
+	startupLogText            *widget.Entry
+	startupLogContainer       *fyne.Container
+	startupLogHost            *fyne.Container
+	selectionContent          *fyne.Container
+	runningContent            *fyne.Container
+	modeStack                 *fyne.Container
 	mainWindow                fyne.Window
 	mainApp                   fyne.App
 )
@@ -140,12 +146,31 @@ func CreateTab(w fyne.Window, app fyne.App) *fyne.Container {
 	topSpacer := canvas.NewRectangle(color.Transparent)
 	topSpacer.SetMinSize(fyne.NewSize(1, 8))
 
+	// Two different layouts:
+	// - Selection mode: version list (center) + download section (bottom)
+	// - Running mode: startup log host (center), no bottom section
+	startupLogHost = container.NewStack()
+	startupLogHost.Hide()
+
+	selectionContent = container.NewBorder(
+		nil,
+		downloadContainer,
+		nil,
+		nil,
+		versionContainer,
+	)
+
+	runningContent = container.NewMax(startupLogHost)
+	runningContent.Hide()
+
+	modeStack = container.NewStack(selectionContent, runningContent)
+
 	mainContent := container.NewBorder(
 		container.NewVBox(menuBar, topSpacer, stopContainer), // Top (menu bar, spacer and stop container)
-		downloadContainer, // Bottom (fixed height, always visible)
-		nil,               // Left
-		nil,               // Right
-		versionContainer,  // Center (expands to fill space)
+		nil,       // Bottom (handled by selectionContent)
+		nil,       // Left
+		nil,       // Right
+		modeStack, // Center switches between selection/running layouts
 	)
 
 	// If OWLCMS install directory does not exist, reset tab to explanation mode
@@ -158,6 +183,38 @@ func CreateTab(w fyne.Window, app fyne.App) *fyne.Container {
 	}
 
 	return mainContent
+}
+
+func showSelectionLayout() {
+	if selectionContent != nil {
+		selectionContent.Show()
+	}
+	if runningContent != nil {
+		runningContent.Hide()
+	}
+	if startupLogHost != nil {
+		startupLogHost.Hide()
+	}
+}
+
+func showRunningLayout() {
+	if selectionContent != nil {
+		selectionContent.Hide()
+	}
+	if runningContent != nil {
+		runningContent.Show()
+	}
+}
+
+// setOwlcmsTabModeRunning switches the tab into the running layout (no version picker).
+func setOwlcmsTabModeRunning() {
+	showRunningLayout()
+	if versionContainer != nil {
+		versionContainer.Hide()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Hide()
+	}
 }
 
 // createMenuBar creates the menu bar with File, Processes, and Options menus
@@ -378,6 +435,7 @@ func ShowDownloadables() {
 // setOwlcmsTabModeUninstalled is the ONLY way to show the "0 installed versions" UI.
 // It must NOT show the download section.
 func setOwlcmsTabModeUninstalled(w fyne.Window) {
+	showSelectionLayout()
 	resetToExplainMode(w)
 	log.Printf("UI Mode: Uninstalled (0 versions)")
 }
@@ -385,6 +443,7 @@ func setOwlcmsTabModeUninstalled(w fyne.Window) {
 // setOwlcmsTabModeInstalled is the ONLY way to show the "≥1 installed versions" UI.
 // It MUST show BOTH the version list and the download section.
 func setOwlcmsTabModeInstalled(w fyne.Window) {
+	showSelectionLayout()
 	// Recompute list + download section contents first.
 	recomputeVersionList(w)
 	setupReleaseDropdown(w)
