@@ -10,6 +10,7 @@ The control panel is installed once. It will automatically download the current 
 > build environment used (GitHub).  If you need support for version 13 and 14 you will need to keep using version 2.7.
 
 ### Change Log
+- 3.0.0-rc08: Turned off test mode for trail of owlcms/startup.log
 - 3.0.0-rc07: If running a prerelease, the check for updates will bow report a newer prerelease.
 - 3.0.0-rc06: If there is an owlcms log/startup.log it will be tailed when starting OWLCMS
 - 3.0.0-rc06: Node.js executables consolidated like Java (+ cleanup to remove old local copies)

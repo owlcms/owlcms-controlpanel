@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"log"
 	"net/http"
 	"time"
 )
@@ -12,8 +13,11 @@ func CheckForInternet() bool {
 	}
 	resp, err := client.Get("http://www.google.com")
 	if err != nil {
+		log.Printf("Internet check failed: %v", err)
 		return false
 	}
 	defer resp.Body.Close()
-	return resp.StatusCode == http.StatusOK
+	result := resp.StatusCode == http.StatusOK
+	log.Printf("Internet check: status=%d, available=%v", resp.StatusCode, result)
+	return result
 }
