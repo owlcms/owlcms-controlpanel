@@ -1,5 +1,5 @@
 #!/bin/bash -x
-export TAG=v3.0.0-rc05
+export TAG=v3.0.0-rc06
 git tag -d ${TAG}
 git push origin --delete ${TAG}
 gh release delete ${TAG} --repo owlcms/owlcms-controlpanel --yes
@@ -27,3 +27,36 @@ git commit -am "owlcms-launcher $TAG"
 git push
 git tag -a ${TAG} -m "owlcms-launcher $TAG"
 git push origin --tags
+
+# Wait for GitHub to register the tag and trigger the workflow
+echo "Waiting for workflow to start..."
+sleep 15
+
+# Find and watch the workflow progress
+echo "Watching workflow progress..."
+RUN_ID=""
+for i in {1..12}; do
+    RUN_ID=$(gh run list --workflow="Release owlcms-controlpanel" --limit=1 --json databaseId,headBranch --jq ".[] | select(.headBranch==\"${TAG}\") | .databaseId")
+    if [ -n "$RUN_ID" ]; then
+        break
+    fi
+    echo "Waiting for workflow run to appear (attempt $i/12)..."
+    sleep 5
+done
+
+if [ -z "$RUN_ID" ]; then
+    echo "ERROR: Could not find workflow run for tag ${TAG}"
+    echo "Check manually: gh run list --workflow='Release owlcms-controlpanel'"
+    exit 1
+fi
+
+echo "Found workflow run: $RUN_ID"
+gh run watch "$RUN_ID"
+
+# Check final status
+if gh run view "$RUN_ID" --exit-status; then
+    echo "✅ Release workflow completed successfully!"
+else
+    echo "❌ Release workflow failed. Check: gh run view $RUN_ID --log-failed"
+    exit 1
+fi

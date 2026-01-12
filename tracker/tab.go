@@ -54,6 +54,22 @@ func StopRunningProcess(w fyne.Window) {
 	}
 }
 
+// HandleSignalCleanup handles cleanup when the application receives a signal
+func HandleSignalCleanup() {
+	if currentProcess != nil && currentProcess.Process != nil {
+		pid := currentProcess.Process.Pid
+		log.Printf("Forcefully stopping Tracker (PID: %d)...\n", pid)
+		killedByUs = true
+		// Use direct kill for fast cleanup
+		if err := currentProcess.Process.Kill(); err != nil {
+			log.Printf("Failed to kill Tracker process %d: %v\n", pid, err)
+		} else {
+			log.Printf("Tracker process %d killed\n", pid)
+		}
+		currentProcess = nil
+	}
+}
+
 // CreateTab creates and returns the Tracker tab content
 func CreateTab(w fyne.Window) *fyne.Container {
 	initConfig()

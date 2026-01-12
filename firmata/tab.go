@@ -193,6 +193,22 @@ func StopRunningProcess(w fyne.Window) {
 	}
 }
 
+// HandleSignalCleanup handles cleanup when the application receives a signal
+func HandleSignalCleanup() {
+	if currentProcess != nil && currentProcess.Process != nil {
+		pid := currentProcess.Process.Pid
+		log.Printf("Forcefully stopping Firmata (PID: %d)...\n", pid)
+		killedByUs = true
+		// Use direct kill for fast cleanup
+		if err := currentProcess.Process.Kill(); err != nil {
+			log.Printf("Failed to kill Firmata process %d: %v\n", pid, err)
+		} else {
+			log.Printf("Firmata process %d killed\n", pid)
+		}
+		currentProcess = nil
+	}
+}
+
 // CreateTab creates and returns the Firmata tab content
 // This should be called from the main application after the window is created
 func CreateTab(w fyne.Window) *fyne.Container {

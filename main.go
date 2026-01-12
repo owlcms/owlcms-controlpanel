@@ -159,18 +159,18 @@ func stopAllRunningProcesses(w fyne.Window) {
 }
 
 func stopAllRunningProcessesForSignal() {
-	// For signal handling, stop processes directly without UI updates
+	// For signal handling, use forceful termination (no UI, no delays)
 	if owlcms.IsRunning() {
-		log.Println("Signal cleanup: stopping OWLCMS process")
-		owlcms.StopRunningProcess(nil) // No window needed for signal cleanup
+		log.Println("Signal cleanup: forcefully stopping OWLCMS process")
+		owlcms.HandleSignalCleanup()
 	}
 	if tracker.IsRunning() {
-		log.Println("Signal cleanup: stopping Tracker process")
-		tracker.StopRunningProcess(nil) // No window needed for signal cleanup
+		log.Println("Signal cleanup: forcefully stopping Tracker process")
+		tracker.HandleSignalCleanup()
 	}
 	if firmata.IsRunning() {
-		log.Println("Signal cleanup: stopping Firmata process")
-		firmata.StopRunningProcess(nil) // No window needed for signal cleanup
+		log.Println("Signal cleanup: forcefully stopping Firmata process")
+		firmata.HandleSignalCleanup()
 	}
 }
 
@@ -369,18 +369,21 @@ func setupSignalHandling() {
 		sig := <-sigChan
 		log.Printf("Signal %v caught, cleaning up.\n", sig)
 
-		// Check if any programs are running and log the status
-		running := anyProgramRunning()
-		if running {
+		// Start a hard exit timer in case cleanup hangs
+		go func() {
+			time.Sleep(5 * time.Second)
+			log.Println("Cleanup timeout reached, forcing exit...")
+			os.Exit(1)
+		}()
+
+		// Check if any programs are running and stop them forcefully
+		if anyProgramRunning() {
 			log.Println("Stopping all running processes due to signal...")
 			stopAllRunningProcessesForSignal()
+			log.Println("All processes stopped.")
 		}
 
 		log.Println("Exiting Control Panel...")
-
-		// Force exit with a slight delay to allow logs to be written
-		time.AfterFunc(100*time.Millisecond, func() {
-			os.Exit(0)
-		})
+		os.Exit(0)
 	}()
 }
