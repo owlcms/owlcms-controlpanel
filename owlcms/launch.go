@@ -566,7 +566,7 @@ func tailStartupLog(logPath string) {
 		setStartupLogText(string(content))
 	}
 
-	// Monitor for changes for 10 seconds (or until OWLCMS becomes ready) - TODO: change back to 60
+	// Monitor for changes for 60 seconds (or until OWLCMS becomes ready)
 	startTime := time.Now()
 	lastSize := int64(0)
 	if stat, err := file.Stat(); err == nil {
@@ -581,8 +581,8 @@ func tailStartupLog(logPath string) {
 		default:
 		}
 
-		if time.Since(startTime) > 10*time.Second {
-			log.Println("Stopping startup log tail after 10 seconds")
+		if time.Since(startTime) > 60*time.Second {
+			log.Println("Stopping startup log tail after 60 seconds")
 			break
 		}
 
@@ -613,7 +613,7 @@ func tailStartupLog(logPath string) {
 		logsDir := filepath.Dir(logPath)
 		go func() {
 			dialog.ShowCustomConfirm("OWLCMS Startup Issue", "Open Logs Folder", "Close",
-				widget.NewLabel("OWLCMS did not report ready status within 10 seconds.\nPlease check the logs and send them to owlcms@jflamy.dev if the issue persists."),
+				widget.NewLabel("OWLCMS did not report ready status within 60 seconds.\nPlease check the logs and send them to owlcms@jflamy.dev if the issue persists."),
 				func(ok bool) {
 					if ok {
 						shared.OpenFileExplorer(logsDir)

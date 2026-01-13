@@ -12,6 +12,23 @@ BUILD_LINUX=true
 # Pull the latest changes
 git pull
 
+# Check for uncommitted changes (excluding release.sh and ReleaseNotes.md)
+UNCOMMITTED=$(git status --porcelain | grep -v '^\(M\|??\) release\.sh$' | grep -v '^\(M\|??\) ReleaseNotes\.md$')
+if [ -n "$UNCOMMITTED" ]; then
+    echo "❌ ERROR: You have uncommitted changes other than release.sh and ReleaseNotes.md:"
+    echo "$UNCOMMITTED"
+    echo ""
+    echo "Please commit all changes before creating a release!"
+    exit 1
+fi
+
+# Commit release.sh and ReleaseNotes.md if they have changes
+if git status --porcelain | grep -q '^\(M\|??\) \(release\.sh\|ReleaseNotes\.md\)$'; then
+    git add release.sh ReleaseNotes.md
+    git commit -m "Update release.sh and ReleaseNotes.md for $TAG"
+    git push
+fi
+
 # Update the resource configuration
 export DEB_TAG=${TAG#v}
 dist/updateRc.sh ${DEB_TAG}
