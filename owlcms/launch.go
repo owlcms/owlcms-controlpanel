@@ -18,6 +18,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
+	"github.com/Masterminds/semver/v3"
 	"github.com/gofrs/flock"
 )
 
@@ -268,10 +269,13 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 	cmd.Env = env
 
 	// Remove startup.log if it exists to ensure fresh log output
-	versionDir := filepath.Join(owlcmsDir, version)
-	startupLogPath := filepath.Join(versionDir, "logs", "startup.log")
-	if err := os.Remove(startupLogPath); err != nil && !os.IsNotExist(err) {
-		log.Printf("Warning: Failed to remove old startup.log: %v", err)
+	// (Only versions >= 64.0.0-rc08 generate this file.)
+	if owlcmsSupportsStartupLog(version) {
+		versionDir := filepath.Join(owlcmsDir, version)
+		startupLogPath := filepath.Join(versionDir, "logs", "startup.log")
+		if err := os.Remove(startupLogPath); err != nil && !os.IsNotExist(err) {
+			log.Printf("Warning: Failed to remove old startup.log: %v", err)
+		}
 	}
 
 	log.Printf("Starting OWLCMS %s with command: %v\n", version, cmd.Args)
@@ -310,8 +314,8 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 	appDirLink.Show()
 	configureTailLogLink(version, appDir)
 
-	// Start monitoring for startup.log
-	go monitorStartupLog(appDir)
+	// Start monitoring for startup.log (when supported by the OWLCMS version)
+	go monitorStartupLog(appDir, version)
 
 	monitorChan := monitorProcess(cmd)
 
@@ -492,7 +496,39 @@ func hideStartupLogArea() {
 	}
 }
 
-func monitorStartupLog(appDir string) {
+func owlcmsSupportsStartupLog(version string) bool {
+	// Brutal normalization: ensure "-SNAPSHOT" prerelease compares correctly.
+	// (ASCII sorting would treat 'S' differently; lowercase makes snapshot sort after rc.)
+	normalized := strings.ReplaceAll(version, "-SNAPSHOT", "-snapshot")
+	v, err := semver.NewVersion(normalized)
+	if err != nil {
+		log.Printf("Invalid OWLCMS version for semver comparison (%q): %v", version, err)
+		return false
+	}
+
+	min, err := semver.NewVersion("64.0.0-rc08")
+	if err != nil {
+		// This should never happen; if it does, fail safe by disabling startup log.
+		log.Printf("Internal error parsing minimum startup.log version: %v", err)
+		return false
+	}
+
+	return !v.LessThan(min)
+}
+
+func monitorStartupLog(appDir, version string) {
+	if !owlcmsSupportsStartupLog(version) {
+		// Older OWLCMS versions don't generate logs/startup.log; don't poll for it.
+		// Keep UI consistent: show an informational startup area while we wait for port readiness.
+		showStartupLogArea()
+		setStartupLogText(fmt.Sprintf(
+			"OWLCMS %s does not generate logs/startup.log.\nWaiting for OWLCMS to respond on port %s...\n",
+			version,
+			GetPort(),
+		))
+		return
+	}
+
 	startupLogPath := filepath.Join(appDir, "logs", "startup.log")
 	log.Printf("Monitoring for startup.log at: %s\n", startupLogPath)
 
