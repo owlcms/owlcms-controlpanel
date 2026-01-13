@@ -151,9 +151,9 @@ func launchFirmata(version string, launchButton *widget.Button) error {
 
 	InitEnv()
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("FIRMATA_LAUNCHER=%s", version))
-	env = append(env, fmt.Sprintf("OWLCMS_CONTROLPANEL=%s", shared.GetLauncherVersion()))
-
+	newVar := shared.GetLauncherVersionSemver()
+	env = append(env, fmt.Sprintf("FIRMATA_LAUNCHER=%s", newVar))
+	env = append(env, fmt.Sprintf("OWLCMS_CONTROLPANEL=%s", newVar))
 	// Add all properties from env.properties to the process env
 	for _, key := range environment.Keys() {
 		value, _ := environment.Get(key)

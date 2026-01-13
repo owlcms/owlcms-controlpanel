@@ -256,8 +256,9 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 	}
 
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("OWLCMS_LAUNCHER=%s", version))
-	env = append(env, fmt.Sprintf("OWLCMS_CONTROLPANEL=%s", shared.GetLauncherVersion()))
+	newVar := shared.GetLauncherVersionSemver()
+	env = append(env, fmt.Sprintf("OWLCMS_LAUNCHER=%s", newVar))
+	env = append(env, fmt.Sprintf("OWLCMS_CONTROLPANEL=%s", newVar))
 
 	for _, key := range environment.Keys() {
 		value, _ := environment.Get(key)

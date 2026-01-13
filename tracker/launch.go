@@ -248,8 +248,9 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 	}
 
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("TRACKER_LAUNCHER=%s", version))
-	env = append(env, fmt.Sprintf("OWLCMS_CONTROLPANEL=%s", shared.GetLauncherVersion()))
+	newVar := shared.GetLauncherVersionSemver()
+	env = append(env, fmt.Sprintf("TRACKER_LAUNCHER=%s", newVar))
+	env = append(env, fmt.Sprintf("OWLCMS_CONTROLPANEL=%s", newVar))
 	// Map TRACKER_PORT to PORT for the tracker application
 	env = append(env, fmt.Sprintf("PORT=%s", GetPort()))
 
