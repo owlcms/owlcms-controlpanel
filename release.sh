@@ -1,5 +1,5 @@
 #!/bin/bash -x
-export TAG=v3.0.0-rc09
+export TAG=v3.0.0-rc10
 git tag -d ${TAG}
 git push origin --delete ${TAG}
 gh release delete ${TAG} --repo owlcms/owlcms-controlpanel --yes
@@ -13,7 +13,9 @@ BUILD_LINUX=true
 git pull
 
 # Check for uncommitted changes (excluding release.sh and ReleaseNotes.md)
-UNCOMMITTED=$(git status --porcelain | grep -v '^\(M\|??\) release\.sh$' | grep -v '^\(M\|??\) ReleaseNotes\.md$')
+# git status --porcelain (v1) uses two status columns, e.g. " M release.sh" or "M  file" or "?? file".
+# The file path starts at column 4.
+UNCOMMITTED=$(git status --porcelain | awk '{p=substr($0,4); if (p!="release.sh" && p!="ReleaseNotes.md") print $0;}')
 if [ -n "$UNCOMMITTED" ]; then
     echo "❌ ERROR: You have uncommitted changes other than release.sh and ReleaseNotes.md:"
     echo "$UNCOMMITTED"
@@ -23,7 +25,7 @@ if [ -n "$UNCOMMITTED" ]; then
 fi
 
 # Commit release.sh and ReleaseNotes.md if they have changes
-if git status --porcelain | grep -q '^\(M\|??\) \(release\.sh\|ReleaseNotes\.md\)$'; then
+if git status --porcelain | awk '{p=substr($0,4); if (p=="release.sh" || p=="ReleaseNotes.md") {found=1}} END{exit found?0:1}'; then
     git add release.sh ReleaseNotes.md
     git commit -m "Update release.sh and ReleaseNotes.md for $TAG"
     git push
