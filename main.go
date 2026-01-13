@@ -310,6 +310,12 @@ func setupMenus(w fyne.Window) {
 			cleanupNodeVersions(w)
 		}),
 		fyne.NewMenuItemSeparator(),
+		fyne.NewMenuItem("Refresh", func() {
+			owlcms.RefreshVersionList(w)
+			tracker.RefreshVersionList(w)
+			firmata.RefreshVersionList(w)
+		}),
+		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Quit", func() {
 			requestExit(w)
 		}),

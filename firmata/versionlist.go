@@ -35,22 +35,36 @@ func getAllInstalledVersions() []string {
 		return nil
 	}
 
-	versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+(?:-(?:rc|alpha|beta)(?:\d+)?)?$`)
-	var versions []*semver.Version
+	versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+(?:-(?:rc|alpha|beta)(?:\d+)?)?(?:\+.*)?$`)
+
+	type versionWithMeta struct {
+		semver   *semver.Version
+		original string
+	}
+
+	var versions []versionWithMeta
 	for _, entry := range entries {
 		if entry.IsDir() && versionPattern.MatchString(entry.Name()) {
-			v, err := semver.NewVersion(entry.Name())
+			// Try to parse the directory name, stripping build metadata for comparison
+			baseVersion, _ := shared.ParseVersionWithBuild(entry.Name())
+			v, err := semver.NewVersion(baseVersion)
 			if err == nil {
-				versions = append(versions, v)
+				versions = append(versions, versionWithMeta{
+					semver:   v,
+					original: entry.Name(),
+				})
 			}
 		}
 	}
 
-	sort.Sort(sort.Reverse(semver.Collection(versions)))
+	// Sort by semver (build metadata is ignored in comparison)
+	sort.Slice(versions, func(i, j int) bool {
+		return versions[j].semver.LessThan(versions[i].semver)
+	})
 
 	var versionStrings []string
 	for _, v := range versions {
-		versionStrings = append(versionStrings, v.String())
+		versionStrings = append(versionStrings, v.original)
 	}
 
 	return versionStrings
@@ -166,6 +180,12 @@ func createVersionList(w fyne.Window) *widget.List {
 			if len(versions) > 1 {
 				createImportButton(versions, version, w, buttonContainer)
 			}
+			shared.CreateDuplicateButton(installDir, version, w, buttonContainer, func(newVersion string) {
+				recomputeVersionList(w)
+			})
+			shared.CreateRenameButton(installDir, version, w, buttonContainer, func(newVersion string) {
+				recomputeVersionList(w)
+			})
 			createRemoveButton(version, w, buttonContainer)
 			buttonContainer.Add(layout.NewSpacer()) // Add spacer to push buttons to the left
 			buttonContainer.Refresh()
@@ -195,7 +215,7 @@ func createVersionList(w fyne.Window) *widget.List {
 }
 
 func createImportButton(versions []string, version string, w fyne.Window, buttonContainer *fyne.Container) {
-	importButton := widget.NewButton("Import Data and Config", nil)
+	importButton := widget.NewButton("Import", nil)
 	importButton.Show()
 	importButton.OnTapped = func() {
 		// Open a dialog to select the source version
@@ -514,6 +534,11 @@ func copyFiles(srcDir, destDir string, alwaysCopy bool) error {
 		_, err = io.Copy(destFile, srcFile)
 		return err
 	})
+}
+
+// RefreshVersionList refreshes the version list display
+func RefreshVersionList(w fyne.Window) {
+	recomputeVersionList(w)
 }
 
 func recomputeVersionList(w fyne.Window) {

@@ -16,6 +16,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 	"github.com/gofrs/flock"
 )
@@ -265,6 +266,14 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 
 	cmd := exec.Command(localJava, "-jar", "owlcms.jar")
 	cmd.Env = env
+
+	// Remove startup.log if it exists to ensure fresh log output
+	versionDir := filepath.Join(owlcmsDir, version)
+	startupLogPath := filepath.Join(versionDir, "logs", "startup.log")
+	if err := os.Remove(startupLogPath); err != nil && !os.IsNotExist(err) {
+		log.Printf("Warning: Failed to remove old startup.log: %v", err)
+	}
+
 	log.Printf("Starting OWLCMS %s with command: %v\n", version, cmd.Args)
 	if err := cmd.Start(); err != nil {
 		statusLabel.SetText(fmt.Sprintf("Failed to start OWLCMS %s", version))
@@ -418,9 +427,12 @@ func showStartupLogArea() {
 
 	// Show within the running layout center so it can expand.
 	if startupLogHost != nil {
+		log.Printf("showStartupLogArea: Showing startup log container")
 		startupLogHost.Objects = []fyne.CanvasObject{startupLogContainer}
 		startupLogHost.Show()
 		startupLogHost.Refresh()
+	} else {
+		log.Printf("showStartupLogArea: WARNING - startupLogHost is nil!")
 	}
 
 	// Auto-close after 60 seconds unless OWLCMS becomes ready first.
@@ -484,12 +496,15 @@ func monitorStartupLog(appDir string) {
 	startupLogPath := filepath.Join(appDir, "logs", "startup.log")
 	log.Printf("Monitoring for startup.log at: %s\n", startupLogPath)
 
+	// Show the startup log area immediately
+	showStartupLogArea()
+	setStartupLogText("Waiting for startup.log...\n")
+
 	// For testing: simulate dummy data
 	// Toggle this to true only when doing UI-only testing.
 	const startupLogTestMode = false
 	if startupLogTestMode {
 		log.Println("Testing mode: generating dummy startup log data")
-		showStartupLogArea()
 		setStartupLogText("=== OWLCMS Test Startup Log ===\n")
 
 		// Generate dummy data for up to 60 seconds, every 5 seconds,
@@ -521,7 +536,6 @@ func monitorStartupLog(appDir string) {
 	for i := 0; i < 120; i++ {
 		if _, err := os.Stat(startupLogPath); err == nil {
 			log.Printf("Found startup.log, starting to tail it\n")
-			showStartupLogArea()
 			// Tail the file for 60 seconds
 			go tailStartupLog(startupLogPath)
 			return
@@ -530,6 +544,7 @@ func monitorStartupLog(appDir string) {
 	}
 
 	log.Printf("startup.log not found after monitoring period\n")
+	setStartupLogText("startup.log not found after monitoring period\n")
 }
 
 func tailStartupLog(logPath string) {
@@ -551,13 +566,14 @@ func tailStartupLog(logPath string) {
 		setStartupLogText(string(content))
 	}
 
-	// Monitor for changes for 60 seconds (or until OWLCMS becomes ready)
+	// Monitor for changes for 10 seconds (or until OWLCMS becomes ready) - TODO: change back to 60
 	startTime := time.Now()
 	lastSize := int64(0)
 	if stat, err := file.Stat(); err == nil {
 		lastSize = stat.Size()
 	}
 
+	foundReady := false
 	for {
 		select {
 		case <-stopCh:
@@ -565,8 +581,8 @@ func tailStartupLog(logPath string) {
 		default:
 		}
 
-		if time.Since(startTime) > 60*time.Second {
-			log.Println("Stopping startup log tail after 60 seconds")
+		if time.Since(startTime) > 10*time.Second {
+			log.Println("Stopping startup log tail after 10 seconds")
 			break
 		}
 
@@ -576,8 +592,15 @@ func tailStartupLog(logPath string) {
 				// Read the entire file again
 				content, err := os.ReadFile(logPath)
 				if err == nil {
-					setStartupLogText(string(content))
+					contentStr := string(content)
+					setStartupLogText(contentStr)
 					lastSize = stat.Size()
+
+					// Check if OWLCMS is ready
+					if !foundReady && (strings.Contains(contentStr, "OWLCMS Ready.") || strings.Contains(contentStr, "owlcms Ready.")) {
+						foundReady = true
+						log.Println("Found 'OWLCMS Ready.' in startup log")
+					}
 				}
 			}
 		}
@@ -585,6 +608,21 @@ func tailStartupLog(logPath string) {
 		time.Sleep(500 * time.Millisecond)
 	}
 
-	// Close the startup log display
-	hideStartupLogArea()
+	// If we didn't find "OWLCMS Ready." after timeout, show error dialog
+	if !foundReady {
+		logsDir := filepath.Dir(logPath)
+		go func() {
+			dialog.ShowCustomConfirm("OWLCMS Startup Issue", "Open Logs Folder", "Close",
+				widget.NewLabel("OWLCMS did not report ready status within 10 seconds.\nPlease check the logs and send them to owlcms@jflamy.dev if the issue persists."),
+				func(ok bool) {
+					if ok {
+						shared.OpenFileExplorer(logsDir)
+					}
+				}, mainWindow)
+		}()
+		// Keep the log display visible so user can see what went wrong
+	} else {
+		// Close the startup log display only if startup was successful
+		hideStartupLogArea()
+	}
 }

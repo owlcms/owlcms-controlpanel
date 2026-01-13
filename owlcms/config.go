@@ -9,6 +9,7 @@ import (
 	"os"
 	"owlcms-launcher/shared"
 	"path/filepath"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -249,6 +250,8 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 	if len(currentVersion) > 0 && currentVersion[0] == 'v' {
 		currentVersion = currentVersion[1:]
 	}
+	// Normalize SNAPSHOT to lowercase so it sorts after rc/alpha/beta in semver comparison
+	currentVersion = strings.ReplaceAll(currentVersion, "-SNAPSHOT", "-snapshot")
 
 	currentSemver, currentErr := semver.NewVersion(currentVersion)
 	if currentErr != nil {
@@ -300,6 +303,8 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 			if len(remoteVersion) > 0 && remoteVersion[0] == 'v' {
 				remoteVersion = remoteVersion[1:]
 			}
+			// Normalize SNAPSHOT to lowercase so it sorts after rc/alpha/beta in semver comparison
+			remoteVersion = strings.ReplaceAll(remoteVersion, "-SNAPSHOT", "-snapshot")
 
 			remoteSemver, remoteErr := semver.NewVersion(remoteVersion)
 			if remoteErr != nil {
@@ -326,6 +331,8 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 		if len(remoteVersion) > 0 && remoteVersion[0] == 'v' {
 			remoteVersion = remoteVersion[1:]
 		}
+		// Normalize SNAPSHOT to lowercase so it sorts after rc/alpha/beta in semver comparison
+		remoteVersion = strings.ReplaceAll(remoteVersion, "-SNAPSHOT", "-snapshot")
 
 		remoteSemver, remoteErr := semver.NewVersion(remoteVersion)
 		if remoteErr != nil {
