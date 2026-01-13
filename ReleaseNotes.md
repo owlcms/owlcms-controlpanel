@@ -10,29 +10,17 @@ The control panel is installed once. It will automatically download the current 
 > build environment used (GitHub).  If you need support for version 13 and 14 you will need to keep using version 2.7.
 
 ### Change Log
+- 3.0.0-rc11: Fix the semantic version value of the control panel sent to launched programs
 - 3.0.0-rc09: Show a dialog if "OWLCMS Ready" does not show up before 60 seconds with a link to the logs.
 - 3.0.0-rc09: Added "Duplicate" and "Rename" functions to make copies of an application
-- 3.0.0-rc07: If running a prerelease, the check for updates will now report a newer prerelease.
-- 3.0.0-rc06: If there is an owlcms log/startup.log it will be tailed when starting OWLCMS
-- 3.0.0-rc06: Node.js executables consolidated like Java (+ cleanup to remove old local copies)
-- 3.0.0-rc05: Added consolidation of Java directories and update to Java 25 LTS (+ cleanup to remove old copies)
-- 3.0.0-rc04: Added entry in the main menu to show the control panel log
-- 3.0.0-rc04: The import process was falsely detecting directories as needing to be deleted.
-- 3.0.0-rc03: Fix user interface glitches related to the display and selection of available versions to install
-- 3.0.0-rc02: redo build using correct tag
-- 3.0.0: Major Release
-  - The control panel now controls owlcms, owlcms-tracker and owlcms-firmata from the same application (jury replays will come later)
-  - You can therefore run, if you need to, more than one application on the same machine, from the same panel.
 
-### Previous versions
-- 2.8.0: When installing from a zip, 
-  - a prefix like "owlcms-" will be stripped, 
-  - the timestamp produced by "Save Installed Version as zip" will be stripped
-  - if extracting the same version multiple times, the directories will have 01 02 03 etc. added
-- 2.8.0: Revised import process. Local is now reset to match the current jar, and then all additions,
-deletions and modifications done in the imported release relative to the imported release's jar
-are applied.  This will make it easier for federations to provide customized kits.
-- 2.8.0: When using the "update" button on a version, that version is kept as is, as a backup.
+### New in version 3.0
+- Control owlcms, owlcms-tracker and owlcms-firmata from the same control panel
+- Show a dialog if "OWLCMS Ready" does not show up before 60 seconds with a link to the logs.
+- Added "Duplicate" and "Rename" functions to make copies of an application
+- Tail a startup log for OWLCMS version 64
+- Consolidation and cleanup of Java and Node runtimes
+- Improved import process
 
 ### Installing the Control Panel
 
