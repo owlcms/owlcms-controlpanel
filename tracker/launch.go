@@ -483,10 +483,10 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 		configureTailLogLink(version, appDir)
 		stopContainer.Refresh()
 
-		// Auto-opening the browser is disabled here — leave the link for the user to click
-		// if err := shared.OpenBrowser(url); err != nil {
-		//     log.Printf("Failed to open browser: %v\n", err)
-		// }
+		// Auto-open the browser when the tracker is ready
+		if err := shared.OpenBrowser(url); err != nil {
+			log.Printf("Failed to open browser: %v\n", err)
+		}
 
 		// Process is stable, wait for it to end
 		err := cmd.Wait()

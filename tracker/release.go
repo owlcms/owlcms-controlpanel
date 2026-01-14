@@ -184,9 +184,26 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 		w)
 	progressDialog.Show()
 
-	// Determine the correct asset name based on platform
-	assetName := getAssetName(version)
-	zipURL := fmt.Sprintf("https://github.com/jflamy/owlcms-tracker/releases/download/%s/%s", version, assetName)
+	// Try device-independent name first, then old platform-specific names for backward compatibility
+	assetNames := getAssetNames(version)
+	var zipURL, assetName string
+
+	// Check each asset name in order until we find one that exists
+	for _, name := range assetNames {
+		testURL := fmt.Sprintf("https://github.com/jflamy/owlcms-tracker/releases/download/%s/%s", version, name)
+		if checkAssetExists(testURL) {
+			zipURL = testURL
+			assetName = name
+			break
+		}
+	}
+
+	if zipURL == "" {
+		// None of the expected assets exist - fail immediately
+		progressDialog.Hide()
+		dialog.ShowError(fmt.Errorf("no tracker release asset found for version %s (tried: %v)", version, assetNames), w)
+		return
+	}
 
 	// Ensure the tracker directory exists
 	trackerDir := installDir
@@ -254,25 +271,44 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 	}()
 }
 
-// getAssetName returns the correct asset name based on the platform
-func getAssetName(version string) string {
+// getAssetNames returns possible asset names to try, starting with device-independent
+// then falling back to device-dependent names for backward compatibility
+func getAssetNames(version string) []string {
 	goos := downloadutils.GetGoos()
 	goarch := downloadutils.GetGoarch()
 
+	// Try device-independent first
+	assetNames := []string{fmt.Sprintf("owlcms-tracker_%s.zip", version)}
+
+	// Fall back to platform-specific names for backward compatibility
 	switch goos {
 	case "windows":
-		return fmt.Sprintf("owlcms-tracker-windows_%s.zip", version)
+		assetNames = append(assetNames, fmt.Sprintf("owlcms-tracker-windows_%s.zip", version))
 	case "darwin":
 		if goarch == "arm64" {
-			return fmt.Sprintf("owlcms-tracker-macos-arm64_%s.zip", version)
+			assetNames = append(assetNames, fmt.Sprintf("owlcms-tracker-macos-arm64_%s.zip", version))
+		} else {
+			assetNames = append(assetNames, fmt.Sprintf("owlcms-tracker-macos-x64_%s.zip", version))
 		}
-		return fmt.Sprintf("owlcms-tracker-macos-x64_%s.zip", version)
 	case "linux":
 		// Linux uses the Raspberry Pi build
-		return fmt.Sprintf("owlcms-tracker-rpi_%s.zip", version)
+		assetNames = append(assetNames, fmt.Sprintf("owlcms-tracker-rpi_%s.zip", version))
 	default:
-		return fmt.Sprintf("owlcms-tracker-rpi_%s.zip", version)
+		assetNames = append(assetNames, fmt.Sprintf("owlcms-tracker-rpi_%s.zip", version))
 	}
+
+	return assetNames
+}
+
+// checkAssetExists performs a HEAD request to check if an asset exists
+func checkAssetExists(url string) bool {
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Head(url)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == 200
 }
 
 func getMostRecentStableRelease() (string, error) {

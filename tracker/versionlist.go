@@ -355,8 +355,25 @@ func adjustUpdateButton(mostRecent string, version string, updateButton *widget.
 func updateVersion(existingVersion string, targetVersion string, w fyne.Window) {
 	currentVersionDir := filepath.Join(installDir, existingVersion)
 
-	assetName := getAssetName(targetVersion)
-	zipURL := fmt.Sprintf("https://github.com/jflamy/owlcms-tracker/releases/download/%s/%s", targetVersion, assetName)
+	// Try device-independent name first, then old platform-specific names for backward compatibility
+	assetNames := getAssetNames(targetVersion)
+	var zipURL, assetName string
+
+	// Check each asset name in order until we find one that exists
+	for _, name := range assetNames {
+		testURL := fmt.Sprintf("https://github.com/jflamy/owlcms-tracker/releases/download/%s/%s", targetVersion, name)
+		if checkAssetExists(testURL) {
+			zipURL = testURL
+			assetName = name
+			break
+		}
+	}
+
+	if zipURL == "" {
+		// None of the expected assets exist - fail immediately
+		dialog.ShowError(fmt.Errorf("no tracker release asset found for version %s (tried: %v)", targetVersion, assetNames), w)
+		return
+	}
 
 	extractDir := filepath.Join(installDir, targetVersion)
 	if err := shared.EnsureDir0755(extractDir); err != nil {
