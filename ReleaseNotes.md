@@ -10,6 +10,7 @@ The control panel is installed once. It will automatically download the current 
 > build environment used (GitHub).  If you need support for version 13 and 14 you will need to keep using version 2.7.
 
 ### Change Log
+- 3.0.0-rc12: zip package is now device-independent
 - 3.0.0-rc11: Fix the semantic version value of the control panel sent to launched programs
 - 3.0.0-rc09: Show a dialog if "OWLCMS Ready" does not show up before 60 seconds with a link to the logs.
 - 3.0.0-rc09: Added "Duplicate" and "Rename" functions to make copies of an application
