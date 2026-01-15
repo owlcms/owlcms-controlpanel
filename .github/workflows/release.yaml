@@ -17,6 +17,9 @@ jobs:
       BUILD_WINDOWS: true
       BUILD_RASPBERRY: true
       BUILD_LINUX: true
+      MACOSX_DEPLOYMENT_TARGET: "13.0"
+      CGO_CFLAGS: "-mmacosx-version-min=13.0"
+      CGO_LDFLAGS: "-mmacosx-version-min=13.0"
 
     steps:
     - name: Checkout code
