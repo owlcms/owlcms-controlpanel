@@ -42,7 +42,7 @@ var (
 
 func fetchReleases() ([]string, error) {
 	urls := []string{
-		"https://api.github.com/repos/jflamy/owlcms-firmata/releases",
+		"https://api.github.com/repos/owlcms/owlcms-firmata/releases",
 	}
 
 	var allReleasesLocal []Release
@@ -264,6 +264,45 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 	releaseDropdown.Resize(fyne.NewSize(200, 200))
 
 	return selectWidget, releaseDropdown
+}
+
+// setupReleaseDropdown initializes the release dropdown and populates it with available releases.
+// It fetches releases on-demand if not already loaded.
+func setupReleaseDropdown(w fyne.Window) {
+	// Fetch releases on-demand if not already loaded
+	if len(allReleases) == 0 {
+		if r, err := fetchReleases(); err == nil {
+			allReleases = r
+		} else {
+			log.Printf("Firmata setupReleaseDropdown: fetchReleases failed: %v", err)
+		}
+	}
+
+	selectWidget, dropdownContainer := createReleaseDropdown(w)
+	releaseDropdown = dropdownContainer
+
+	if len(allReleases) > 0 {
+		downloadContainer.Objects = []fyne.CanvasObject{
+			updateTitleContainer,
+			singleOrMultiVersionLabel,
+			downloadButtonTitle,
+			dropdownContainer,
+		}
+		// Hide dropdown and checkbox initially; show only the link
+		dropdownContainer.Hide()
+		if prereleaseCheckbox != nil {
+			prereleaseCheckbox.Hide()
+		}
+		downloadsShown = false
+	} else {
+		downloadContainer.Objects = []fyne.CanvasObject{
+			updateTitleContainer,
+			singleOrMultiVersionLabel,
+			downloadButtonTitle,
+		}
+	}
+	populateReleaseSelect(selectWidget)
+	downloadContainer.Refresh()
 }
 
 func containsPreReleaseTag(version string) bool {

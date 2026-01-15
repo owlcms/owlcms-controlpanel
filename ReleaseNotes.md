@@ -6,10 +6,11 @@ This is a control panel for owlcms.  It is meant to:
 
 The control panel is installed once. It will automatically download the current version of owlcms and the correct version of Java when used for the first time.
 
-> BEWARE MacOS users: This version requires MacOS 15 or later to run.  Support for building for earlier versions has been removed from the
-> build environment used (GitHub).  If you need support for version 13 and 14 you will need to keep using version 2.7.
+> BEWARE MacOS users: This version requires MacOS 15 or later to run.
 
 ### Change Log
+- 3.0.1-rc01: Fixed false "You are not connected to the internet" messages
+- 3.0.1-rc01: Added capability to install Tracker packages from zip, for custom plugins
 - 3.0.0-rc12: zip package is now device-independent
 - 3.0.0-rc11: Fix the semantic version value of the control panel sent to launched programs
 - 3.0.0-rc09: Show a dialog if "OWLCMS Ready" does not show up before 60 seconds with a link to the logs.

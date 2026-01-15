@@ -17,7 +17,6 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
-	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 	"github.com/Masterminds/semver/v3"
 )
@@ -337,64 +336,12 @@ func refreshAvailableVersions(w fyne.Window) {
 
 // initializeOwlcmsTab handles the async initialization of the OWLCMS tab
 func initializeOwlcmsTab(w fyne.Window) {
-	// Check Java first
-	statusLabel.SetText("Checking for Java runtime...")
-	javaLoc, err := javacheck.FindLocalJava()
-	internetAvailable := CheckForInternet()
-
-	// Update status
-	if err != nil || javaLoc == "" {
-		if !internetAvailable {
-			content := container.New(layout.NewCenterLayout(),
-				widget.NewLabel("Java is not installed and there is no internet connection.\n\nYou can still install OWLCMS from a ZIP via Files ▾ → Install OWLCMS version from ZIP."))
-
-			dlg := dialog.NewCustom("No Internet Connection", "OK", content, w)
-			dlg.Show()
-			resetToExplainMode(w)
-			return
-		}
-
-		statusLabel.SetText("Java runtime not found. Starting download...")
-		ver := GetTemurinVersion()
-		if err := shared.CheckAndInstallJava(ver, statusLabel, w, checkJava); err != nil {
-			return
-		}
-	} else {
-		statusLabel.SetText("Java runtime found. Loading application...")
-	}
-
-	// Get releases if internet is available
-	statusLabel.SetText("Checking for available OWLCMS versions...")
-	if internetAvailable {
-		releases, err := fetchReleases()
-		if err == nil {
-			allReleases = releases
-		}
-	} else {
-		allReleases = []string{}
-	}
-
-	// Check if we need to download a version
-	numVersions := len(getAllInstalledVersions())
-	if numVersions == 0 {
-		if !internetAvailable {
-			d := dialog.NewInformation("No Internet Connection",
-				"No installed OWLCMS version is available and there is no internet connection.\n\nYou can still install OWLCMS from a ZIP via Files ▾ → Install OWLCMS version from ZIP.", w)
-			d.Resize(fyne.NewSize(400, 200))
-			d.SetDismissText("OK")
-			d.Show()
-			resetToExplainMode(w)
-			return
-		}
-
-		// Mode: 0 versions
+	// Set the appropriate mode based on installed versions
+	if len(getAllInstalledVersions()) == 0 {
 		setOwlcmsTabModeUninstalled(w)
-		return
+	} else {
+		setOwlcmsTabModeInstalled(w)
 	}
-
-	// Mode: ≥1 versions
-	setOwlcmsTabModeInstalled(w)
-
 	log.Println("OWLCMS tab setup done.")
 }
 
@@ -418,6 +365,15 @@ func HideDownloadables() {
 // ShowDownloadables shows the download dropdown
 func ShowDownloadables() {
 	downloadsShown = true
+	if len(allReleases) == 0 {
+		if downloadContainer != nil {
+			downloadContainer.Objects = []fyne.CanvasObject{
+				widget.NewLabel("You are not connected to the Internet. Available updates cannot be shown."),
+			}
+			downloadContainer.Refresh()
+		}
+		return
+	}
 	if releaseDropdown != nil {
 		releaseDropdown.Show()
 	}
@@ -621,6 +577,9 @@ func checkForNewerVersion() {
 
 func updateExplanation() {
 	if len(allReleases) == 0 {
+		if !downloadsShown {
+			return
+		}
 		downloadContainer.Objects = []fyne.CanvasObject{
 			widget.NewLabel("You are not connected to the Internet. Available updates cannot be shown."),
 		}

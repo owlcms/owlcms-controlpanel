@@ -529,15 +529,5 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 }
 
 func goBackToMainScreen() {
-	stopButton.Hide()
-	stopContainer.Hide()
-	downloadContainer.Show()
-	versionContainer.Show()
-	urlLink.Hide()
-	if appDirLink != nil {
-		appDirLink.Hide()
-	}
-	if tailLogLink != nil {
-		tailLogLink.Hide()
-	}
+	setTrackerTabMode(fyne.CurrentApp().Driver().AllWindows()[0])
 }

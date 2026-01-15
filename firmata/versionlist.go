@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"time"
 
@@ -35,8 +34,6 @@ func getAllInstalledVersions() []string {
 		return nil
 	}
 
-	versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+(?:-(?:rc|alpha|beta)(?:\d+)?)?(?:\+.*)?$`)
-
 	type versionWithMeta struct {
 		semver   *semver.Version
 		original string
@@ -44,7 +41,7 @@ func getAllInstalledVersions() []string {
 
 	var versions []versionWithMeta
 	for _, entry := range entries {
-		if entry.IsDir() && versionPattern.MatchString(entry.Name()) {
+		if entry.IsDir() {
 			// Try to parse the directory name, stripping build metadata for comparison
 			baseVersion, _ := shared.ParseVersionWithBuild(entry.Name())
 			v, err := semver.NewVersion(baseVersion)
@@ -77,10 +74,9 @@ func findLatestInstalled() string {
 		return ""
 	}
 
-	versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+(?:-(?:rc|alpha|beta)(?:\d+)?)?$`)
 	var versions []*semver.Version
 	for _, entry := range entries {
-		if entry.IsDir() && versionPattern.MatchString(entry.Name()) {
+		if entry.IsDir() {
 			v, err := semver.NewVersion(entry.Name())
 			if err == nil {
 				versions = append(versions, v)
@@ -121,12 +117,11 @@ func findLatestPrereleaseInstalledVersion() string {
 		return ""
 	}
 
-	versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+-(?:rc|alpha|beta)(?:\d+)?$`)
 	var versions []*semver.Version
 	for _, entry := range entries {
-		if entry.IsDir() && versionPattern.MatchString(entry.Name()) {
+		if entry.IsDir() {
 			v, err := semver.NewVersion(entry.Name())
-			if err == nil {
+			if err == nil && v.Prerelease() != "" {
 				versions = append(versions, v)
 			}
 		}
@@ -573,6 +568,9 @@ func recomputeVersionList(w fyne.Window) {
 
 func updateExplanation() {
 	if len(allReleases) == 0 {
+		if !downloadsShown {
+			return
+		}
 		downloadContainer.Objects = []fyne.CanvasObject{
 			widget.NewLabel("You are not connected to the Internet. Available updates cannot be shown."),
 		}

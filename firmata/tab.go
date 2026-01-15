@@ -107,10 +107,7 @@ func checkJava(statusLabel *widget.Label) error {
 }
 
 func goBackToMainScreen() {
-	stopButton.Hide()
-	stopContainer.Hide()
-	downloadContainer.Show()
-	versionContainer.Show()
+	setFirmataTabMode(fyne.CurrentApp().Driver().AllWindows()[0])
 }
 
 func computeVersionScrollHeight(numVersions int) float32 {
@@ -378,82 +375,56 @@ func refreshAvailableVersions(w fyne.Window) {
 
 // initializeFirmataTab handles the async initialization of the Firmata tab
 func initializeFirmataTab(w fyne.Window) {
-	var javaAvailable bool
-	javaLoc, err := javacheck.FindLocalJava()
-	javaAvailable = err == nil && javaLoc != ""
-
-	// Check for internet connection before anything else
-	internetAvailable := CheckForInternet()
-	if internetAvailable && !javaAvailable {
-		// Determine the Temurin version to fetch for Firmata, then perform Java
-		// check/install using the shared helper.
-		ver := GetTemurinVersion()
-		if err := shared.CheckAndInstallJava(ver, statusLabel, w, checkJava); err != nil {
-			return
-		}
-	}
-
-	var releases []string
-	if internetAvailable {
-		releases, err = fetchReleases()
-		if err == nil {
-			allReleases = releases
-		}
+	// Set the appropriate mode based on installed versions
+	if len(getAllInstalledVersions()) == 0 {
+		setFirmataTabModeUninstalled(w)
 	} else {
-		allReleases = []string{}
+		setFirmataTabModeInstalled(w)
+	}
+	log.Println("Firmata tab setup done.")
+}
+
+// setFirmataTabModeUninstalled shows the install prompt for when no versions are installed.
+func setFirmataTabModeUninstalled(w fyne.Window) {
+	resetToExplainMode(w)
+	log.Printf("UI Mode: Uninstalled (0 versions)")
+}
+
+// setFirmataTabModeInstalled shows the version list and download section.
+func setFirmataTabModeInstalled(w fyne.Window) {
+	// Recompute list + download section contents.
+	recomputeVersionList(w)
+	setupReleaseDropdown(w)
+	checkForNewerVersion()
+
+	if stopButton != nil {
+		stopButton.Hide()
+	}
+	if stopContainer != nil {
+		stopContainer.Hide()
+	}
+	if statusLabel != nil {
+		statusLabel.Hide()
+	}
+	if versionContainer != nil {
+		versionContainer.Show()
+		versionContainer.Refresh()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Show()
+		downloadContainer.Refresh()
 	}
 
-	numVersions := len(getAllInstalledVersions())
-	if numVersions == 0 && !internetAvailable {
-		d := dialog.NewInformation("No Internet Connection", "You must be connected to the internet to fetch a version of Firmata.\nPlease connect and restart the program", w)
-		d.Resize(fyne.NewSize(400, 200))
-		d.SetDismissText("OK")
-		d.Show()
+	log.Printf("UI Mode: Installed (versions=%d; list+download visible)", len(getAllInstalledVersions()))
+}
+
+// setFirmataTabMode is the single switch deciding which mode to show.
+func setFirmataTabMode(w fyne.Window) {
+	if len(getAllInstalledVersions()) == 0 {
+		setFirmataTabModeUninstalled(w)
 		return
 	}
-
-	// Initialize version list
-	recomputeVersionList(w)
-
-	// Create release dropdown (includes prerelease checkbox)
-	releaseSelect, releaseDropdownLocal := createReleaseDropdown(w)
-	releaseDropdown = releaseDropdownLocal
-	updateTitle.Hide()
-	releaseDropdown.Hide() // Hide the dropdown initially
-
-	if len(allReleases) > 0 {
-		downloadContainer.Objects = []fyne.CanvasObject{
-			updateTitleContainer,
-			singleOrMultiVersionLabel,
-			downloadButtonTitle,
-			releaseDropdown,
-		}
-	} else {
-		downloadContainer.Objects = []fyne.CanvasObject{
-			widget.NewLabel("You are not connected to the Internet. Available updates cannot be shown."),
-		}
-	}
-
-	populateReleaseSelect(releaseSelect) // Populate the dropdown with the releases
-	updateTitle.Show()
-	releaseDropdown.Hide()
-	prereleaseCheckbox.Hide()
-	downloadsShown = false
-	log.Printf("Fetched %d releases\n", len(releases))
-
-	// If no version is installed, do NOT auto-install. Leave download UI for user.
-	if len(getAllInstalledVersions()) == 0 {
-		log.Println("No Firmata versions installed; not auto-installing. Waiting for user action.")
-	}
-
-	// Check if a more recent version is available
-	checkForNewerVersion()
-	downloadContainer.Refresh()
-	downloadContainer.Show()
-
-	log.Println("Firmata tab setup done.")
-	statusLabel.Hide()
-	stopContainer.Hide()
+	setFirmataTabModeInstalled(w)
 }
 
 // HideDownloadables hides the download dropdown and prerelease checkbox
@@ -476,6 +447,15 @@ func HideDownloadables() {
 // ShowDownloadables shows the download dropdown and prerelease checkbox
 func ShowDownloadables() {
 	downloadsShown = true
+	if len(allReleases) == 0 {
+		if downloadContainer != nil {
+			downloadContainer.Objects = []fyne.CanvasObject{
+				widget.NewLabel("You are not connected to the Internet. Available updates cannot be shown."),
+			}
+			downloadContainer.Refresh()
+		}
+		return
+	}
 	if releaseDropdown != nil {
 		releaseDropdown.Show()
 	}

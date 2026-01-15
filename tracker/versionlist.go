@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"time"
 
@@ -35,8 +34,6 @@ func getAllInstalledVersions() []string {
 		return nil
 	}
 
-	versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+(?:-(?:rc|alpha|beta)(?:\d+)?)?(?:\+.*)?$`)
-
 	type versionWithMeta struct {
 		semver   *semver.Version
 		original string
@@ -44,7 +41,7 @@ func getAllInstalledVersions() []string {
 
 	var versions []versionWithMeta
 	for _, entry := range entries {
-		if entry.IsDir() && versionPattern.MatchString(entry.Name()) {
+		if entry.IsDir() {
 			// Try to parse the directory name, stripping build metadata for comparison
 			baseVersion, _ := shared.ParseVersionWithBuild(entry.Name())
 			v, err := semver.NewVersion(baseVersion)
@@ -99,12 +96,11 @@ func findLatestPrereleaseInstalledVersion() string {
 		return ""
 	}
 
-	versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+-(?:rc|alpha|beta)(?:\d+)?$`)
 	var versions []*semver.Version
 	for _, entry := range entries {
-		if entry.IsDir() && versionPattern.MatchString(entry.Name()) {
+		if entry.IsDir() {
 			v, err := semver.NewVersion(entry.Name())
-			if err == nil {
+			if err == nil && v.Prerelease() != "" {
 				versions = append(versions, v)
 			}
 		}
@@ -361,7 +357,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 
 	// Check each asset name in order until we find one that exists
 	for _, name := range assetNames {
-		testURL := fmt.Sprintf("https://github.com/jflamy/owlcms-tracker/releases/download/%s/%s", targetVersion, name)
+		testURL := fmt.Sprintf("https://github.com/owlcms/owlcms-tracker/releases/download/%s/%s", targetVersion, name)
 		if checkAssetExists(testURL) {
 			zipURL = testURL
 			assetName = name
@@ -396,6 +392,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	go func() {
 		defer progressDialog.Hide()
 
+		downloadStart := time.Now()
 		progressCallback := func(downloaded, total int64) {
 			if total > 0 {
 				progress := float64(downloaded) / float64(total)
@@ -409,11 +406,16 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 			return
 		}
 
-		progressBar.SetValue(0.9)
+		downloadDuration := time.Since(downloadStart)
+		totalDuration := downloadDuration + 35*time.Second
+		extractionStartPercent := float64(downloadDuration) / float64(totalDuration)
+
 		messageLabel.SetText("Extracting files...")
 		messageLabel.Refresh()
 
+		stopProgress := startTimedProgress(progressBar, extractionStartPercent, 0.98, 35*time.Second)
 		err = downloadutils.ExtractZip(zipPath, extractDir)
+		stopProgress()
 		if err != nil {
 			dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
 			return
@@ -547,12 +549,13 @@ func removeAllVersions() {
 		return
 	}
 
-	versionPattern := regexp.MustCompile(`^\d+\.\d+\.\d+(?:-(?:rc|alpha|beta)(?:\d+)?)?$`)
 	for _, entry := range entries {
-		if entry.IsDir() && versionPattern.MatchString(entry.Name()) {
-			versionDir := filepath.Join(installDir, entry.Name())
-			log.Printf("Removing version directory: %s\n", versionDir)
-			os.RemoveAll(versionDir)
+		if entry.IsDir() {
+			if _, err := semver.NewVersion(entry.Name()); err == nil {
+				versionDir := filepath.Join(installDir, entry.Name())
+				log.Printf("Removing version directory: %s\n", versionDir)
+				os.RemoveAll(versionDir)
+			}
 		}
 	}
 	// After removing all version directories, update UI in case no versions remain

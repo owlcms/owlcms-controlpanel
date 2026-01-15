@@ -368,6 +368,15 @@ func InstallDefault(w fyne.Window) {
 }
 
 func setupReleaseDropdown(w fyne.Window) {
+	// Fetch releases on-demand if not already loaded
+	if len(allReleases) == 0 {
+		if r, err := fetchReleases(); err == nil {
+			allReleases = r
+		} else {
+			log.Printf("OWLCMS setupReleaseDropdown: fetchReleases failed: %v", err)
+		}
+	}
+
 	selectWidget, dropdownContainer := createReleaseDropdown(w)
 	if len(allReleases) > 0 {
 		downloadContainer.Objects = []fyne.CanvasObject{
@@ -384,7 +393,9 @@ func setupReleaseDropdown(w fyne.Window) {
 		downloadsShown = false
 	} else {
 		downloadContainer.Objects = []fyne.CanvasObject{
-			widget.NewLabel("You are not connected to the Internet. Available updates cannot be shown."),
+			updateTitleContainer,
+			singleOrMultiVersionLabel,
+			downloadButtonTitle,
 		}
 	}
 	populateReleaseSelect(selectWidget)

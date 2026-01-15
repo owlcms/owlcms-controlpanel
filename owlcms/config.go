@@ -10,6 +10,7 @@ import (
 	"owlcms-launcher/shared"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -270,7 +271,16 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 	}
 	log.Println("Checking for updates from:", repoURL)
 
-	resp, err := http.Get(repoURL)
+	client := &http.Client{Timeout: 10 * time.Second}
+	req, err := http.NewRequest(http.MethodGet, repoURL, nil)
+	if err != nil {
+		log.Printf("Failed to build update request: %v", err)
+		return
+	}
+	req.Header.Set("User-Agent", "owlcms-launcher")
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	resp, err := client.Do(req)
 	if err != nil {
 		log.Printf("Failed to check for updates: %v", err)
 		return
@@ -279,6 +289,9 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 
 	if resp.StatusCode != http.StatusOK {
 		log.Printf("Failed to check for updates: received status code %d", resp.StatusCode)
+		if resp.StatusCode == http.StatusForbidden {
+			log.Printf("GitHub rate limit: limit=%s remaining=%s reset=%s", resp.Header.Get("X-RateLimit-Limit"), resp.Header.Get("X-RateLimit-Remaining"), resp.Header.Get("X-RateLimit-Reset"))
+		}
 		return
 	}
 

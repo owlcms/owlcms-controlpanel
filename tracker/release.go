@@ -44,7 +44,7 @@ var (
 )
 
 func fetchReleases() ([]string, error) {
-	url := "https://api.github.com/repos/jflamy/owlcms-tracker/releases"
+	url := "https://api.github.com/repos/owlcms/owlcms-tracker/releases"
 
 	client := &http.Client{
 		Timeout: 5 * time.Second,
@@ -161,6 +161,45 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 	return releaseSelect, dropdownContainer
 }
 
+// setupReleaseDropdown initializes the release dropdown and populates it with available releases.
+// It fetches releases on-demand if not already loaded.
+func setupReleaseDropdown(w fyne.Window) {
+	// Fetch releases on-demand if not already loaded
+	if len(allReleases) == 0 {
+		if r, err := fetchReleases(); err == nil {
+			allReleases = r
+		} else {
+			log.Printf("Tracker setupReleaseDropdown: fetchReleases failed: %v", err)
+		}
+	}
+
+	selectWidget, dropdownContainer := createReleaseDropdown(w)
+	releaseDropdown = dropdownContainer
+
+	if len(allReleases) > 0 {
+		downloadContainer.Objects = []fyne.CanvasObject{
+			updateTitleContainer,
+			singleOrMultiVersionLabel,
+			downloadButtonTitle,
+			dropdownContainer,
+		}
+		// Hide dropdown and checkbox initially; show only the link
+		dropdownContainer.Hide()
+		if prereleaseCheckbox != nil {
+			prereleaseCheckbox.Hide()
+		}
+		downloadsShown = false
+	} else {
+		downloadContainer.Objects = []fyne.CanvasObject{
+			updateTitleContainer,
+			singleOrMultiVersionLabel,
+			downloadButtonTitle,
+		}
+	}
+	populateReleaseSelect(selectWidget)
+	downloadContainer.Refresh()
+}
+
 func confirmAndDownloadVersion(version string, w fyne.Window) {
 	dialog.ShowConfirm("Confirm Download",
 		fmt.Sprintf("Do you want to download and install Tracker version %s?", version),
@@ -190,7 +229,7 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 
 	// Check each asset name in order until we find one that exists
 	for _, name := range assetNames {
-		testURL := fmt.Sprintf("https://github.com/jflamy/owlcms-tracker/releases/download/%s/%s", version, name)
+		testURL := fmt.Sprintf("https://github.com/owlcms/owlcms-tracker/releases/download/%s/%s", version, name)
 		if checkAssetExists(testURL) {
 			zipURL = testURL
 			assetName = name
@@ -223,6 +262,7 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 		messageLabel.SetText(fmt.Sprintf("Downloading Tracker %s...", version))
 		messageLabel.Refresh()
 
+		downloadStart := time.Now()
 		progressCallback := func(downloaded, total int64) {
 			if total > 0 {
 				progress := float64(downloaded) / float64(total)
@@ -237,12 +277,17 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 			return
 		}
 
-		progressBar.SetValue(0.9)
+		downloadDuration := time.Since(downloadStart)
+		totalDuration := downloadDuration + 35*time.Second
+		extractionStartPercent := float64(downloadDuration) / float64(totalDuration)
+
 		messageLabel.SetText("Extracting files...")
 		messageLabel.Refresh()
 
 		log.Printf("Extracting ZIP file to: %s\n", extractPath)
+		stopProgress := startTimedProgress(progressBar, extractionStartPercent, 0.98, 35*time.Second)
 		err = downloadutils.ExtractZip(zipPath, extractPath)
+		stopProgress()
 		if err != nil {
 			progressDialog.Hide()
 			dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
@@ -367,7 +412,7 @@ func checkForNewerVersion() {
 				releaseVersion, err := semver.NewVersion(release)
 				if err == nil && releaseVersion.GreaterThan(latestInstalledVersion) {
 					log.Printf("Tracker - Found newer version: %s\n", releaseVersion)
-					releaseURL := fmt.Sprintf("https://github.com/jflamy/owlcms-tracker/releases/tag/%s", release)
+					releaseURL := fmt.Sprintf("https://github.com/owlcms/owlcms-tracker/releases/tag/%s", release)
 
 					var versionType string
 					if containsPreReleaseTag(release) {
@@ -407,7 +452,7 @@ func checkForNewerVersion() {
 			}
 
 			// Show message with release notes link (no newer version found)
-			releaseURL := fmt.Sprintf("https://github.com/jflamy/owlcms-tracker/releases/tag/%s", latestInstalled)
+			releaseURL := fmt.Sprintf("https://github.com/owlcms/owlcms-tracker/releases/tag/%s", latestInstalled)
 			parsedURL, _ := url.Parse(releaseURL)
 			releaseNotesLink := widget.NewHyperlink("Release Notes", parsedURL)
 			// Ensure hyperlink visible for installed prerelease/stable
@@ -464,6 +509,9 @@ func findLatestInstalled() string {
 
 func updateExplanation() {
 	if len(allReleases) == 0 {
+		if !downloadsShown {
+			return
+		}
 		downloadContainer.Objects = []fyne.CanvasObject{
 			widget.NewLabel("You are not connected to the Internet. Available updates cannot be shown."),
 		}

@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"image/color"
 	"log"
-	"net/http"
 	"os"
 	"os/exec"
-	"time"
 
 	"owlcms-launcher/shared"
 
@@ -181,6 +179,18 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 		fyne.NewMenuItem("Refresh Available Versions", func() {
 			refreshAvailableVersions(w)
 		}),
+		fyne.NewMenuItem("Install Tracker version from ZIP", func() {
+			selectLocalZip(w, func(path string, err error) {
+				if err != nil {
+					dialog.ShowError(fmt.Errorf("file selection failed: %w", err), w)
+					return
+				}
+				if path == "" {
+					return
+				}
+				ProcessLocalZipFile(path, w, installDir, updateExplanation, recomputeVersionList, checkForNewerVersion)
+			})
+		}),
 		fyne.NewMenuItemSeparator(),
 		// Commented out: remove all versions via Files menu (use Uninstall instead)
 		// fyne.NewMenuItem("Remove All Tracker Versions", func() {
@@ -243,72 +253,56 @@ func refreshAvailableVersions(w fyne.Window) {
 
 // initializeTab handles the async initialization of the Tracker tab
 func initializeTab(w fyne.Window) {
-	// Check for internet connection
-	internetAvailable := CheckForInternet()
-
-	var releases []string
-	var err error
-	if internetAvailable {
-		releases, err = fetchReleases()
-		if err == nil {
-			allReleases = releases
-		}
-	} else {
-		allReleases = []string{}
-	}
-
-	numVersions := len(getAllInstalledVersions())
-	if numVersions == 0 && !internetAvailable {
-		d := dialog.NewInformation("No Internet Connection", "You must be connected to the internet to fetch a version of Tracker.\nPlease connect and restart the program", w)
-		d.Resize(fyne.NewSize(400, 200))
-		d.SetDismissText("OK")
-		d.Show()
-		return
-	}
-
-	// Initialize version list
-	recomputeVersionList(w)
-
-	// Create release dropdown (includes prerelease checkbox)
-	releaseSelect, releaseDropdownLocal := createReleaseDropdown(w)
-	releaseDropdown = releaseDropdownLocal
-
-	if len(allReleases) > 0 {
-		downloadContainer.Objects = []fyne.CanvasObject{
-			updateTitleContainer,
-			singleOrMultiVersionLabel,
-			downloadButtonTitle,
-			releaseDropdown,
-		}
-	} else {
-		downloadContainer.Objects = []fyne.CanvasObject{
-			widget.NewLabel("You are not connected to the Internet. Available updates cannot be shown."),
-		}
-	}
-
-	populateReleaseSelect(releaseSelect)
-	updateTitle.Show()
-	releaseDropdown.Hide()
-	prereleaseCheckbox.Hide()
-	downloadsShown = false
-
-	// If no version is installed, do NOT auto-install. Leave downloads available for user.
+	// Set the appropriate mode based on installed versions
 	if len(getAllInstalledVersions()) == 0 {
-		log.Println("No Tracker versions installed; not auto-installing. Waiting for user action.")
+		setTrackerTabModeUninstalled(w)
+	} else {
+		setTrackerTabModeInstalled(w)
 	}
+	log.Println("Tracker tab setup done.")
+}
 
-	// Check if a more recent version is available
+// setTrackerTabModeUninstalled shows the install prompt for when no versions are installed.
+func setTrackerTabModeUninstalled(_ fyne.Window) {
+	resetToExplainMode()
+	log.Printf("UI Mode: Uninstalled (0 versions)")
+}
+
+// setTrackerTabModeInstalled shows the version list and download section.
+func setTrackerTabModeInstalled(w fyne.Window) {
+	// Recompute list + download section contents.
+	recomputeVersionList(w)
+	setupReleaseDropdown(w)
 	checkForNewerVersion()
 
-	// Hide the loading indicators
-	statusLabel.SetText("")
-	statusLabel.Hide()
-	stopContainer.Hide()
-	versionContainer.Show()
-	downloadContainer.Show()
-	downloadContainer.Refresh()
+	if stopButton != nil {
+		stopButton.Hide()
+	}
+	if stopContainer != nil {
+		stopContainer.Hide()
+	}
+	if statusLabel != nil {
+		statusLabel.Hide()
+	}
+	if versionContainer != nil {
+		versionContainer.Show()
+		versionContainer.Refresh()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Show()
+		downloadContainer.Refresh()
+	}
 
-	log.Println("Tracker tab setup done.")
+	log.Printf("UI Mode: Installed (versions=%d; list+download visible)", len(getAllInstalledVersions()))
+}
+
+// setTrackerTabMode is the single switch deciding which mode to show.
+func setTrackerTabMode(w fyne.Window) {
+	if len(getAllInstalledVersions()) == 0 {
+		setTrackerTabModeUninstalled(w)
+		return
+	}
+	setTrackerTabModeInstalled(w)
 }
 
 // computeVersionScrollHeight returns a minimum height for the version list scroll
@@ -339,6 +333,15 @@ func HideDownloadables() {
 // ShowDownloadables shows the download dropdown
 func ShowDownloadables() {
 	downloadsShown = true
+	if len(allReleases) == 0 {
+		if downloadContainer != nil {
+			downloadContainer.Objects = []fyne.CanvasObject{
+				widget.NewLabel("You are not connected to the Internet. Available updates cannot be shown."),
+			}
+			downloadContainer.Refresh()
+		}
+		return
+	}
 	if releaseDropdown != nil {
 		releaseDropdown.Show()
 	}
@@ -351,19 +354,6 @@ func ShowDownloadables() {
 	if downloadContainer != nil {
 		downloadContainer.Refresh()
 	}
-}
-
-// CheckForInternet checks if there is internet connectivity
-func CheckForInternet() bool {
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-	}
-	resp, err := client.Get("https://api.github.com")
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-	return resp.StatusCode == http.StatusOK
 }
 
 func min(a, b int) int {
