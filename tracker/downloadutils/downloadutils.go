@@ -102,6 +102,7 @@ func ExtractZip(zipPath, destDir string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open zip file: %w", err)
 	}
+	defer r.Close()
 
 	// Create the destination directory if it doesn't exist
 	if err := shared.EnsureDir0755(destDir); err != nil {
@@ -146,11 +147,6 @@ func ExtractZip(zipPath, destDir string) error {
 			return fmt.Errorf("failed to extract file: %w", err)
 		}
 
-	}
-
-	// Close reader before deleting; keeping it open blocks deletion on Windows
-	if err := r.Close(); err != nil {
-		return fmt.Errorf("failed to close zip file: %w", err)
 	}
 
 	// Delete the zip file after successful extraction

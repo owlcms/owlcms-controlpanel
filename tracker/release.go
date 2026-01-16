@@ -262,7 +262,6 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 		messageLabel.SetText(fmt.Sprintf("Downloading Tracker %s...", version))
 		messageLabel.Refresh()
 
-		downloadStart := time.Now()
 		progressCallback := func(downloaded, total int64) {
 			if total > 0 {
 				progress := float64(downloaded) / float64(total)
@@ -277,15 +276,11 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 			return
 		}
 
-		downloadDuration := time.Since(downloadStart)
-		totalDuration := downloadDuration + 35*time.Second
-		extractionStartPercent := float64(downloadDuration) / float64(totalDuration)
-
 		messageLabel.SetText("Extracting files...")
 		messageLabel.Refresh()
 
 		log.Printf("Extracting ZIP file to: %s\n", extractPath)
-		stopProgress := startTimedProgress(progressBar, extractionStartPercent, 0.98, 35*time.Second)
+		stopProgress := startTimedProgress(progressBar, 0.0, 1.0, 40*time.Second)
 		err = downloadutils.ExtractZip(zipPath, extractPath)
 		stopProgress()
 		if err != nil {

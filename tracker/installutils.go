@@ -205,7 +205,7 @@ func InstallLocalZipFile(zipPath, version string, w fyne.Window, trackerInstallD
 		messageLabel.Refresh()
 
 		log.Printf("Extracting ZIP file to: %s\n", finalExtractPath)
-		stopProgress := startTimedProgress(progressBar, 0.0, 0.98, 35*time.Second)
+		stopProgress := startTimedProgress(progressBar, 0.0, 1.0, 40*time.Second)
 		err := downloadutils.ExtractZip(destOriginalPath, finalExtractPath)
 		stopProgress()
 		if err != nil {

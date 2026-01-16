@@ -392,7 +392,6 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	go func() {
 		defer progressDialog.Hide()
 
-		downloadStart := time.Now()
 		progressCallback := func(downloaded, total int64) {
 			if total > 0 {
 				progress := float64(downloaded) / float64(total)
@@ -406,14 +405,10 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 			return
 		}
 
-		downloadDuration := time.Since(downloadStart)
-		totalDuration := downloadDuration + 35*time.Second
-		extractionStartPercent := float64(downloadDuration) / float64(totalDuration)
-
 		messageLabel.SetText("Extracting files...")
 		messageLabel.Refresh()
 
-		stopProgress := startTimedProgress(progressBar, extractionStartPercent, 0.98, 35*time.Second)
+		stopProgress := startTimedProgress(progressBar, 0.0, 1.0, 40*time.Second)
 		err = downloadutils.ExtractZip(zipPath, extractDir)
 		stopProgress()
 		if err != nil {
