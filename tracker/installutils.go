@@ -157,83 +157,83 @@ func InstallLocalZipFile(zipPath, version string, w fyne.Window, trackerInstallD
 	updateExplanation func(),
 	recomputeVersionList func(fyne.Window),
 	checkForNewerVersion func()) {
-	progressBar := widget.NewProgressBar()
-	progressBar.SetValue(0.01)
-	messageLabel := widget.NewLabel(fmt.Sprintf("Installing Tracker %s from local file...", version))
-	content := container.NewVBox(messageLabel, progressBar)
-	progressDialog := dialog.NewCustom(
-		"Installing Tracker",
-		"Please wait...",
-		content,
-		w)
-	progressDialog.Show()
+	shared.PromptForInstallVersionName(trackerInstallDir, version, w, func(finalVersionName string) {
+		progressBar := widget.NewProgressBar()
+		progressBar.SetValue(0.01)
+		messageLabel := widget.NewLabel(fmt.Sprintf("Installing Tracker %s from local file...", finalVersionName))
+		content := container.NewVBox(messageLabel, progressBar)
+		progressDialog := dialog.NewCustom(
+			"Installing Tracker",
+			"Please wait...",
+			content,
+			w)
+		progressDialog.Show()
 
-	// Ensure the tracker directory exists
-	trackerDir := trackerInstallDir
-	if _, err := os.Stat(trackerDir); os.IsNotExist(err) {
-		if err := shared.EnsureDir0755(trackerDir); err != nil {
-			progressDialog.Hide()
-			dialog.ShowError(fmt.Errorf("creating tracker directory: %w", err), w)
-			return
+		// Ensure the tracker directory exists
+		trackerDir := trackerInstallDir
+		if _, err := os.Stat(trackerDir); os.IsNotExist(err) {
+			if err := shared.EnsureDir0755(trackerDir); err != nil {
+				progressDialog.Hide()
+				dialog.ShowError(fmt.Errorf("creating tracker directory: %w", err), w)
+				return
+			}
 		}
-	}
 
-	originalFileName := filepath.Base(zipPath)
-	destOriginalPath := filepath.Join(trackerDir, originalFileName)
+		originalFileName := filepath.Base(zipPath)
+		destOriginalPath := filepath.Join(trackerDir, originalFileName)
 
-	messageLabel.SetText("Copying ZIP file...")
-	messageLabel.Refresh()
-
-	progressBar.SetValue(0.02)
-
-	// Preserve a copy of the ZIP file in the installation directory for reference
-	if zipPath != destOriginalPath {
-		err := copyFile(zipPath, destOriginalPath)
-		if err != nil {
-			progressDialog.Hide()
-			dialog.ShowError(fmt.Errorf("failed to copy ZIP file: %w", err), w)
-			return
-		}
-	}
-
-	go func() {
-		// Determine final installation directory name, handling collisions
-		finalVersionName := GetInstallationDirectoryName(version, trackerInstallDir)
-		finalExtractPath := filepath.Join(trackerDir, finalVersionName)
-
-		messageLabel.SetText("Extracting files...")
+		messageLabel.SetText("Copying ZIP file...")
 		messageLabel.Refresh()
 
-		log.Printf("Extracting ZIP file to: %s\n", finalExtractPath)
-		stopProgress := startTimedProgress(progressBar, 0.0, 1.0, 40*time.Second)
-		err := downloadutils.ExtractZip(destOriginalPath, finalExtractPath)
-		stopProgress()
-		if err != nil {
-			progressDialog.Hide()
-			dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
-			return
+		progressBar.SetValue(0.02)
+
+		// Preserve a copy of the ZIP file in the installation directory for reference
+		if zipPath != destOriginalPath {
+			err := copyFile(zipPath, destOriginalPath)
+			if err != nil {
+				progressDialog.Hide()
+				dialog.ShowError(fmt.Errorf("failed to copy ZIP file: %w", err), w)
+				return
+			}
 		}
 
-		progressBar.SetValue(1.0)
-		log.Println("Extraction completed")
+		go func() {
+			finalExtractPath := filepath.Join(trackerDir, finalVersionName)
 
-		// Ensure the tab UI is initialized so download UI widgets exist
-		initializeTab(w)
-		updateExplanation()
+			messageLabel.SetText("Extracting files...")
+			messageLabel.Refresh()
 
-		progressDialog.Hide()
+			log.Printf("Extracting ZIP file to: %s\n", finalExtractPath)
+			stopProgress := startTimedProgress(progressBar, 0.0, 1.0, 40*time.Second)
+			err := downloadutils.ExtractZip(destOriginalPath, finalExtractPath)
+			stopProgress()
+			if err != nil {
+				progressDialog.Hide()
+				dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
+				return
+			}
 
-		message := fmt.Sprintf(
-			"Successfully installed Tracker version %s\n\n"+
-				"Location: %s\n\n"+
-				"The program files have been extracted to the above directory.",
-			finalVersionName, finalExtractPath)
+			progressBar.SetValue(1.0)
+			log.Println("Extraction completed")
 
-		dialog.ShowInformation("Installation Complete", message, w)
+			// Ensure the tab UI is initialized so download UI widgets exist
+			initializeTab(w)
+			updateExplanation()
 
-		recomputeVersionList(w)
-		checkForNewerVersion()
-	}()
+			progressDialog.Hide()
+
+			message := fmt.Sprintf(
+				"Successfully installed Tracker version %s\n\n"+
+					"Location: %s\n\n"+
+					"The program files have been extracted to the above directory.",
+				finalVersionName, finalExtractPath)
+
+			dialog.ShowInformation("Installation Complete", message, w)
+
+			recomputeVersionList(w)
+			checkForNewerVersion()
+		}()
+	})
 }
 
 // copyFile copies a file from src to dst, overwriting dst if it exists.

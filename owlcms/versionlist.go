@@ -230,11 +230,14 @@ func createImportButton(versions []string, version string, w fyne.Window, button
 		// Open a dialog to select the source version
 		sourceVersions := filterVersions(versions, version) // Filter out the current version
 		sourceVersionDropdown := widget.NewSelect(sourceVersions, func(selected string) {})
+		// Wrap in a fixed-size container to ensure adequate width
+		selectContainer := container.NewGridWrap(fyne.NewSize(300, 35), sourceVersionDropdown)
+
 		dialog.ShowForm("Import Data and Config",
 			"Import",
 			"Cancel",
 			[]*widget.FormItem{
-				widget.NewFormItem("Copy the database and locally modified configurations from a previous installation", sourceVersionDropdown),
+				widget.NewFormItem("Copy from version", selectContainer),
 			},
 			func(ok bool) {
 				if !ok {

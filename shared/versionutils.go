@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"fyne.io/fyne/v2"
@@ -152,6 +153,8 @@ func ShowDuplicateVersionDialog(installDir, version string, w fyne.Window, onSuc
 
 	// Create a status label that we can update
 	statusLabel := widget.NewLabel("")
+	progressBar := widget.NewProgressBar()
+	progressBar.Hide()
 
 	// Create the form content with label on left, entry on right
 	label := widget.NewLabel("New Name")
@@ -195,6 +198,10 @@ func ShowDuplicateVersionDialog(installDir, version string, w fyne.Window, onSuc
 		// Show progress message
 		statusLabel.SetText("Duplicating...")
 		statusLabel.Refresh()
+		progressBar.SetValue(0)
+		progressBar.Show()
+		progressBar.Refresh()
+		stopProgress := startTimedProgress(progressBar, 0, 1, 5*time.Second)
 
 		// Perform duplication in background
 		go func() {
@@ -204,6 +211,8 @@ func ShowDuplicateVersionDialog(installDir, version string, w fyne.Window, onSuc
 				// Re-enable on error
 				statusLabel.SetText("")
 				statusLabel.Refresh()
+				stopProgress()
+				progressBar.Hide()
 				buildEntry.Enable()
 				duplicateBtn.Enable()
 				cancelBtn.Enable()
@@ -212,6 +221,9 @@ func ShowDuplicateVersionDialog(installDir, version string, w fyne.Window, onSuc
 			}
 
 			// Show success message
+			stopProgress()
+			progressBar.SetValue(1)
+			progressBar.Refresh()
 			statusLabel.SetText(fmt.Sprintf("Successfully created %s as a duplicate of %s", newVersion, version))
 			statusLabel.Refresh()
 
@@ -242,6 +254,7 @@ func ShowDuplicateVersionDialog(installDir, version string, w fyne.Window, onSuc
 	content := container.NewVBox(
 		formRow,
 		noteLabel,
+		progressBar,
 		statusLabel,
 	)
 
@@ -272,6 +285,126 @@ func ShowDuplicateVersionDialog(installDir, version string, w fyne.Window, onSuc
 
 	// Focus the entry widget after showing dialog
 	w.Canvas().Focus(buildEntry)
+}
+
+// PromptForInstallVersionName checks for a version collision and prompts for a new build name when needed.
+// If no collision, it calls onConfirm with the original version.
+func PromptForInstallVersionName(installDir, version string, w fyne.Window, onConfirm func(newVersion string)) {
+	if version == "" {
+		onConfirm(version)
+		return
+	}
+
+	basePath := filepath.Join(installDir, version)
+	if _, err := os.Stat(basePath); os.IsNotExist(err) {
+		onConfirm(version)
+		return
+	}
+
+	baseVersion, currentBuild := ParseVersionWithBuild(version)
+	suggestedBuild := ResolveCollisionForBuild(installDir, baseVersion, currentBuild)
+
+	buildEntry := widget.NewEntry()
+	buildEntry.SetPlaceHolder("e.g., test, backup, 1, myversion")
+	buildEntry.SetText(suggestedBuild)
+
+	message := widget.NewLabel("This version name already exists. Please enter a new build identifier to install this copy.")
+	message.Wrapping = fyne.TextWrapWord
+
+	label := widget.NewLabel("New Name")
+	entryContainer := container.NewGridWrap(fyne.NewSize(300, 35), buildEntry)
+	formRow := container.NewHBox(label, entryContainer)
+
+	noteLabel := widget.NewLabel("Note: Spaces become dots, only ASCII alphanumerics allowed")
+	noteLabel.TextStyle = fyne.TextStyle{Italic: true}
+
+	content := container.NewVBox(
+		message,
+		formRow,
+		noteLabel,
+	)
+
+	var d dialog.Dialog
+	confirm := func() {
+		newBuild := SanitizeVersionBuild(buildEntry.Text)
+		if newBuild == "" {
+			dialog.ShowError(fmt.Errorf("new name cannot be empty"), w)
+			return
+		}
+
+		testVersion := fmt.Sprintf("%s+%s", baseVersion, newBuild)
+		if _, err := semver.NewVersion(testVersion); err != nil {
+			dialog.ShowError(fmt.Errorf("invalid build identifier '%s': %w", newBuild, err), w)
+			return
+		}
+
+		if _, err := os.Stat(filepath.Join(installDir, testVersion)); err == nil {
+			dialog.ShowError(fmt.Errorf("version %s already exists", testVersion), w)
+			return
+		}
+
+		if d != nil {
+			d.Hide()
+		}
+		onConfirm(testVersion)
+	}
+
+	buildEntry.OnSubmitted = func(text string) {
+		confirm()
+	}
+
+	d = dialog.NewCustomConfirm("Rename Version", "Continue", "Cancel", content, func(ok bool) {
+		if !ok {
+			return
+		}
+		confirm()
+	}, w)
+	d.Show()
+	w.Canvas().Focus(buildEntry)
+}
+
+// startTimedProgress updates the progress bar from start to end over the given duration.
+// It returns a stop function to halt updates when the task completes early.
+func startTimedProgress(bar *widget.ProgressBar, start, end float64, duration time.Duration) func() {
+	if bar == nil {
+		return func() {}
+	}
+	if end < start {
+		end = start
+	}
+	startTime := time.Now()
+	ticker := time.NewTicker(200 * time.Millisecond)
+	done := make(chan struct{})
+
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				elapsed := time.Since(startTime)
+				frac := float64(elapsed) / float64(duration)
+				if frac > 1 {
+					frac = 1
+				}
+				value := start + (end-start)*frac
+				bar.SetValue(value)
+				if frac >= 1 {
+					return
+				}
+			}
+		}
+	}()
+
+	return func() {
+		select {
+		case <-done:
+			return
+		default:
+			close(done)
+		}
+	}
 }
 
 // FindNextUniqueVersionName finds the next unique version name by adding +1, +2, +3, etc.

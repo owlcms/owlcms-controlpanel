@@ -7,6 +7,8 @@ This is a control panel for owlcms.  It is meant to:
 The control panel is installed once. It will automatically download the current version of owlcms and the correct version of Java when used for the first time.
 
 ### Change Log
+- 3.0.1-rc04: Installing a version when there is already one with the same number prompts for a rename
+- 3.0.1-rc04: Progress bar during duplication
 - 3.0.1-rc03: Adjust release unzip progress bar for tracker unzip
 - 3.0.1-rc02: Restore compatibility with macOS 13 and 14
 - 3.0.1-rc01: Fixed false "You are not connected to the internet" messages

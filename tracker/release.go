@@ -205,16 +205,18 @@ func confirmAndDownloadVersion(version string, w fyne.Window) {
 		fmt.Sprintf("Do you want to download and install Tracker version %s?", version),
 		func(confirm bool) {
 			if confirm {
-				downloadAndInstallVersion(version, w)
+				shared.PromptForInstallVersionName(installDir, version, w, func(newVersion string) {
+					downloadAndInstallVersion(version, newVersion, w)
+				})
 			}
 		}, w)
 }
 
-func downloadAndInstallVersion(version string, w fyne.Window) {
+func downloadAndInstallVersion(downloadVersion, installVersion string, w fyne.Window) {
 	// Create a progress dialog
 	progressBar := widget.NewProgressBar()
 	progressBar.SetValue(0.01)
-	messageLabel := widget.NewLabel(fmt.Sprintf("Preparing to download Tracker %s...", version))
+	messageLabel := widget.NewLabel(fmt.Sprintf("Preparing to download Tracker %s...", downloadVersion))
 	content := container.NewVBox(messageLabel, progressBar)
 	progressDialog := dialog.NewCustom(
 		"Installing Tracker",
@@ -224,12 +226,12 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 	progressDialog.Show()
 
 	// Try device-independent name first, then old platform-specific names for backward compatibility
-	assetNames := getAssetNames(version)
+	assetNames := getAssetNames(downloadVersion)
 	var zipURL, assetName string
 
 	// Check each asset name in order until we find one that exists
 	for _, name := range assetNames {
-		testURL := fmt.Sprintf("https://github.com/owlcms/owlcms-tracker/releases/download/%s/%s", version, name)
+		testURL := fmt.Sprintf("https://github.com/owlcms/owlcms-tracker/releases/download/%s/%s", downloadVersion, name)
 		if checkAssetExists(testURL) {
 			zipURL = testURL
 			assetName = name
@@ -240,7 +242,7 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 	if zipURL == "" {
 		// None of the expected assets exist - fail immediately
 		progressDialog.Hide()
-		dialog.ShowError(fmt.Errorf("no tracker release asset found for version %s (tried: %v)", version, assetNames), w)
+		dialog.ShowError(fmt.Errorf("no tracker release asset found for version %s (tried: %v)", downloadVersion, assetNames), w)
 		return
 	}
 
@@ -255,11 +257,11 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 	}
 
 	zipPath := filepath.Join(trackerDir, assetName)
-	extractPath := filepath.Join(trackerDir, version)
+	extractPath := filepath.Join(trackerDir, installVersion)
 
 	go func() {
 		log.Printf("Starting download from URL: %s\n", zipURL)
-		messageLabel.SetText(fmt.Sprintf("Downloading Tracker %s...", version))
+		messageLabel.SetText(fmt.Sprintf("Downloading Tracker %s...", downloadVersion))
 		messageLabel.Refresh()
 
 		progressCallback := func(downloaded, total int64) {
@@ -301,7 +303,7 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 			"Successfully installed Tracker version %s\n\n"+
 				"Location: %s\n\n"+
 				"The program files have been extracted to the above directory.",
-			version, extractPath)
+			installVersion, extractPath)
 
 		dialog.ShowInformation("Installation Complete", message, w)
 		HideDownloadables()

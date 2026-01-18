@@ -171,67 +171,69 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 					return
 				}
 
-				// Show progress dialog with progress bar
-				cancel := make(chan bool)
-				progressDialog, progressBar := customdialog.NewDownloadDialog(
-					"Installing owlcms-firmata",
-					w,
-					cancel)
-				progressDialog.Show()
+				shared.PromptForInstallVersionName(installDir, version, w, func(installVersion string) {
+					// Show progress dialog with progress bar
+					cancel := make(chan bool)
+					progressDialog, progressBar := customdialog.NewDownloadDialog(
+						"Installing owlcms-firmata",
+						w,
+						cancel)
+					progressDialog.Show()
 
-				go func() {
-					extractPath := filepath.Join(owlcmsDir, version)
-					if err := shared.EnsureDir0755(extractPath); err != nil {
-						progressDialog.Hide()
-						dialog.ShowError(fmt.Errorf("creating firmata version directory: %w", err), w)
-						return
-					}
-					extractPath = filepath.Join(extractPath, fileName)
-
-					// Download the file using downloadutils with progress tracking
-					log.Printf("Starting download from URL: %s\n", zipURL)
-					progressCallback := func(downloaded, total int64) {
-						if total > 0 {
-							percentage := float64(downloaded) / float64(total)
-							progressBar.SetValue(percentage)
-						}
-					}
-					err := shared.DownloadArchive(zipURL, extractPath, progressCallback, cancel)
-					if err != nil {
-						progressDialog.Hide()
-						if err.Error() == "download cancelled" {
+					go func() {
+						extractPath := filepath.Join(owlcmsDir, installVersion)
+						if err := shared.EnsureDir0755(extractPath); err != nil {
+							progressDialog.Hide()
+							dialog.ShowError(fmt.Errorf("creating firmata version directory: %w", err), w)
 							return
 						}
-						dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
-						return
-					}
+						extractPath = filepath.Join(extractPath, fileName)
 
-					// Log when extraction is done
-					log.Println("Extraction completed")
+						// Download the file using downloadutils with progress tracking
+						log.Printf("Starting download from URL: %s\n", zipURL)
+						progressCallback := func(downloaded, total int64) {
+							if total > 0 {
+								percentage := float64(downloaded) / float64(total)
+								progressBar.SetValue(percentage)
+							}
+						}
+						err := shared.DownloadArchive(zipURL, extractPath, progressCallback, cancel)
+						if err != nil {
+							progressDialog.Hide()
+							if err.Error() == "download cancelled" {
+								return
+							}
+							dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
+							return
+						}
 
-					// Log before closing the dialog
-					log.Println("Closing progress dialog")
+						// Log when extraction is done
+						log.Println("Extraction completed")
 
-					// Hide progress dialog
-					progressDialog.Hide()
+						// Log before closing the dialog
+						log.Println("Closing progress dialog")
 
-					// Show success panel with installation details
-					message := fmt.Sprintf(
-						"Successfully installed owlcms-firmata version %s\n\n"+
-							"Location: %s\n\n"+
-							"The program files have been extracted to the above directory.",
-						selected, extractPath)
+						// Hide progress dialog
+						progressDialog.Hide()
 
-					dialog.ShowInformation("Installation Complete", message, w)
-					HideDownloadables()
+						// Show success panel with installation details
+						message := fmt.Sprintf(
+							"Successfully installed owlcms-firmata version %s\n\n"+
+								"Location: %s\n\n"+
+								"The program files have been extracted to the above directory.",
+							installVersion, extractPath)
 
-					// Recompute the version list
-					recomputeVersionList(w)
+						dialog.ShowInformation("Installation Complete", message, w)
+						HideDownloadables()
 
-					// Recompute the downloadTitle
-					latestInstalled = findLatestInstalled()
-					checkForNewerVersion()
-				}()
+						// Recompute the version list
+						recomputeVersionList(w)
+
+						// Recompute the downloadTitle
+						latestInstalled = findLatestInstalled()
+						checkForNewerVersion()
+					}()
+				})
 			},
 			w)
 	})

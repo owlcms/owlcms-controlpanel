@@ -193,12 +193,16 @@ func createImportButton(versions []string, version string, w fyne.Window, button
 	importButton.OnTapped = func() {
 		sourceVersions := filterVersions(versions, version)
 		sourceVersionDropdown := widget.NewSelect(sourceVersions, func(selected string) {})
-		dialog.ShowForm("Import Data and Config",
+
+		label := widget.NewLabel("Copy the data and configurations from a previous installation")
+		label.Wrapping = fyne.TextWrapWord
+		selectContainer := container.NewGridWrap(fyne.NewSize(420, 35), sourceVersionDropdown)
+		content := container.NewVBox(label, selectContainer)
+
+		d := dialog.NewCustomConfirm("Import Data and Config",
 			"Import",
 			"Cancel",
-			[]*widget.FormItem{
-				widget.NewFormItem("Copy the data and configurations from a previous installation", sourceVersionDropdown),
-			},
+			content,
 			func(ok bool) {
 				if !ok {
 					return
@@ -226,6 +230,7 @@ func createImportButton(versions []string, version string, w fyne.Window, button
 				dialog.ShowInformation("Import Complete", fmt.Sprintf("Successfully imported data and config from version %s to version %s", sourceVersion, version), w)
 			},
 			w)
+		d.Show()
 	}
 	buttonContainer.Add(container.NewPadded(importButton))
 }

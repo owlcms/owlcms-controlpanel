@@ -142,15 +142,15 @@ func populateReleaseSelect(selectWidget *widget.Select) {
 	selectWidget.Refresh()
 }
 
-func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownload bool) {
+func downloadReleaseWithProgress(downloadVersion, installVersion string, w fyne.Window, isInitialDownload bool) {
 	var urlPrefix string
-	if containsPreReleaseTag(version) {
+	if containsPreReleaseTag(downloadVersion) {
 		urlPrefix = "https://github.com/owlcms/owlcms4-prerelease/releases/download"
 	} else {
 		urlPrefix = "https://github.com/owlcms/owlcms4/releases/download"
 	}
-	fileName := fmt.Sprintf("owlcms_%s.zip", version)
-	zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, version, fileName)
+	fileName := fmt.Sprintf("owlcms_%s.zip", downloadVersion)
+	zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, downloadVersion, fileName)
 
 	owlcmsDir := installDir
 	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
@@ -161,10 +161,10 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 	}
 
 	zipPath := filepath.Join(owlcmsDir, fileName)
-	extractPath := filepath.Join(owlcmsDir, version)
+	extractPath := filepath.Join(owlcmsDir, installVersion)
 
 	progressBar := widget.NewProgressBar()
-	messageLabel := widget.NewLabel(fmt.Sprintf("Downloading OWLCMS %s...", version))
+	messageLabel := widget.NewLabel(fmt.Sprintf("Downloading OWLCMS %s...", downloadVersion))
 	progressContent := container.NewVBox(messageLabel, progressBar)
 	progressDialog := dialog.NewCustom(
 		"Installing OWLCMS",
@@ -189,7 +189,7 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 			if total > 0 {
 				progress := float64(downloaded) / float64(total)
 				progressBar.SetValue(progress)
-				messageLabel.SetText(fmt.Sprintf("Downloading OWLCMS %s... %.1f%%", version, progress*100))
+				messageLabel.SetText(fmt.Sprintf("Downloading OWLCMS %s... %.1f%%", downloadVersion, progress*100))
 				messageLabel.Refresh()
 			}
 		}
@@ -209,7 +209,15 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 		err = shared.ExtractZip(zipPath, extractPath)
 		log.Printf("ExtractZip returned, err=%v", err)
 		if err != nil {
-			log.Printf("Extraction warning (continuing install): %v", err)
+			dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
+			done <- false
+			return
+		}
+
+		if err := normalizeExtractedDir(extractPath); err != nil {
+			dialog.ShowError(fmt.Errorf("failed to finalize install directory: %w", err), w)
+			done <- false
+			return
 		}
 
 		if err := os.Remove(zipPath); err != nil {
@@ -220,9 +228,9 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 			"Successfully installed OWLCMS version %s\n\n"+
 				"Location: %s\n\n"+
 				"The program files have been extracted to the above directory.",
-			version, extractPath)
+			installVersion, extractPath)
 
-		log.Printf("Download and extraction complete for version %s, showing dialog", version)
+		log.Printf("Download and extraction complete for version %s, showing dialog", installVersion)
 		dialog.ShowInformation("Installation Complete", message, w)
 
 		_ = isInitialDownload // keep parameter stable even if caller distinguishes paths
@@ -235,6 +243,48 @@ func downloadReleaseWithProgress(version string, w fyne.Window, isInitialDownloa
 	}()
 
 	<-done
+}
+
+// normalizeExtractedDir flattens a single top-level directory if the archive contained one.
+// This keeps the install directory consistent even when installing under a renamed folder.
+func normalizeExtractedDir(extractPath string) error {
+	entries, err := os.ReadDir(extractPath)
+	if err != nil {
+		return err
+	}
+
+	var subdirs []os.DirEntry
+	for _, entry := range entries {
+		if entry.IsDir() {
+			subdirs = append(subdirs, entry)
+			continue
+		}
+		// If any file exists at the top level, assume layout is already correct.
+		return nil
+	}
+
+	if len(subdirs) != 1 {
+		return nil
+	}
+
+	childPath := filepath.Join(extractPath, subdirs[0].Name())
+	childEntries, err := os.ReadDir(childPath)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range childEntries {
+		src := filepath.Join(childPath, entry.Name())
+		dst := filepath.Join(extractPath, entry.Name())
+		if _, statErr := os.Stat(dst); statErr == nil {
+			return fmt.Errorf("destination already exists: %s", dst)
+		}
+		if err := os.Rename(src, dst); err != nil {
+			return err
+		}
+	}
+
+	return os.Remove(childPath)
 }
 
 // GetReleaseTagURL returns the GitHub releases/tag URL for the given version string,
@@ -251,7 +301,9 @@ func confirmAndDownloadVersion(version string, w fyne.Window) {
 		fmt.Sprintf("Do you want to download and install OWLCMS version %s?", version),
 		func(ok bool) {
 			if ok {
-				downloadReleaseWithProgress(version, w, false)
+				shared.PromptForInstallVersionName(installDir, version, w, func(newVersion string) {
+					downloadReleaseWithProgress(version, newVersion, w, false)
+				})
 			}
 		},
 		w)
