@@ -67,6 +67,30 @@ func getAllInstalledVersions() []string {
 	return versionStrings
 }
 
+func shouldShowOwlcmsVersionWarning() bool {
+	owlcmsDir := shared.GetOwlcmsInstallDir()
+	entries, err := os.ReadDir(owlcmsDir)
+	if err != nil {
+		return false
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		// Use semver parsing, but only enforce major version >= 64.
+		v, err := semver.NewVersion(entry.Name())
+		if err != nil {
+			continue
+		}
+		if v.Major() < 64 {
+			return true
+		}
+	}
+
+	return false
+}
+
 func findLatestStableInstalledVersion() string {
 	var latestStable *semver.Version
 	for _, dir := range getAllInstalledVersions() {
@@ -531,7 +555,16 @@ func recomputeVersionList(w fyne.Window) {
 
 	spacer := canvas.NewRectangle(color.Transparent)
 	spacer.SetMinSize(fyne.NewSize(1, 8))
-	content := container.NewVBox(spacer, center)
+	contentObjects := []fyne.CanvasObject{spacer}
+	if shouldShowOwlcmsVersionWarning() {
+		warningLabel := widget.NewLabelWithStyle("Reminder: Tracker requires version 64 of OWLCMS to work", fyne.TextAlignLeading, fyne.TextStyle{Bold: true})
+		warningLabel.Wrapping = fyne.TextWrapWord
+		warningSpacer := canvas.NewRectangle(color.Transparent)
+		warningSpacer.SetMinSize(fyne.NewSize(1, 6))
+		contentObjects = append(contentObjects, warningLabel, warningSpacer)
+	}
+	contentObjects = append(contentObjects, center)
+	content := container.NewVBox(contentObjects...)
 
 	versionContainer.Objects = nil
 	versionContainer.Add(content)

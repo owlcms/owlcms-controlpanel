@@ -322,6 +322,13 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 
 func refreshAvailableVersions(w fyne.Window) {
 	go func() {
+		// Reset release-related state to mirror a fresh app start.
+		showPrereleases = false
+		allReleases = nil
+		if prereleaseCheckbox != nil {
+			prereleaseCheckbox.SetChecked(false)
+		}
+
 		releases, err := fetchReleases()
 		if err != nil {
 			dialog.ShowError(fmt.Errorf("failed to refresh available versions: %w", err), w)
@@ -329,8 +336,13 @@ func refreshAvailableVersions(w fyne.Window) {
 		}
 		allReleases = releases
 
-		// Re-apply the correct mode so the version list and download section stay in sync.
-		setOwlcmsTabMode(w)
+		// Rebuild the download UI as if the app just started.
+		setupReleaseDropdown(w)
+		recomputeVersionList(w)
+		checkForNewerVersion()
+		if downloadContainer != nil {
+			downloadContainer.Refresh()
+		}
 	}()
 }
 

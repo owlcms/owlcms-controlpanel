@@ -104,3 +104,19 @@ func OpenFile(filePath string) error {
 
 	return nil
 }
+
+// GetOwlcmsInstallDir returns the OWLCMS installation directory for the current platform.
+// This is used by other packages (like tracker) that need to check OWLCMS versions
+// without creating an import cycle.
+func GetOwlcmsInstallDir() string {
+	switch GetGoos() {
+	case "windows":
+		return os.Getenv("APPDATA") + string(os.PathSeparator) + "owlcms"
+	case "darwin":
+		return os.Getenv("HOME") + "/Library/Application Support/owlcms"
+	case "linux":
+		return os.Getenv("HOME") + "/.local/share/owlcms"
+	default:
+		return "./owlcms"
+	}
+}

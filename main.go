@@ -107,6 +107,13 @@ func main() {
 		container.NewTabItem("Arduino Devices", firmataTabContent),
 	)
 
+	// Refresh tracker version list when its tab is selected (to update OWLCMS version warning)
+	mainContent.OnSelected = func(tab *container.TabItem) {
+		if tab.Text == "Tracker" {
+			tracker.OnTabSelected()
+		}
+	}
+
 	w.SetContent(mainContent)
 
 	// Setup menus

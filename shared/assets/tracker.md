@@ -4,6 +4,9 @@ Note: This is an optional module.
 
 [owlcms-tracker](https://github.com/jflamy/owlcms-tracker?tab=readme-ov-file#owlcms-tracker) is a complement to OWLCMS
 that listens to every event in the competition.
+
+## NOTE: owlcms-tracker requires version 64 of OWLCMS to work.
+
 #####
 When run locally from this control panel, it is used
 - to provide customized scoreboards, in particular for team league competitions

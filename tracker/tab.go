@@ -44,6 +44,14 @@ func IsRunning() bool {
 	return currentProcess != nil
 }
 
+// OnTabSelected is called when the Tracker tab is selected.
+// It refreshes the version list to update the OWLCMS version warning.
+func OnTabSelected() {
+	if mainWindow != nil && versionContainer != nil && len(getAllInstalledVersions()) > 0 {
+		recomputeVersionList(mainWindow)
+	}
+}
+
 // StopRunningProcess stops the running Tracker process
 func StopRunningProcess(w fyne.Window) {
 	if currentProcess != nil && currentProcess.Process != nil {

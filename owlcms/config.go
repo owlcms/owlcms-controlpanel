@@ -22,7 +22,7 @@ import (
 
 var (
 	environment *properties.Properties
-	installDir  = getInstallDir()
+	installDir  = shared.GetOwlcmsInstallDir()
 )
 
 // GetLauncherVersion returns the current launcher version
@@ -88,19 +88,6 @@ func GetInstallDir() string {
 // GetEnvironment returns the environment properties
 func GetEnvironment() *properties.Properties {
 	return environment
-}
-
-func getInstallDir() string {
-	switch shared.GetGoos() {
-	case "windows":
-		return filepath.Join(os.Getenv("APPDATA"), "owlcms")
-	case "darwin":
-		return filepath.Join(os.Getenv("HOME"), "Library", "Application Support", "owlcms")
-	case "linux":
-		return filepath.Join(os.Getenv("HOME"), ".local", "share", "owlcms")
-	default:
-		return "./owlcms"
-	}
 }
 
 // InitEnv initializes the environment properties from env.properties
