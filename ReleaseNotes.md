@@ -6,17 +6,17 @@ This is a control panel for owlcms.  It is meant to:
 
 The control panel is installed once. It will automatically download the current version of owlcms and the correct version of Java when used for the first time.
 
-### Change Log
-- 3.0.1-rc04: Installing a version when there is already one with the same number prompts for a rename
-- 3.0.1-rc04: Progress bar during duplication
-- 3.0.1-rc03: Adjust release unzip progress bar for tracker unzip
-- 3.0.1-rc02: Restore compatibility with macOS 13 and 14
-- 3.0.1-rc01: Fixed false "You are not connected to the internet" messages
-- 3.0.1-rc01: Added capability to install Tracker packages from zip, for custom plugins
-- 3.0.0-rc12: zip package is now device-independent
-- 3.0.0-rc11: Fix the semantic version value of the control panel sent to launched programs
-- 3.0.0-rc09: Show a dialog if "OWLCMS Ready" does not show up before 60 seconds with a link to the logs.
-- 3.0.0-rc09: Added "Duplicate" and "Rename" functions to make copies of an application
+### New in Version 3.0.1
+-  Installing a version when there is already one with the same number prompts for a rename
+-  Progress bar during duplication
+-  Adjust release unzip progress bar for tracker unzip
+-  Restore compatibility with macOS 13 and 14
+-  Fixed false "You are not connected to the internet" messages
+-  Added capability to install Tracker packages from zip, for custom plugins
+-  zip package is now device-independent
+-  Fix the semantic version value of the control panel sent to launched programs
+-  Show a dialog if "OWLCMS Ready" does not show up before 60 seconds with a link to the logs.
+-  Added "Duplicate" and "Rename" functions to make copies of an application
 
 ### New in version 3.0
 - Control owlcms, owlcms-tracker and owlcms-firmata from the same control panel
