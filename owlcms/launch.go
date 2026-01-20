@@ -71,9 +71,7 @@ func configureTailLogLink(version, appDir string) {
 			}
 		case "darwin":
 			// Open Terminal and run tail
-			p := strings.ReplaceAll(logPath, "\\", "\\\\")
-			p = strings.ReplaceAll(p, "\"", "\\\"")
-			script := fmt.Sprintf(`tell application "Terminal" to do script "tail -n 10 -f \\\"%s\\\""`, p)
+			script := fmt.Sprintf(`tell application "Terminal" to do script "tail -n 10 -f %s"`, bashSingleQuote(logPath))
 			if err := exec.Command("osascript", "-e", script, "-e", `tell application "Terminal" to activate`).Start(); err != nil {
 				log.Printf("Failed to start Terminal tail: %v", err)
 				if statusLabel != nil {

@@ -94,7 +94,7 @@ func CreateTab(w fyne.Window, app fyne.App) *fyne.Container {
 	releaseNotesLink.Hide()
 
 	// Initialize install hyperlink for available version
-	installAvailableLink = widget.NewHyperlink("install as new version", nil)
+	installAvailableLink = widget.NewHyperlink("Install as new version", nil)
 	installAvailableLink.OnTapped = func() {
 		if availableVersion != "" {
 			confirmAndDownloadVersion(availableVersion, mainWindow)
@@ -412,9 +412,10 @@ func setOwlcmsTabModeUninstalled(w fyne.Window) {
 // It MUST show BOTH the version list and the download section.
 func setOwlcmsTabModeInstalled(w fyne.Window) {
 	showSelectionLayout()
-	// Recompute list + download section contents first.
-	recomputeVersionList(w)
+	// Fetch releases first so update buttons can be computed
 	setupReleaseDropdown(w)
+	// Now recompute list with release info available
+	recomputeVersionList(w)
 	checkForNewerVersion()
 
 	if stopButton != nil {
@@ -539,11 +540,7 @@ func checkForNewerVersion() {
 			// Show install link
 			installAvailableLink.Show()
 
-			messageBox := container.NewHBox(
-				widget.NewLabel(fmt.Sprintf("A more recent %s version %s is available.", versionType, releaseVersion)),
-				releaseNotesLink,
-				installAvailableLink,
-			)
+			messageBox := shared.CreateUpdateNotification(versionType, releaseVersion.String(), installAvailableLink, releaseNotesLink)
 			updateTitleContainer.Objects = []fyne.CanvasObject{messageBox}
 			updateTitleContainer.Refresh()
 			updateTitleContainer.Show()
@@ -563,7 +560,7 @@ func checkForNewerVersion() {
 	log.Printf("OWLCMS:updateTitle - latestInstalled=%q installedVersions=%v", latestInstalled, getAllInstalledVersions())
 
 	messageBox := container.NewHBox(
-		widget.NewLabel(fmt.Sprintf("You are using %s version %s", func() string {
+		widget.NewLabel(fmt.Sprintf("The latest %s version %s is installed.", func() string {
 			if containsPreReleaseTag(latestInstalled) {
 				return "prerelease"
 			}

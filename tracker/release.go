@@ -427,7 +427,7 @@ func checkForNewerVersion() {
 					releaseNotesLink := widget.NewHyperlink("Release Notes", parsedURL)
 					// Ensure hyperlink visible for prerelease/stable announcement
 					releaseNotesLink.Show()
-					installLink := widget.NewHyperlink("install as additional version", nil)
+					installLink := widget.NewHyperlink("Install as additional version", nil)
 					installLink.OnTapped = func() {
 						versionToInstall := release
 						if versionToInstall == "" {
@@ -436,11 +436,7 @@ func checkForNewerVersion() {
 						confirmAndDownloadVersion(versionToInstall, mainWindow)
 					}
 
-					messageBox := container.NewHBox(
-						widget.NewLabel(fmt.Sprintf("A more recent %s version %s is available.", versionType, releaseVersion)),
-						releaseNotesLink,
-						installLink,
-					)
+					messageBox := shared.CreateUpdateNotification(versionType, releaseVersion.String(), installLink, releaseNotesLink)
 					updateTitleContainer.Objects = []fyne.CanvasObject{messageBox}
 					updateTitleContainer.Refresh()
 					updateTitleContainer.Show()
@@ -457,7 +453,7 @@ func checkForNewerVersion() {
 			// Log what we think is installed for debugging
 			log.Printf("Tracker:updateTitle - latestInstalled=%q installedVersions=%v", latestInstalled, getAllInstalledVersions())
 			messageBox := container.NewHBox(
-				widget.NewLabel(fmt.Sprintf("You are using %s version %s", func() string {
+				widget.NewLabel(fmt.Sprintf("The latest %s version %s is installed.", func() string {
 					if containsPreReleaseTag(latestInstalled) {
 						return "prerelease"
 					}

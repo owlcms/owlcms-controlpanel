@@ -81,7 +81,7 @@ func FindLocalJavaForVersion(temurinVersion string, goosFunc func() string) (str
 	// Scan all Java installations in the control panel
 	controlPanelDir := GetControlPanelInstallDir()
 	javaBaseDir := filepath.Join(controlPanelDir, "java")
-	
+
 	if _, err := os.Stat(javaBaseDir); err != nil {
 		log.Printf("*** Java base directory not found: %v\n", err)
 		return "", fmt.Errorf("java base directory not found at %s", javaBaseDir)
@@ -115,9 +115,9 @@ func FindLocalJavaForVersion(temurinVersion string, goosFunc func() string) (str
 		if !versionDir.IsDir() {
 			continue
 		}
-		
+
 		versionPath := filepath.Join(javaBaseDir, versionDir.Name())
-		
+
 		// Look for JDK directories inside this version directory
 		entries, err := os.ReadDir(versionPath)
 		if err != nil {
@@ -171,7 +171,7 @@ func FindLocalJavaForVersion(temurinVersion string, goosFunc func() string) (str
 	// Find the best match: highest version that meets minimum requirement
 	for _, install := range installations {
 		if requiredMajor == 0 || install.majorVer >= requiredMajor {
-			log.Printf("*** Found suitable Java %s (major version %d, >= required %d) at: %s\n", 
+			log.Printf("*** Found suitable Java %s (major version %d, >= required %d) at: %s\n",
 				install.jdkDir, install.majorVer, requiredMajor, install.fullPath)
 			return install.fullPath, nil
 		}

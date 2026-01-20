@@ -164,6 +164,6 @@ func CheckForUpdates(win fyne.Window) {
 		)
 		dialog.ShowCustom("Update Available", "Close", content, win)
 	} else {
-		dialog.ShowInformation("No Updates", "You are using the latest version.", win)
+		dialog.ShowInformation("No Updates", "The latest version is installed.", win)
 	}
 }

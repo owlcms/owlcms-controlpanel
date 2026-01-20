@@ -392,9 +392,10 @@ func setFirmataTabModeUninstalled(w fyne.Window) {
 
 // setFirmataTabModeInstalled shows the version list and download section.
 func setFirmataTabModeInstalled(w fyne.Window) {
-	// Recompute list + download section contents.
-	recomputeVersionList(w)
+	// Fetch releases first so update buttons can be computed
 	setupReleaseDropdown(w)
+	// Now recompute list with release info available
+	recomputeVersionList(w)
 	checkForNewerVersion()
 
 	if stopButton != nil {
@@ -540,11 +541,8 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 		dialog.ShowInformation("Installation Complete", message, w)
 		HideDownloadables()
 
-		// Recompute the version list
-		recomputeVersionList(w)
-
-		// Recompute the downloadTitle
-		checkForNewerVersion()
+		// Refresh the tab mode to show the download section properly
+		setFirmataTabMode(w)
 	}()
 }
 
@@ -588,7 +586,7 @@ func checkForNewerVersion() {
 					releaseNotesLink := widget.NewHyperlink("Release Notes", parsedURL)
 					// Ensure hyperlink visible for prerelease/stable announcement
 					releaseNotesLink.Show()
-					installLink := widget.NewHyperlink("install as additional version", nil)
+					installLink := widget.NewHyperlink("Install as additional version", nil)
 					installLink.OnTapped = func() {
 						if versionToInstall == "" {
 							return
@@ -606,11 +604,7 @@ func checkForNewerVersion() {
 						)
 					}
 
-					messageBox := container.NewHBox(
-						widget.NewLabel(fmt.Sprintf("A more recent %s version %s is available.", versionType, releaseVersion)),
-						releaseNotesLink,
-						installLink,
-					)
+					messageBox := shared.CreateUpdateNotification(versionType, releaseVersion.String(), installLink, releaseNotesLink)
 					updateTitleContainer.Objects = []fyne.CanvasObject{messageBox}
 					updateTitleContainer.Refresh()
 					updateTitleContainer.Show()
@@ -627,7 +621,7 @@ func checkForNewerVersion() {
 			// Log what we think is installed for debugging
 			log.Printf("Firmata:updateTitle - latestInstalled=%q installedVersions=%v", latestInstalled, getAllInstalledVersions())
 			messageBox := container.NewHBox(
-				widget.NewLabel(fmt.Sprintf("You are using %s version %s", func() string {
+				widget.NewLabel(fmt.Sprintf("The latest %s version %s is installed.", func() string {
 					if containsPreReleaseTag(latestInstalled) {
 						return "prerelease"
 					}

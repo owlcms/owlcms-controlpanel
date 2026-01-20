@@ -94,7 +94,7 @@ func main() {
 	a := app.NewWithID("app.owlcms.owlcms-launcher")
 	a.Settings().SetTheme(newMyTheme())
 	w := a.NewWindow("OWLCMS Control Panel")
-	w.Resize(fyne.NewSize(900, 600))
+	w.Resize(fyne.NewSize(950, 600))
 
 	// Create tab contents - owlcms.CreateTab handles its own initialization
 	owlcmsTabContent := owlcms.CreateTab(w, a)

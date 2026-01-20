@@ -362,9 +362,9 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 		)
 		dialog.ShowCustom("Update Available", "Close", content, win)
 	} else {
-		log.Println("No updates available - you are using the latest version")
+		log.Println("No updates available - the latest version is installed.")
 		if showConfirmation {
-			dialog.ShowInformation("No Updates", fmt.Sprintf("You are using the latest version (%s)", shared.GetLauncherVersion()), win)
+			dialog.ShowInformation("No Updates", fmt.Sprintf("The latest version is installed (%s)", shared.GetLauncherVersion()), win)
 		}
 	}
 }

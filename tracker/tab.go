@@ -278,9 +278,10 @@ func setTrackerTabModeUninstalled(_ fyne.Window) {
 
 // setTrackerTabModeInstalled shows the version list and download section.
 func setTrackerTabModeInstalled(w fyne.Window) {
-	// Recompute list + download section contents.
-	recomputeVersionList(w)
+	// Fetch releases first so update buttons can be computed
 	setupReleaseDropdown(w)
+	// Now recompute list with release info available
+	recomputeVersionList(w)
 	checkForNewerVersion()
 
 	if stopButton != nil {

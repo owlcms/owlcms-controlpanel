@@ -226,12 +226,8 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 						dialog.ShowInformation("Installation Complete", message, w)
 						HideDownloadables()
 
-						// Recompute the version list
-						recomputeVersionList(w)
-
-						// Recompute the downloadTitle
-						latestInstalled = findLatestInstalled()
-						checkForNewerVersion()
+						// Refresh the tab mode to show the download section properly
+						setFirmataTabMode(w)
 					}()
 				})
 			},
