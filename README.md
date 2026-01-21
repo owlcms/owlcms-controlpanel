@@ -1,20 +1,22 @@
-## Portable Control Panel for owlcms Server
+## Control Panel for OWLCMS and Associated Modules
 
-This provides a small compiled binary to launch owlcms, providing the same user experience on all platforms. The program allows
+The control panel is used to launch the OWLCMS competition software at the competition site,
+as well as the optional complementary modules owlcms-tracker and owlcms-firmata.  The jury
+replay modules will be added in a future release.
 
-- easy updating from a version to the current one
-- launching the program (downloading Java if needed)
-- having several versions at once and copying configurations and data
+For all modules, it allows
+
+- initial installation of the sofware, downloading any prerequisites
+- launching the program
+- having several versions at once and copying configurations and data from one version to the other
 
 Currently supported: Windows, macOS, Raspberry Pi, Linux on Intel<br>
 
-![image](https://github.com/user-attachments/assets/ebd48d70-000c-496b-8c67-f43b222e711a)
+<img width="952" height="560" alt="image" src="https://github.com/user-attachments/assets/0bab83cc-71dc-4714-851a-6d9d33868e4b" />
 
 ### Usage
 1. go to the Releases page and download the installer or program for your type of computer
-3. If there is no version of owlcms installed, the latest one will be downloaded
-4. Click Launch to start owlcms
-   - This will create a folder called java17 the first time
-   - Starting the program takes 10 to 20 seconds depending on your laptop, the time it takes to read in and process the various configuration files and read in the database
+2. You will then be able to download the modules you need for that computer.
+3. Click Launch to start the modules you need
 5. You can hide the window until you need to stop the program.
    - You can either use the Stop button or the stop icon (X or red dot) at the top of the program
