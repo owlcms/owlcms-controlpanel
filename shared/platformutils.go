@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 )
@@ -63,13 +64,20 @@ func OpenBrowser(url string) error {
 func OpenFileExplorer(path string) error {
 	var cmd *exec.Cmd
 
+	// Ensure path is absolute and clean
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		absPath = path
+	}
+	log.Printf("OpenFileExplorer: opening path %s\n", absPath)
+
 	switch runtime.GOOS {
 	case "windows":
-		cmd = exec.Command("explorer", path)
+		cmd = exec.Command("explorer", absPath)
 	case "darwin":
-		cmd = exec.Command("open", path)
+		cmd = exec.Command("open", absPath)
 	case "linux":
-		cmd = exec.Command("xdg-open", path)
+		cmd = exec.Command("xdg-open", absPath)
 	default:
 		return fmt.Errorf("unsupported operating system: %s", runtime.GOOS)
 	}
