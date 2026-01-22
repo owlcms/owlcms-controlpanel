@@ -6,6 +6,10 @@ This is a control panel for owlcms.  It is meant to:
 
 The control panel is installed once. It will automatically download the current version of owlcms and the correct version of Java when used for the first time.
 
+## New in version 3.0.2
+- Factually accurate progress bar for the long unzip in tracker
+- Correctly deal with opening folders that have a + in their name
+
 ### New in Version 3.0.1
 -  Installing a version when there is already one with the same number prompts for a rename
 -  Progress bar during duplication
