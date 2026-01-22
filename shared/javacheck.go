@@ -245,16 +245,17 @@ func FindLatestTemurinRelease(version string, userAgent string) (string, error) 
 // GetTemurinDownloadURL returns the download URL for a specific Temurin version
 // goosFunc should return the OS string (windows, darwin, linux)
 func GetTemurinDownloadURL(temurinVersion string, goosFunc func() string, userAgent string) (string, error) {
-	tag, err := FindLatestTemurinRelease(temurinVersion, userAgent)
+	url, err := FindTemurinDownloadURLFromRecentReleases(temurinVersion, goosFunc, userAgent, 10)
 	if err != nil {
-		log.Printf("Failed to get version number: %v", err)
-		return "", fmt.Errorf("failed to get version number: %w", err)
+		log.Printf("Failed to find download URL in recent releases: %v", err)
+		return "", err
 	}
+	return url, nil
+}
 
-	// Extract version number from tag (e.g., "jdk-17.0.13+11" -> "17.0.13_11")
-	version := strings.TrimPrefix(tag, "jdk-")
-	version = strings.ReplaceAll(version, "+", "_")
-
+// FindTemurinDownloadURLFromRecentReleases scans the most recent releases and returns
+// a matching JRE/JDK asset URL. It logs each asset name being inspected.
+func FindTemurinDownloadURLFromRecentReleases(temurinVersion string, goosFunc func() string, userAgent string, perPage int) (string, error) {
 	// Extract major version to determine which repo to use
 	majorVersion := 25 // Default
 	if temurinVersion != "" {
@@ -264,25 +265,23 @@ func GetTemurinDownloadURL(temurinVersion string, goosFunc func() string, userAg
 		}
 	}
 	repoName := fmt.Sprintf("temurin%d-binaries", majorVersion)
+	if perPage <= 0 {
+		perPage = 10
+	}
 
-	// Use the tag to get specific release
-	releaseURL := fmt.Sprintf("https://api.github.com/repos/adoptium/%s/releases/tags/%s", repoName, tag)
-
-	req, err := http.NewRequest("GET", releaseURL, nil)
+	listURL := fmt.Sprintf("https://api.github.com/repos/adoptium/%s/releases?per_page=%d&page=1", repoName, perPage)
+	req, err := http.NewRequest("GET", listURL, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
-
-	// Add headers required by GitHub API
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 	req.Header.Set("User-Agent", userAgent)
 
-	// Make the request
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Printf("Failed to fetch release: %v", err)
-		return "", fmt.Errorf("failed to fetch release: %w", err)
+		log.Printf("Failed to fetch releases list: %v", err)
+		return "", fmt.Errorf("failed to fetch releases list: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -291,61 +290,96 @@ func GetTemurinDownloadURL(temurinVersion string, goosFunc func() string, userAg
 		return "", fmt.Errorf("GitHub API returned status %d: %s\nBody: %s", resp.StatusCode, resp.Status, string(body))
 	}
 
-	var release TemurinRelease
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		log.Printf("Failed to parse release: %v", err)
-		return "", fmt.Errorf("failed to parse release: %w", err)
+	var releases []TemurinRelease
+	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
+		log.Printf("Failed to parse releases list: %v", err)
+		return "", fmt.Errorf("failed to parse releases list: %w", err)
 	}
 
-	// Print environment info for debugging
 	goos := goosFunc()
 	log.Printf("Running on: OS=%s, ARCH=%s, WSL=%v\n", goos, runtime.GOARCH, IsWSL())
 
-	// Always use Linux pattern for WSL/Linux, but with correct version
+	for _, release := range releases {
+		if release.TagName == "" {
+			continue
+		}
+		log.Printf("Checking release tag: %s\n", release.TagName)
+		version := strings.TrimPrefix(release.TagName, "jdk-")
+		version = strings.ReplaceAll(version, "+", "_")
+
+		pattern, fallbackPattern, err := buildTemurinAssetPatterns(majorVersion, version, goos)
+		if err != nil {
+			return "", err
+		}
+		log.Printf("Looking for asset: %s\n", pattern)
+
+		for _, asset := range release.Assets {
+			log.Printf("Checking asset: %s\n", asset.Name)
+			if asset.Name == pattern {
+				log.Printf("Found matching JRE: %s\n", asset.Name)
+				log.Printf("Matching JRE URL: %s\n", asset.BrowserDownloadURL)
+				return asset.BrowserDownloadURL, nil
+			}
+		}
+
+		if fallbackPattern != "" {
+			log.Printf("No matching JRE found, trying JDK asset: %s\n", fallbackPattern)
+			for _, asset := range release.Assets {
+				log.Printf("Checking asset: %s\n", asset.Name)
+				if asset.Name == fallbackPattern {
+					log.Printf("Found matching JDK: %s\n", asset.Name)
+					log.Printf("Matching JDK URL: %s\n", asset.BrowserDownloadURL)
+					return asset.BrowserDownloadURL, nil
+				}
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no matching JRE found in first %d releases", perPage)
+}
+
+func buildTemurinAssetPatterns(majorVersion int, version string, goos string) (string, string, error) {
 	var pattern string
+	var fallbackPattern string
 	openJDKPrefix := fmt.Sprintf("OpenJDK%dU", majorVersion)
 	if goos == "darwin" {
 		switch runtime.GOARCH {
 		case "amd64":
 			pattern = fmt.Sprintf("%s-jre_x64_mac_hotspot_%s.tar.gz", openJDKPrefix, version)
+			fallbackPattern = fmt.Sprintf("%s-jdk_x64_mac_hotspot_%s.tar.gz", openJDKPrefix, version)
 		case "arm64":
 			pattern = fmt.Sprintf("%s-jre_aarch64_mac_hotspot_%s.tar.gz", openJDKPrefix, version)
+			fallbackPattern = fmt.Sprintf("%s-jdk_aarch64_mac_hotspot_%s.tar.gz", openJDKPrefix, version)
 		default:
-			return "", fmt.Errorf("unsupported architecture: %s", runtime.GOARCH)
+			return "", "", fmt.Errorf("unsupported architecture: %s", runtime.GOARCH)
 		}
 	} else if IsWSL() || goos == "linux" {
 		switch runtime.GOARCH {
 		case "amd64":
 			pattern = fmt.Sprintf("%s-jre_x64_linux_hotspot_%s.tar.gz", openJDKPrefix, version)
+			fallbackPattern = fmt.Sprintf("%s-jdk_x64_linux_hotspot_%s.tar.gz", openJDKPrefix, version)
 		case "arm64":
 			pattern = fmt.Sprintf("%s-jre_aarch64_linux_hotspot_%s.tar.gz", openJDKPrefix, version)
+			fallbackPattern = fmt.Sprintf("%s-jdk_aarch64_linux_hotspot_%s.tar.gz", openJDKPrefix, version)
 		default:
-			return "", fmt.Errorf("unsupported architecture: %s", runtime.GOARCH)
+			return "", "", fmt.Errorf("unsupported architecture: %s", runtime.GOARCH)
 		}
 	} else if goos == "windows" {
 		switch runtime.GOARCH {
 		case "amd64":
 			pattern = fmt.Sprintf("%s-jre_x64_windows_hotspot_%s.zip", openJDKPrefix, version)
+			fallbackPattern = fmt.Sprintf("%s-jdk_x64_windows_hotspot_%s.zip", openJDKPrefix, version)
 		case "arm64":
 			pattern = fmt.Sprintf("%s-jre_aarch64_windows_hotspot_%s.zip", openJDKPrefix, version)
+			fallbackPattern = fmt.Sprintf("%s-jdk_aarch64_windows_hotspot_%s.zip", openJDKPrefix, version)
 		default:
-			return "", fmt.Errorf("unsupported architecture: %s", runtime.GOARCH)
+			return "", "", fmt.Errorf("unsupported architecture: %s", runtime.GOARCH)
 		}
 	} else {
-		return "", fmt.Errorf("unsupported OS: %s", goos)
+		return "", "", fmt.Errorf("unsupported OS: %s", goos)
 	}
 
-	log.Printf("Looking for asset: %s\n", pattern)
-
-	// Look for exact matching JRE asset
-	for _, asset := range release.Assets {
-		if asset.Name == pattern {
-			log.Printf("Found matching JRE: %s\n", asset.Name)
-			return asset.BrowserDownloadURL, nil
-		}
-	}
-
-	return "", fmt.Errorf("no matching JRE found (looking for %s)", pattern)
+	return pattern, fallbackPattern, nil
 }
 
 // FindSystemJava finds Java in the system (JAVA_HOME or PATH)
