@@ -235,6 +235,14 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 	}
 	defer os.Chdir(originalDir)
 
+	if err := EnsureReleaseEnvFromParent(version); err != nil {
+		statusLabel.SetText(fmt.Sprintf("Failed to initialize env.properties: %v", err))
+		launchButton.Show()
+		goBackToMainScreen()
+		releaseJavaLock()
+		return fmt.Errorf("failed to initialize env.properties: %w", err)
+	}
+
 	// Get version-specific Temurin version
 	temurinVersion := GetTemurinVersionForRelease(version)
 	localJava, err := javacheck.FindLocalJavaForVersion(temurinVersion)

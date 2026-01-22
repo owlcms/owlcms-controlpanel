@@ -80,6 +80,156 @@ func GetTemurinVersionForRelease(releaseVersion string) string {
 	return temurinVersion
 }
 
+func defaultOwlcmsProperties() (*properties.Properties, string) {
+	props := properties.NewProperties()
+	props.Set("OWLCMS_PORT", "8080")
+	props.Set("TEMURIN_VERSION", "jdk-25")
+
+	rawString := `
+# Environment variables defined in this file are copied to the installed versions where they
+# can be used to configure a given version.
+
+# All the OWLCMS and Java environment variables can be set here
+# These are typical only - adjust as needed for your installation
+# Remove the leading # to uncomment and set the variable.
+
+#OWLCMS_PORT=8080
+
+#OWLCMS_INITIALDATA=LARGEGROUP_DEMO
+#OWLCMS_RESETMODE=true
+#OWLCMS_MEMORYMODE=true
+
+# this overrides all the feature toggles in the database (remove the leading # to uncomment)
+#OWLCMS_FEATURESWITCHES=interimScores
+
+# java options can be set with this variable (remove the leading # to uncomment)
+#JAVA_OPTIONS=-Xmx512m -Xmx512m`
+
+	return props, rawString
+}
+
+// EnsureParentEnvDefaults ensures the shared env.properties exists and contains
+// required defaults. TEMURIN_VERSION is forced to jdk-25.
+func EnsureParentEnvDefaults() error {
+	envFilePath := filepath.Join(installDir, "env.properties")
+	if err := InitEnv(); err != nil {
+		return err
+	}
+
+	defaults, defaultComments := defaultOwlcmsProperties()
+	updated := false
+	for _, key := range defaults.Keys() {
+		if _, ok := environment.Get(key); !ok {
+			value, _ := defaults.Get(key)
+			environment.Set(key, value)
+			updated = true
+		}
+	}
+
+	if current, _ := environment.Get("TEMURIN_VERSION"); current != "jdk-25" {
+		environment.Set("TEMURIN_VERSION", "jdk-25")
+		updated = true
+	}
+
+	if !updated {
+		return nil
+	}
+
+	// Preserve existing comment lines if present
+	commentBlock := ""
+	if content, err := os.ReadFile(envFilePath); err == nil {
+		var comments []string
+		lines := strings.Split(string(content), "\n")
+		for _, line := range lines {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "#") {
+				comments = append(comments, line)
+			}
+		}
+		if len(comments) > 0 {
+			commentBlock = strings.Join(comments, "\n")
+		}
+	}
+	if commentBlock == "" {
+		commentBlock = defaultComments
+	}
+
+	file, err := os.Create(envFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to open env.properties for writing: %w", err)
+	}
+	defer file.Close()
+
+	if _, err := environment.Write(file, properties.UTF8); err != nil {
+		return fmt.Errorf("failed to write env.properties: %w", err)
+	}
+	if commentBlock != "" {
+		if _, err := file.WriteString("\n" + commentBlock + "\n"); err != nil {
+			log.Printf("Failed to write comments to env.properties file: %v, but file is usable", err)
+		}
+	}
+
+	return nil
+}
+
+// EnsureReleaseEnvFromParent creates a version-specific env.properties by
+// copying the parent values and filling any missing defaults. TEMURIN_VERSION
+// is forced to jdk-25 for new installations.
+func EnsureReleaseEnvFromParent(releaseVersion string) error {
+	if err := EnsureParentEnvDefaults(); err != nil {
+		return err
+	}
+
+	releaseEnvPath := filepath.Join(installDir, releaseVersion, "env.properties")
+	if err := shared.EnsureDir0755(filepath.Dir(releaseEnvPath)); err != nil {
+		return fmt.Errorf("creating release env directory: %w", err)
+	}
+
+	// Start with all parent properties
+	releaseProps := properties.NewProperties()
+	for _, key := range environment.Keys() {
+		value, _ := environment.Get(key)
+		releaseProps.Set(key, value)
+	}
+
+	defaults, defaultComments := defaultOwlcmsProperties()
+	for _, key := range defaults.Keys() {
+		if _, ok := releaseProps.Get(key); !ok {
+			value, _ := defaults.Get(key)
+			releaseProps.Set(key, value)
+		}
+	}
+
+	// Force Temurin for new installations
+	releaseProps.Set("TEMURIN_VERSION", "jdk-25")
+
+	// Use the default comment block for release env.properties (skip first 3 lines)
+	commentBlock := defaultComments
+	if commentBlock != "" {
+		lines := strings.Split(commentBlock, "\n")
+		if len(lines) > 3 {
+			commentBlock = strings.Join(lines[3:], "\n")
+		}
+	}
+
+	file, err := os.Create(releaseEnvPath)
+	if err != nil {
+		return fmt.Errorf("failed to create release env.properties: %w", err)
+	}
+	defer file.Close()
+
+	if _, err := releaseProps.Write(file, properties.UTF8); err != nil {
+		return fmt.Errorf("failed to write release env.properties: %w", err)
+	}
+	if commentBlock != "" {
+		if _, err := file.WriteString("\n" + commentBlock + "\n"); err != nil {
+			log.Printf("Failed to write comments to release env.properties file: %v, but file is usable", err)
+		}
+	}
+
+	return nil
+}
+
 // GetInstallDir returns the installation directory
 func GetInstallDir() string {
 	return installDir
