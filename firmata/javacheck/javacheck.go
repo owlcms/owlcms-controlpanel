@@ -26,7 +26,7 @@ func FindLocalJava() (string, error) {
 	if getTemurinVersionFunc != nil {
 		temurinVersion = getTemurinVersionFunc()
 	} else {
-		temurinVersion = "jdk-17.0.15+6" // fallback
+		temurinVersion = "jdk-25" // fallback
 	}
 
 	return FindLocalJavaForVersion(temurinVersion)
@@ -81,7 +81,7 @@ func CheckJava(statusLabel *widget.Label) error {
 	if getTemurinVersionFunc != nil {
 		temurinVersion = getTemurinVersionFunc()
 	} else {
-		temurinVersion = "jdk-17.0.15+6" // fallback
+		temurinVersion = "jdk-25" // fallback
 	}
 
 	// Use shared Java directory

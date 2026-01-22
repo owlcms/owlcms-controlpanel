@@ -78,16 +78,27 @@ func getInstallDir() string {
 }
 
 func main() {
-	// Set up logging to both file and stderr
-	controlPanelLogPath = filepath.Join(shared.GetControlPanelInstallDir(), "control-panel.log")
+	// Set up logging to file (and stderr if available)
+	controlPanelDir := shared.GetControlPanelInstallDir()
+	_ = shared.EnsureDir0755(controlPanelDir) // ignore error, can't log yet
+	controlPanelLogPath = filepath.Join(controlPanelDir, "control-panel.log")
 	logFile, err := os.OpenFile(controlPanelLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
-		log.Printf("Warning: Failed to open log file: %v\n", err)
+		// Fall back to stderr only if file open fails
 		log.SetOutput(shared.NewLogPathShorteningWriter(os.Stderr))
 	} else {
-		// Write to both stderr and file
-		multiWriter := io.MultiWriter(os.Stderr, logFile)
-		log.SetOutput(shared.NewLogPathShorteningWriter(multiWriter))
+		// On Windows GUI apps without console, stderr may be invalid
+		// Test if stderr is usable by checking if Stat succeeds
+		stderrUsable := false
+		if fi, err := os.Stderr.Stat(); err == nil && fi != nil {
+			stderrUsable = true
+		}
+		if stderrUsable {
+			multiWriter := io.MultiWriter(os.Stderr, logFile)
+			log.SetOutput(shared.NewLogPathShorteningWriter(multiWriter))
+		} else {
+			log.SetOutput(shared.NewLogPathShorteningWriter(logFile))
+		}
 	}
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Llongfile)
 	log.Println("Starting OWLCMS Launcher")

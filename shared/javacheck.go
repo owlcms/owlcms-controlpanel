@@ -314,7 +314,6 @@ func FindTemurinDownloadURLFromRecentReleases(temurinVersion string, goosFunc fu
 		log.Printf("Looking for asset: %s\n", pattern)
 
 		for _, asset := range release.Assets {
-			log.Printf("Checking asset: %s\n", asset.Name)
 			if asset.Name == pattern {
 				log.Printf("Found matching JRE: %s\n", asset.Name)
 				log.Printf("Matching JRE URL: %s\n", asset.BrowserDownloadURL)
@@ -325,7 +324,6 @@ func FindTemurinDownloadURLFromRecentReleases(temurinVersion string, goosFunc fu
 		if fallbackPattern != "" {
 			log.Printf("No matching JRE found, trying JDK asset: %s\n", fallbackPattern)
 			for _, asset := range release.Assets {
-				log.Printf("Checking asset: %s\n", asset.Name)
 				if asset.Name == fallbackPattern {
 					log.Printf("Found matching JDK: %s\n", asset.Name)
 					log.Printf("Matching JDK URL: %s\n", asset.BrowserDownloadURL)
