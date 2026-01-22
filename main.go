@@ -79,7 +79,7 @@ func getInstallDir() string {
 
 func main() {
 	// Set up logging to both file and stderr
-	controlPanelLogPath = filepath.Join(owlcmsInstallDir, "control-panel.log")
+	controlPanelLogPath = filepath.Join(shared.GetControlPanelInstallDir(), "control-panel.log")
 	logFile, err := os.OpenFile(controlPanelLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		log.Printf("Warning: Failed to open log file: %v\n", err)

@@ -220,6 +220,12 @@ func downloadReleaseWithProgress(downloadVersion, installVersion string, w fyne.
 			return
 		}
 
+		if err := EnsureReleaseEnvFromParent(installVersion); err != nil {
+			dialog.ShowError(fmt.Errorf("failed to create release env.properties: %w", err), w)
+			done <- false
+			return
+		}
+
 		if err := os.Remove(zipPath); err != nil {
 			log.Printf("Warning: Could not delete downloaded zip file: %v", err)
 		}
@@ -395,6 +401,10 @@ func getMostRecentPrerelease() (string, error) {
 func InstallDefault(w fyne.Window) {
 	// Before installing, ensure Java runtime is available. Delegate to shared helper
 	// which will call the package-local `checkJava` implementation.
+	if err := EnsureParentEnvDefaults(); err != nil {
+		dialog.ShowError(fmt.Errorf("failed to initialize env.properties: %w", err), w)
+		return
+	}
 	ver := GetTemurinVersion()
 	if err := shared.CheckAndInstallJava(ver, statusLabel, w, checkJava); err != nil {
 		return
