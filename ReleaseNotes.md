@@ -8,8 +8,10 @@ The control panel is installed once. It will automatically download the current 
 
 
 ## New in version 3.0.2
-- Retrieve the latest available LTS long-term Java release for the architecture. Not all releases include all architectures.
-- Use the env.properties from the owlcms installation directory as default values, create one in each installation for customization
+- The latest available LTS (Java 25) for the architecture will be installed and used to benefit from performance improvements.
+- An env.properties file is created in each owlcms installation, initialized with the parent env.properties. This allows overriding environment variables per installation.
+- owlcms-firmata launching fixed to also use Java 25
+- owlcms-firmata locks released if the control panel is closed by a signal
 - Factually accurate progress bar for the long unzip in tracker
 - Correctly deal with opening folders that have a + in their name
 
