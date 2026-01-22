@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	"owlcms-launcher/shared"
 	"owlcms-launcher/tracker/downloadutils"
@@ -204,9 +203,12 @@ func InstallLocalZipFile(zipPath, version string, w fyne.Window, trackerInstallD
 			messageLabel.Refresh()
 
 			log.Printf("Extracting ZIP file to: %s\n", finalExtractPath)
-			stopProgress := startTimedProgress(progressBar, 0.0, 1.0, 40*time.Second)
-			err := downloadutils.ExtractZip(destOriginalPath, finalExtractPath)
-			stopProgress()
+			extractProgress := func(extracted, total int64) {
+				if total > 0 {
+					progressBar.SetValue(float64(extracted) / float64(total))
+				}
+			}
+			err := downloadutils.ExtractZip(destOriginalPath, finalExtractPath, extractProgress)
 			if err != nil {
 				progressDialog.Hide()
 				dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)

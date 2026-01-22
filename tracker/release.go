@@ -282,9 +282,12 @@ func downloadAndInstallVersion(downloadVersion, installVersion string, w fyne.Wi
 		messageLabel.Refresh()
 
 		log.Printf("Extracting ZIP file to: %s\n", extractPath)
-		stopProgress := startTimedProgress(progressBar, 0.0, 1.0, 40*time.Second)
-		err = downloadutils.ExtractZip(zipPath, extractPath)
-		stopProgress()
+		extractProgress := func(extracted, total int64) {
+			if total > 0 {
+				progressBar.SetValue(float64(extracted) / float64(total))
+			}
+		}
+		err = downloadutils.ExtractZip(zipPath, extractPath, extractProgress)
 		if err != nil {
 			progressDialog.Hide()
 			dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)

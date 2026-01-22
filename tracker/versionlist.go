@@ -437,9 +437,12 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		messageLabel.SetText("Extracting files...")
 		messageLabel.Refresh()
 
-		stopProgress := startTimedProgress(progressBar, 0.0, 1.0, 40*time.Second)
-		err = downloadutils.ExtractZip(zipPath, extractDir)
-		stopProgress()
+		extractProgress := func(extracted, total int64) {
+			if total > 0 {
+				progressBar.SetValue(float64(extracted) / float64(total))
+			}
+		}
+		err = downloadutils.ExtractZip(zipPath, extractDir, extractProgress)
 		if err != nil {
 			dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
 			return
