@@ -361,6 +361,10 @@ func createLaunchButton(w fyne.Window, version string, buttonContainer *fyne.Con
 		}
 
 		log.Printf("Launching version %s\n", version)
+		if err := EnsureParentEnvDefaults(); err != nil {
+			dialog.ShowError(fmt.Errorf("failed to initialize env.properties for %s: %w", version, err), w)
+			return
+		}
 		// Get version-specific Temurin version
 		ver := GetTemurinVersionForRelease(version)
 		if err := shared.CheckAndInstallJava(ver, statusLabel, w, checkJava); err != nil {

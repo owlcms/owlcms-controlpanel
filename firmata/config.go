@@ -79,8 +79,15 @@ func GetTemurinVersionForRelease(releaseVersion string) string {
 	return temurinVersion
 }
 
+// EnsureParentEnvDefaults ensures the shared env.properties exists and contains
+// required defaults. TEMURIN_VERSION is forced to jdk-25.
+// This delegates to InitEnv which handles all the enforcement logic.
+func EnsureParentEnvDefaults() error {
+	return InitEnv()
+}
+
 // InitEnv initializes the environment properties from env.properties file
-func InitEnv() {
+func InitEnv() error {
 	log.Println("Initializing environment properties")
 	// Check for the presence of env.properties file in the installDir
 	props := properties.NewProperties()
@@ -91,11 +98,11 @@ func InitEnv() {
 		props.Set("TEMURIN_VERSION", "jdk-25")
 		file, err := os.Create(envFilePath)
 		if err != nil {
-			log.Fatalf("Failed to create env.properties file: %v", err)
+			return fmt.Errorf("failed to create env.properties file: %w", err)
 		}
 		defer file.Close()
 		if _, err := props.Write(file, properties.UTF8); err != nil {
-			log.Fatalf("Failed to write env.properties file: %v", err)
+			return fmt.Errorf("failed to write env.properties file: %w", err)
 		}
 		// Add commented-out entries
 		rawString := `# Add any environment variable you need. (remove the leading # to uncomment)
@@ -103,28 +110,67 @@ func InitEnv() {
 #JAVA_OPTIONS=-Xmx512m -Xmx512m`
 
 		if _, err := file.WriteString(rawString); err != nil {
-			log.Fatalf("Failed to write comment to env.properties file: %v", err)
+			return fmt.Errorf("failed to write comment to env.properties file: %w", err)
 		}
 	}
 
 	// Load the properties into the global variable environment
-	loadProperties(envFilePath)
+	if err := loadProperties(envFilePath); err != nil {
+		return err
+	}
+
+	// Ensure required defaults are enforced even on existing files
+	updated := false
+	if current, _ := environment.Get("TEMURIN_VERSION"); current != "jdk-25" {
+		log.Printf("Updating TEMURIN_VERSION from %s to jdk-25", current)
+		environment.Set("TEMURIN_VERSION", "jdk-25")
+		updated = true
+	}
+	if _, ok := environment.Get("FIRMATA_PORT"); !ok {
+		environment.Set("FIRMATA_PORT", "8090")
+		updated = true
+	}
+
+	if !updated {
+		return nil
+	}
+
+	log.Printf("Writing updated env.properties to %s", envFilePath)
+	file, err := os.Create(envFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to open env.properties for writing: %w", err)
+	}
+	defer file.Close()
+
+	if _, err := environment.Write(file, properties.UTF8); err != nil {
+		return fmt.Errorf("failed to write env.properties: %w", err)
+	}
+
+	rawString := `# Add any environment variable you need. (remove the leading # to uncomment)
+# java options can be set with this variable (remove the leading # to uncomment)
+#JAVA_OPTIONS=-Xmx512m -Xmx512m`
+	if _, err := file.WriteString("\n" + rawString + "\n"); err != nil {
+		log.Printf("Failed to write comments to env.properties file: %v, but file is usable", err)
+	}
+
+	return nil
 }
 
-func loadProperties(envFilePath string) {
+func loadProperties(envFilePath string) error {
 	environment = properties.NewProperties()
 	file, err := os.Open(envFilePath)
 	if err != nil {
-		log.Fatalf("Failed to open env.properties file: %v", err)
+		return fmt.Errorf("failed to open env.properties file: %w", err)
 	}
 	defer file.Close()
 	content, err := os.ReadFile(envFilePath)
 	if err != nil {
-		log.Fatalf("Failed to read env.properties file: %v", err)
+		return fmt.Errorf("failed to read env.properties file: %w", err)
 	}
 	if err := environment.Load(content, properties.UTF8); err != nil {
-		log.Fatalf("Failed to load env.properties file: %v", err)
+		return fmt.Errorf("failed to load env.properties file: %w", err)
 	}
+	return nil
 }
 
 // CheckForUpdates checks for updates to the firmata control panel

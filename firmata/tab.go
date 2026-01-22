@@ -204,6 +204,8 @@ func HandleSignalCleanup() {
 		}
 		currentProcess = nil
 	}
+	// Always release the lock and remove PID file on signal cleanup
+	releaseJavaLock()
 }
 
 // CreateTab creates and returns the Firmata tab content
@@ -217,6 +219,12 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	mainWindow = w
 
 	log.Println("Creating Firmata tab content")
+
+	// Initialize environment early and ensure jdk-25
+	if err := EnsureParentEnvDefaults(); err != nil {
+		log.Printf("Failed to initialize environment: %v", err)
+		dialog.ShowError(fmt.Errorf("failed to initialize environment: %w", err), w)
+	}
 
 	// Create stop button and status label
 	stopButton = widget.NewButtonWithIcon("Stop", theme.CancelIcon(), nil)
