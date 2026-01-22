@@ -95,7 +95,8 @@ func GetGoarch() string {
 }
 
 // ExtractZip extracts a zip file to the specified destination directory.
-func ExtractZip(zipPath, destDir string) error {
+// Progress callback receives (filesExtracted, totalFiles).
+func ExtractZip(zipPath, destDir string, progress func(extracted, total int64)) error {
 	log.Printf("Extracting ZIP file: %s to %s\n", zipPath, destDir)
 
 	r, err := zip.OpenReader(zipPath)
@@ -109,6 +110,9 @@ func ExtractZip(zipPath, destDir string) error {
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 
+	totalFiles := int64(len(r.File))
+	var extracted int64
+
 	for _, f := range r.File {
 		fpath := filepath.Join(destDir, f.Name)
 
@@ -120,6 +124,10 @@ func ExtractZip(zipPath, destDir string) error {
 		if f.FileInfo().IsDir() {
 			if err := shared.EnsureDir0755(fpath); err != nil {
 				return fmt.Errorf("failed to create directory: %w", err)
+			}
+			extracted++
+			if progress != nil {
+				progress(extracted, totalFiles)
 			}
 			continue
 		}
@@ -147,6 +155,10 @@ func ExtractZip(zipPath, destDir string) error {
 			return fmt.Errorf("failed to extract file: %w", err)
 		}
 
+		extracted++
+		if progress != nil {
+			progress(extracted, totalFiles)
+		}
 	}
 
 	// Delete the zip file after successful extraction
@@ -156,6 +168,6 @@ func ExtractZip(zipPath, destDir string) error {
 		log.Printf("Deleted zip file: %s\n", zipPath)
 	}
 
-	log.Printf("Successfully extracted ZIP to: %s\n", destDir)
+	log.Printf("Successfully extracted %d files to: %s\n", totalFiles, destDir)
 	return nil
 }
