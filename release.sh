@@ -47,10 +47,6 @@ git push
 git tag -a ${TAG} -m "owlcms-launcher $TAG"
 git push origin --tags
 
-# Wait for GitHub to register the tag and trigger the workflow
-echo "Waiting for workflow to start..."
-sleep 15
-
 # Find and watch the workflow progress
 echo "Watching workflow progress..."
 RUN_ID=""
