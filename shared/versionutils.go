@@ -812,3 +812,39 @@ func GetCurrentBuildString(version string) string {
 	_, buildMetadata := ParseVersionWithBuild(version)
 	return buildMetadata
 }
+
+// IsPrerelease returns true if the version string contains a prerelease tag.
+// Uses semver parsing to properly detect prereleases.
+func IsPrerelease(version string) bool {
+	v, err := semver.NewVersion(version)
+	if err != nil {
+		// Fall back to string check if semver parsing fails
+		return strings.Contains(version, "-")
+	}
+	return v.Prerelease() != ""
+}
+
+// normalizeForComparison converts SNAPSHOT to lowercase so it sorts after rc/alpha/beta.
+// Semver sorts prereleases alphabetically, so "snapshot" > "rc" > "beta" > "alpha".
+// This is only used for comparison; actual version strings remain unchanged.
+func normalizeForComparison(version string) string {
+	// Replace SNAPSHOT with snapshot (lowercase) so it sorts after rc
+	return strings.Replace(version, "SNAPSHOT", "snapshot", 1)
+}
+
+// NewVersionForComparison creates a semver.Version with SNAPSHOT normalized for proper ordering.
+func NewVersionForComparison(version string) (*semver.Version, error) {
+	return semver.NewVersion(normalizeForComparison(version))
+}
+
+// CompareVersions compares two version strings and returns true if v1 > v2.
+// SNAPSHOT prereleases are considered more recent than other prereleases (rc, alpha, beta)
+// because SNAPSHOT is normalized to lowercase for comparison (snapshot > rc alphabetically).
+func CompareVersions(v1Str, v2Str string) bool {
+	v1, err1 := NewVersionForComparison(v1Str)
+	v2, err2 := NewVersionForComparison(v2Str)
+	if err1 != nil || err2 != nil {
+		return v1Str > v2Str
+	}
+	return v1.GreaterThan(v2)
+}

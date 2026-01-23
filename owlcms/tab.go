@@ -498,22 +498,22 @@ func checkForNewerVersion() {
 		return
 	}
 
-	latestInstalledVersion, err := semver.NewVersion(latestInstalled)
+	latestInstalledVersion, err := shared.NewVersionForComparison(latestInstalled)
 	if err != nil {
 		return
 	}
 
-	log.Printf("Latest installed version: %s\n", latestInstalledVersion)
+	log.Printf("Latest installed version: %s\n", latestInstalled)
 
 	// Check for newer versions (both stable and prerelease)
 	for _, release := range allReleases {
-		releaseVersion, err := semver.NewVersion(release)
+		releaseVersion, err := shared.NewVersionForComparison(release)
 		if err != nil {
 			continue
 		}
 
 		if releaseVersion.GreaterThan(latestInstalledVersion) {
-			log.Printf("Found newer version: %s\n", releaseVersion)
+			log.Printf("Found newer version: %s\n", release)
 			// Use helper to get the correct releases/tag URL (prerelease vs stable)
 			releaseURL := GetReleaseTagURL(release)
 

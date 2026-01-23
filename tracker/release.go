@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"time"
 
 	"owlcms-launcher/shared"
@@ -77,13 +76,9 @@ func fetchReleases() ([]string, error) {
 	}
 
 	// Sort the release names in semver order, most recent at the top
+	// Uses shared.CompareVersions which considers SNAPSHOT more recent than other prereleases
 	sort.Slice(releaseNames, func(i, j int) bool {
-		v1, err1 := semver.NewVersion(releaseNames[i])
-		v2, err2 := semver.NewVersion(releaseNames[j])
-		if err1 != nil || err2 != nil {
-			return releaseNames[i] > releaseNames[j]
-		}
-		return v1.GreaterThan(v2)
+		return shared.CompareVersions(releaseNames[i], releaseNames[j])
 	})
 
 	// Log the latest versions
@@ -125,7 +120,7 @@ func populateReleaseSelect(selectWidget *widget.Select) {
 }
 
 func containsPreReleaseTag(version string) bool {
-	return strings.Contains(version, "-rc") || strings.Contains(version, "-alpha") || strings.Contains(version, "-beta")
+	return shared.IsPrerelease(version)
 }
 
 func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
@@ -403,15 +398,15 @@ func checkForNewerVersion() {
 	updateExplanation()
 
 	if latestInstalled != "" {
-		latestInstalledVersion, err := semver.NewVersion(latestInstalled)
+		latestInstalledVersion, err := shared.NewVersionForComparison(latestInstalled)
 		if err == nil {
-			log.Printf("Tracker - Latest installed version: %s\n", latestInstalledVersion)
+			log.Printf("Tracker - Latest installed version: %s\n", latestInstalled)
 
 			// Check for newer versions (both stable and prerelease)
 			for _, release := range allReleases {
-				releaseVersion, err := semver.NewVersion(release)
+				releaseVersion, err := shared.NewVersionForComparison(release)
 				if err == nil && releaseVersion.GreaterThan(latestInstalledVersion) {
-					log.Printf("Tracker - Found newer version: %s\n", releaseVersion)
+					log.Printf("Tracker - Found newer version: %s\n", release)
 					releaseURL := fmt.Sprintf("https://github.com/owlcms/owlcms-tracker/releases/tag/%s", release)
 
 					var versionType string

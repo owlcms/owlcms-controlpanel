@@ -360,20 +360,14 @@ func createLaunchButton(w fyne.Window, version string, stopBtn *widget.Button, b
 }
 
 func adjustUpdateButton(mostRecent string, version string, updateButton *widget.Button, buttonContainer *fyne.Container, w fyne.Window) {
-	compare, err := semver.NewVersion(mostRecent)
-	x, err2 := semver.NewVersion(version)
-	if err == nil && err2 == nil {
-		if compare.GreaterThan(x) {
-			updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
-			updateButton.OnTapped = func() {
-				updateVersion(version, mostRecent, w)
-			}
-			updateButton.Refresh()
-		} else {
-			buttonContainer.Refresh()
+	if shared.CompareVersions(mostRecent, version) {
+		updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
+		updateButton.OnTapped = func() {
+			updateVersion(version, mostRecent, w)
 		}
+		updateButton.Refresh()
 	} else {
-		log.Printf("failed to compare versions: %v %v", err, err2)
+		buttonContainer.Refresh()
 	}
 }
 

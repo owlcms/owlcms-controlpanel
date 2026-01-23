@@ -402,47 +402,41 @@ func createLaunchButton(w fyne.Window, version string, stopBtn *widget.Button, b
 }
 
 func adjustUpdateButton(mostRecent string, version string, updateButton *widget.Button, buttonContainer *fyne.Container, w fyne.Window) {
-	compare, err := semver.NewVersion(mostRecent)
-	x, err2 := semver.NewVersion(version)
-	if err == nil && err2 == nil {
-		if compare.GreaterThan(x) {
-			updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
-			updateButton.OnTapped = func() {
-				currentOS := shared.GetGoos()
-				if currentOS == "linux" || currentOS == "darwin" {
-					data, err := os.ReadFile(pidFilePath)
-					if err == nil && len(data) > 0 {
-						pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-						log.Printf("found pid %d in file %s \n", pid, pidFilePath)
-						if err == nil && pid != 0 {
-							process, err := os.FindProcess(pid)
-							if err == nil && process.Signal(syscall.Signal(0)) == nil {
-								dialog.ShowError(fmt.Errorf("an OWLCMS process is already running with PID %d.\nStop it first. You can use the 'Processes' menu to stop it before updating", pid), w)
-								return
-							}
+	if shared.CompareVersions(mostRecent, version) {
+		updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
+		updateButton.OnTapped = func() {
+			currentOS := shared.GetGoos()
+			if currentOS == "linux" || currentOS == "darwin" {
+				data, err := os.ReadFile(pidFilePath)
+				if err == nil && len(data) > 0 {
+					pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+					log.Printf("found pid %d in file %s \n", pid, pidFilePath)
+					if err == nil && pid != 0 {
+						process, err := os.FindProcess(pid)
+						if err == nil && process.Signal(syscall.Signal(0)) == nil {
+							dialog.ShowError(fmt.Errorf("an OWLCMS process is already running with PID %d.\nStop it first. You can use the 'Processes' menu to stop it before updating", pid), w)
+							return
 						}
 					}
 				}
-
-				confirmDialog := dialog.NewConfirm("Backup Suggestion",
-					"The update process keeps your current version intact so you can revert if needed.\n\nBut we nevertheless suggest that you take a backup of your current database using the 'Export Database' button of the 'Prepare Competition' page.",
-					func(confirm bool) {
-						if confirm {
-							updateVersion(version, mostRecent, w)
-						}
-					},
-					w,
-				)
-				confirmDialog.SetConfirmText("Perform Update")
-				confirmDialog.SetDismissText("Cancel Update")
-				confirmDialog.Show()
 			}
-			updateButton.Refresh()
-		} else {
-			buttonContainer.Refresh()
+
+			confirmDialog := dialog.NewConfirm("Backup Suggestion",
+				"The update process keeps your current version intact so you can revert if needed.\n\nBut we nevertheless suggest that you take a backup of your current database using the 'Export Database' button of the 'Prepare Competition' page.",
+				func(confirm bool) {
+					if confirm {
+						updateVersion(version, mostRecent, w)
+					}
+				},
+				w,
+			)
+			confirmDialog.SetConfirmText("Perform Update")
+			confirmDialog.SetDismissText("Cancel Update")
+			confirmDialog.Show()
 		}
+		updateButton.Refresh()
 	} else {
-		log.Printf("failed to compare versions: %v %v", err, err2)
+		buttonContainer.Refresh()
 	}
 }
 

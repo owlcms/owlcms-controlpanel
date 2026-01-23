@@ -112,13 +112,10 @@ func fetchReleases() ([]string, error) {
 		releaseNames = append(releaseNames, v)
 	}
 
+	// Sort the release names in semver order, most recent at the top
+	// Uses shared.CompareVersions which considers SNAPSHOT more recent than other prereleases
 	sort.Slice(releaseNames, func(i, j int) bool {
-		v1, err1 := semver.NewVersion(releaseNames[i])
-		v2, err2 := semver.NewVersion(releaseNames[j])
-		if err1 != nil || err2 != nil {
-			return releaseNames[i] > releaseNames[j]
-		}
-		return v1.GreaterThan(v2)
+		return shared.CompareVersions(releaseNames[i], releaseNames[j])
 	})
 
 	return releaseNames, nil
@@ -355,7 +352,7 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 }
 
 func containsPreReleaseTag(version string) bool {
-	return strings.Contains(version, "-rc") || strings.Contains(version, "-alpha") || strings.Contains(version, "-beta")
+	return shared.IsPrerelease(version)
 }
 
 func getMostRecentStableRelease() (string, error) {
@@ -379,21 +376,23 @@ func getMostRecentStableRelease() (string, error) {
 
 func getMostRecentPrerelease() (string, error) {
 	var mostRecentPrerelease *semver.Version
+	var mostRecentPrereleaseStr string
 	for _, release := range allReleases {
-		releaseVersion, err := semver.NewVersion(release)
+		releaseVersion, err := shared.NewVersionForComparison(release)
 		if err != nil {
 			continue
 		}
 		if containsPreReleaseTag(release) {
 			if mostRecentPrerelease == nil || releaseVersion.GreaterThan(mostRecentPrerelease) {
 				mostRecentPrerelease = releaseVersion
+				mostRecentPrereleaseStr = release // Keep original string with SNAPSHOT
 			}
 		}
 	}
 	if mostRecentPrerelease == nil {
 		return "", fmt.Errorf("no prerelease found")
 	}
-	return mostRecentPrerelease.String(), nil
+	return mostRecentPrereleaseStr, nil
 }
 
 // InstallDefault performs the default install action for the OWLCMS package.
