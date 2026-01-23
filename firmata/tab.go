@@ -220,12 +220,6 @@ func CreateTab(w fyne.Window) *fyne.Container {
 
 	log.Println("Creating Firmata tab content")
 
-	// Initialize environment early and ensure jdk-25
-	if err := EnsureParentEnvDefaults(); err != nil {
-		log.Printf("Failed to initialize environment: %v", err)
-		dialog.ShowError(fmt.Errorf("failed to initialize environment: %w", err), w)
-	}
-
 	// Create stop button and status label
 	stopButton = widget.NewButtonWithIcon("Stop", theme.CancelIcon(), nil)
 	stopButton.Importance = widget.DangerImportance // Dark red for stop action
@@ -536,8 +530,16 @@ func downloadAndInstallVersion(version string, w fyne.Window) {
 		// Log when extraction is done
 		log.Println("Extraction completed")
 
-		// Hide progress dialog
+		// Hide progress dialog before showing any error dialogs
 		progressDialog.Hide()
+
+		// Initialize env.properties after successful installation
+		if !EnsureEnvWithDialog(w) {
+			log.Println("Installation completed but env.properties initialization failed")
+			// Error dialog already shown; refresh UI and return
+			setFirmataTabMode(w)
+			return
+		}
 
 		// Show success panel with installation details
 		message := fmt.Sprintf(
@@ -566,15 +568,15 @@ func checkForNewerVersion() {
 	updateExplanation()
 
 	if latestInstalled != "" {
-		latestInstalledVersion, err := semver.NewVersion(latestInstalled)
+		latestInstalledVersion, err := shared.NewVersionForComparison(latestInstalled)
 		if err == nil {
-			log.Printf("Latest installed version: %s\n", latestInstalledVersion)
+			log.Printf("Latest installed version: %s\n", latestInstalled)
 
 			// Check for newer versions (both stable and prerelease)
 			for _, release := range allReleases {
-				releaseVersion, err := semver.NewVersion(release)
+				releaseVersion, err := shared.NewVersionForComparison(release)
 				if err == nil && releaseVersion.GreaterThan(latestInstalledVersion) {
-					log.Printf("Found newer version: %s\n", releaseVersion)
+					log.Printf("Found newer version: %s\n", release)
 					releaseURL := fmt.Sprintf("https://github.com/jflamy/owlcms-firmata/releases/tag/%s", releaseVersion)
 					versionToInstall := extractSemverTag(release)
 

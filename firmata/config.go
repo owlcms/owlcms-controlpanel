@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 
+	customdialog "owlcms-launcher/firmata/dialog"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
@@ -84,6 +86,18 @@ func GetTemurinVersionForRelease(releaseVersion string) string {
 // This delegates to InitEnv which handles all the enforcement logic.
 func EnsureParentEnvDefaults() error {
 	return InitEnv()
+}
+
+// EnsureEnvWithDialog ensures env.properties exists and shows a wide error dialog on failure.
+// Returns true if env.properties was successfully created/verified, false otherwise.
+func EnsureEnvWithDialog(w fyne.Window) bool {
+	if err := EnsureParentEnvDefaults(); err != nil {
+		log.Printf("Failed to initialize env.properties: %v", err)
+		errorMsg := fmt.Errorf("installation completed but failed to create configuration file: %w\n\nYou may need to check permissions on the installation directory", err)
+		customdialog.ShowWideError(errorMsg, w)
+		return false
+	}
+	return true
 }
 
 // InitEnv initializes the environment properties from env.properties file

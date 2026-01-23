@@ -92,13 +92,9 @@ func fetchReleases() ([]string, error) {
 	}
 
 	// Sort the release names in semver order, most recent at the top
+	// Uses shared.CompareVersions which considers SNAPSHOT more recent than other prereleases
 	sort.Slice(releaseNames, func(i, j int) bool {
-		v1, err1 := semver.NewVersion(releaseNames[i])
-		v2, err2 := semver.NewVersion(releaseNames[j])
-		if err1 != nil || err2 != nil {
-			return releaseNames[i] > releaseNames[j]
-		}
-		return v1.GreaterThan(v2)
+		return shared.CompareVersions(releaseNames[i], releaseNames[j])
 	})
 
 	// After sorting releases but before returning, log the latest versions
@@ -210,11 +206,19 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 						// Log when extraction is done
 						log.Println("Extraction completed")
 
+						// Hide progress dialog before showing any error dialogs
+						progressDialog.Hide()
+
+						// Initialize env.properties after successful installation
+						if !EnsureEnvWithDialog(w) {
+							log.Println("Installation completed but env.properties initialization failed")
+							// Error dialog already shown; refresh UI and return
+							setFirmataTabMode(w)
+							return
+						}
+
 						// Log before closing the dialog
 						log.Println("Closing progress dialog")
-
-						// Hide progress dialog
-						progressDialog.Hide()
 
 						// Show success panel with installation details
 						message := fmt.Sprintf(
@@ -304,7 +308,7 @@ func setupReleaseDropdown(w fyne.Window) {
 }
 
 func containsPreReleaseTag(version string) bool {
-	return strings.Contains(version, "-rc") || strings.Contains(version, "-alpha") || strings.Contains(version, "-beta")
+	return shared.IsPrerelease(version)
 }
 
 func getMostRecentStableRelease() (string, error) {
@@ -329,22 +333,24 @@ func getMostRecentStableRelease() (string, error) {
 
 func getMostRecentPrerelease() (string, error) {
 	var mostRecentPrerelease *semver.Version
+	var mostRecentPrereleaseStr string
 	for _, release := range allReleases {
 		version := extractSemverTag(release) // Clean the version string first
-		releaseVersion, err := semver.NewVersion(version)
+		releaseVersion, err := shared.NewVersionForComparison(version)
 		if err != nil {
 			continue
 		}
 		if containsPreReleaseTag(version) {
 			if mostRecentPrerelease == nil || releaseVersion.GreaterThan(mostRecentPrerelease) {
 				mostRecentPrerelease = releaseVersion
+				mostRecentPrereleaseStr = version // Keep original string with SNAPSHOT
 			}
 		}
 	}
 	if mostRecentPrerelease == nil {
 		return "", fmt.Errorf("no prerelease found")
 	}
-	return mostRecentPrerelease.String(), nil
+	return mostRecentPrereleaseStr, nil
 }
 
 func extractSemverTag(s string) string {

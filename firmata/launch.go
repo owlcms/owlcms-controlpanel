@@ -138,11 +138,11 @@ func launchFirmata(version string, launchButton *widget.Button) error {
 	}
 	defer os.Chdir(originalDir)
 
-	if err := EnsureParentEnvDefaults(); err != nil {
-		statusLabel.SetText(fmt.Sprintf("Failed to initialize env.properties: %v", err))
+	if !EnsureEnvWithDialog(mainWindow) {
+		statusLabel.SetText("Failed to initialize env.properties")
 		launchButton.Show()
 		goBackToMainScreen()
-		return fmt.Errorf("failed to initialize env.properties: %w", err)
+		return fmt.Errorf("failed to initialize env.properties")
 	}
 
 	// Get version-specific Temurin version
