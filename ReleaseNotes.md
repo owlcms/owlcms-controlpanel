@@ -6,6 +6,9 @@ This is a control panel for owlcms and associated modules.  It is meant to:
 
 The control panel is installed once. It will automatically download the correct version of Java when used for the first time.
 
+## New in version 3.0.3
+- Fix a (harmless) error message when firmata for Arduino Devices was not installed.  The configuration file is now correctly created.
+
 ## New in version 3.0.2
 - The latest available LTS (Java 25) for the architecture will be installed and used to benefit from performance improvements.
 - An env.properties file is created in each owlcms installation, initialized with the parent env.properties. This allows overriding environment variables per installation.
