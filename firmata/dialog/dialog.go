@@ -9,6 +9,12 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
+// ShowWideError displays an error dialog with proper width for long messages
+func ShowWideError(err error, w fyne.Window) {
+	// Use standard ShowError which blocks until dismissed
+	dialog.ShowError(err, w)
+}
+
 // NewDownloadDialog creates a consistent download dialog with a progress bar and cancel button
 func NewDownloadDialog(title string, window fyne.Window, cancel chan bool) (dialog.Dialog, *widget.ProgressBar) {
 	progressBar := widget.NewProgressBar()
