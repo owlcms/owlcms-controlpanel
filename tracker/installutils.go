@@ -16,7 +16,6 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
-	"github.com/Masterminds/semver/v3"
 )
 
 // ProcessLocalZipFile handles a ZIP file selected from the file system.
@@ -24,67 +23,9 @@ func ProcessLocalZipFile(zipPath string, w fyne.Window, trackerInstallDir string
 	updateExplanation func(),
 	recomputeVersionList func(fyne.Window),
 	checkForNewerVersion func()) {
-	// Extract version number from filename if possible
-	fileName := filepath.Base(zipPath)
-	version := extractVersionFromFilename(fileName)
-
-	// If version couldn't be determined or is invalid, ask the user
-	if version == "" || !IsValidSemVer(version) {
-		content := widget.NewEntry()
-		content.SetPlaceHolder("e.g., 1.2.3")
-
-		message := widget.NewLabel("Could not identify a version number in the file name, please provide one")
-		message.Wrapping = fyne.TextWrapWord
-
-		formContent := container.NewVBox(message, content)
-
-		versionDialog := dialog.NewCustomConfirm(
-			"Enter Version",
-			"Install",
-			"Cancel",
-			formContent,
-			func(confirmed bool) {
-				if !confirmed || content.Text == "" {
-					return
-				}
-
-				if IsValidSemVer(content.Text) {
-					InstallLocalZipFile(zipPath, content.Text, w, trackerInstallDir, updateExplanation, recomputeVersionList, checkForNewerVersion)
-				} else {
-					dialog.ShowError(fmt.Errorf("invalid version format, please use semantic versioning (e.g., 1.2.3)"), w)
-				}
-			},
-			w,
-		)
-		versionDialog.Show()
-		return
-	}
-
-	// We have a valid version, proceed with installation
-	InstallLocalZipFile(zipPath, version, w, trackerInstallDir, updateExplanation, recomputeVersionList, checkForNewerVersion)
-}
-
-func extractVersionFromFilename(fileName string) string {
-	if !strings.HasSuffix(strings.ToLower(fileName), ".zip") {
-		return ""
-	}
-
-	nameWithoutExt := strings.TrimSuffix(fileName, ".zip")
-
-	// Find first semver-like token in filename
-	semverRegex := regexp.MustCompile(`\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?`)
-	candidate := semverRegex.FindString(nameWithoutExt)
-	if candidate != "" && IsValidSemVer(candidate) {
-		return candidate
-	}
-
-	return ""
-}
-
-// IsValidSemVer checks if a string is a valid semantic version.
-func IsValidSemVer(version string) bool {
-	_, err := semver.NewVersion(version)
-	return err == nil
+	shared.ProcessLocalZipFile(zipPath, w, "1.2.3", func(zipPath, version string) {
+		InstallLocalZipFile(zipPath, version, w, trackerInstallDir, updateExplanation, recomputeVersionList, checkForNewerVersion)
+	})
 }
 
 // GetInstallationDirectoryName determines the directory name for installing a version,

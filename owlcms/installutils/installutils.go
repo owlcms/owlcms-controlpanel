@@ -17,7 +17,6 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
-	"github.com/Masterminds/semver/v3"
 )
 
 // ProcessLocalZipFile handles a ZIP file selected from the file system
@@ -26,77 +25,9 @@ func ProcessLocalZipFile(zipPath string, w fyne.Window, owlcmsInstallDir string,
 	updateExplanation func(),
 	recomputeVersionList func(fyne.Window),
 	checkForNewerVersion func()) {
-	// Extract version number from filename if possible
-	fileName := filepath.Base(zipPath)
-	version := ""
-
-	// Try to extract version from filename if possible
-	// Handle formats (PREFIX is optional):
-	// - "VERSION.zip"
-	// - "PREFIX[-_]VERSION.zip"
-	// - "owlcms_VERSION_YYYY-MM-DD_HHMMSS.zip" (export format with timestamp)
-	// PREFIX: alphanumeric starting with a letter and ending with - or _
-	// VERSION: full semver like "1.2.3-rc.1+metadata"
-	// TIMESTAMP: [._]YYYY-MM-DD_HHMMSS where separator before date can be . or _
-	if strings.HasSuffix(fileName, ".zip") {
-		// Remove .zip extension
-		nameWithoutExt := strings.TrimSuffix(fileName, ".zip")
-
-		// Remove any optional prefix matching pattern: letter followed by alphanumerics, ending with - or _
-		prefixRegex := regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9]*[-_]`)
-		nameWithoutExt = prefixRegex.ReplaceAllString(nameWithoutExt, "")
-
-		// Strip the export timestamp format: [._]YYYY-MM-DD_HHMMSS
-		dateTimeRegex := regexp.MustCompile(`[._]\d{4}-\d{2}-\d{2}_\d{6}$`)
-		if dateTimeRegex.MatchString(nameWithoutExt) {
-			nameWithoutExt = dateTimeRegex.ReplaceAllString(nameWithoutExt, "")
-		}
-
-		// Check if what remains is a valid semver
-		if IsValidSemVer(nameWithoutExt) {
-			version = nameWithoutExt
-		}
-	}
-
-	// If version couldn't be determined or is invalid, ask the user
-	if version == "" || !IsValidSemVer(version) {
-		content := widget.NewEntry()
-		content.SetPlaceHolder("e.g., 4.24.1")
-
-		message := widget.NewLabel("Could not identify a version number in the file name, please provide one")
-		message.Wrapping = fyne.TextWrapWord
-
-		formContent := container.NewVBox(message, content)
-
-		versionDialog := dialog.NewCustomConfirm(
-			"Enter Version",
-			"Install",
-			"Cancel",
-			formContent,
-			func(confirmed bool) {
-				if !confirmed || content.Text == "" {
-					return
-				}
-
-				if IsValidSemVer(content.Text) {
-					InstallLocalZipFile(zipPath, content.Text, w, owlcmsInstallDir, copyFile, updateExplanation, recomputeVersionList, checkForNewerVersion)
-				} else {
-					dialog.ShowError(fmt.Errorf("invalid version format, please use semantic versioning (e.g., 4.24.1)"), w)
-				}
-			},
-			w,
-		)
-		versionDialog.Show()
-	} else {
-		// We have a valid version, proceed with installation
+	shared.ProcessLocalZipFile(zipPath, w, "4.24.1", func(zipPath, version string) {
 		InstallLocalZipFile(zipPath, version, w, owlcmsInstallDir, copyFile, updateExplanation, recomputeVersionList, checkForNewerVersion)
-	}
-}
-
-// IsValidSemVer checks if a string is a valid semantic version
-func IsValidSemVer(version string) bool {
-	_, err := semver.NewVersion(version)
-	return err == nil
+	})
 }
 
 // IsAllDigits checks if a string contains only digits

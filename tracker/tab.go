@@ -48,6 +48,10 @@ func IsRunning() bool {
 // It refreshes the version list to update the OWLCMS version warning.
 func OnTabSelected() {
 	if mainWindow != nil && versionContainer != nil && len(getAllInstalledVersions()) > 0 {
+		// If tracker is running, don't show the version list
+		if IsRunning() {
+			return
+		}
 		recomputeVersionList(mainWindow)
 	}
 }
@@ -278,6 +282,12 @@ func setTrackerTabModeUninstalled(_ fyne.Window) {
 
 // setTrackerTabModeInstalled shows the version list and download section.
 func setTrackerTabModeInstalled(w fyne.Window) {
+	// If tracker is running, don't switch to version list mode
+	if IsRunning() {
+		log.Printf("UI Mode: Running - not switching to installed mode")
+		return
+	}
+
 	// Fetch releases first so update buttons can be computed
 	setupReleaseDropdown(w)
 	// Now recompute list with release info available

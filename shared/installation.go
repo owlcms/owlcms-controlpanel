@@ -1,8 +1,15 @@
 package shared
 
 import (
+	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/widget"
 )
 
 // ModulePresence represents whether each module is installed and the
@@ -53,4 +60,49 @@ func dirExists(p string) bool {
 		return false
 	}
 	return info.IsDir()
+}
+
+// ProcessLocalZipFile handles a ZIP file selected from the file system.
+// installFunc is called with (zipPath, version) to perform the actual installation.
+// versionPlaceholder is the example version shown in the manual entry dialog (e.g., "1.2.3" or "4.24.1").
+func ProcessLocalZipFile(zipPath string, w fyne.Window, versionPlaceholder string,
+	installFunc func(zipPath, version string)) {
+	// Extract version number from filename if possible
+	fileName := filepath.Base(zipPath)
+	version, err := ExtractVersionFromFilename(fileName)
+
+	// If version couldn't be determined, ask the user
+	if err != nil {
+		content := widget.NewEntry()
+		content.SetPlaceHolder("e.g., " + versionPlaceholder)
+
+		message := widget.NewLabel("Could not identify a version number in the file name, please provide one")
+		message.Wrapping = fyne.TextWrapWord
+
+		formContent := container.NewVBox(message, content)
+
+		versionDialog := dialog.NewCustomConfirm(
+			"Enter Version",
+			"Install",
+			"Cancel",
+			formContent,
+			func(confirmed bool) {
+				if !confirmed || content.Text == "" {
+					return
+				}
+
+				if IsValidSemVer(content.Text) {
+					installFunc(zipPath, content.Text)
+				} else {
+					dialog.ShowError(fmt.Errorf("invalid version format, please use semantic versioning (e.g., %s)", versionPlaceholder), w)
+				}
+			},
+			w,
+		)
+		versionDialog.Show()
+		return
+	}
+
+	// We have a valid version, proceed with installation
+	installFunc(zipPath, version)
 }

@@ -17,7 +17,134 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 	"github.com/Masterminds/semver/v3"
+	"golang.org/x/text/runes"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/unicode/norm"
 )
+
+// ============================================================================
+// Semantic Version Utilities
+// ============================================================================
+
+// IsValidSemVer checks if a string is a valid semantic version.
+func IsValidSemVer(version string) bool {
+	_, err := semver.NewVersion(version)
+	return err == nil
+}
+
+// ParseVersionWithBuild parses a version string and extracts the base version and build metadata.
+// For example: "1.2.3+4" returns ("1.2.3", "4"), "1.2.3+test.1" returns ("1.2.3", "test.1"), "1.2.3" returns ("1.2.3", "")
+// Uses semver library to properly parse build metadata which can contain dots and alphanumerics.
+func ParseVersionWithBuild(version string) (string, string) {
+	v, err := semver.NewVersion(version)
+	if err != nil {
+		// If parsing fails, try simple split as fallback
+		parts := strings.Split(version, "+")
+		if len(parts) == 2 {
+			return parts[0], parts[1]
+		}
+		return version, ""
+	}
+
+	// Get the base version without build metadata
+	baseVersion := fmt.Sprintf("%d.%d.%d", v.Major(), v.Minor(), v.Patch())
+	if v.Prerelease() != "" {
+		baseVersion += "-" + v.Prerelease()
+	}
+
+	// Get build metadata
+	buildMetadata := v.Metadata()
+
+	return baseVersion, buildMetadata
+}
+
+// IsPrerelease checks if a version string is a prerelease version.
+// Uses semver parsing to properly detect prereleases.
+func IsPrerelease(version string) bool {
+	v, err := semver.NewVersion(version)
+	if err != nil {
+		// Fall back to string check if semver parsing fails
+		return strings.Contains(version, "-")
+	}
+	return v.Prerelease() != ""
+}
+
+// normalizeForComparison converts SNAPSHOT to lowercase so it sorts after rc/alpha/beta.
+// Semver sorts prereleases alphabetically, so "snapshot" > "rc" > "beta" > "alpha".
+// This is only used for comparison; actual version strings remain unchanged.
+func normalizeForComparison(version string) string {
+	// Replace SNAPSHOT with snapshot (lowercase) so it sorts after rc
+	return strings.Replace(version, "SNAPSHOT", "snapshot", 1)
+}
+
+// NewVersionForComparison creates a semver.Version with SNAPSHOT normalized for proper ordering.
+func NewVersionForComparison(version string) (*semver.Version, error) {
+	return semver.NewVersion(normalizeForComparison(version))
+}
+
+// CompareVersions compares two version strings and returns true if v1 > v2.
+// SNAPSHOT prereleases are considered more recent than other prereleases (rc, alpha, beta)
+// because SNAPSHOT is normalized to lowercase for comparison (snapshot > rc alphabetically).
+func CompareVersions(v1Str, v2Str string) bool {
+	v1, err1 := NewVersionForComparison(v1Str)
+	v2, err2 := NewVersionForComparison(v2Str)
+	if err1 != nil || err2 != nil {
+		return v1Str > v2Str
+	}
+	return v1.GreaterThan(v2)
+}
+
+// ExtractVersionFromFilename extracts a semantic version from a ZIP filename.
+// Returns an error if the filename is not a valid semantic version.
+func ExtractVersionFromFilename(fileName string) (string, error) {
+	if !strings.HasSuffix(strings.ToLower(fileName), ".zip") {
+		log.Printf("ExtractVersionFromFilename: rejected '%s' - file must have .zip extension", fileName)
+		return "", fmt.Errorf("file must have .zip extension")
+	}
+
+	// Remove .zip extension
+	nameWithoutExt := strings.TrimSuffix(fileName, ".zip")
+
+	// Remove everything up to and including the LAST underscore
+	// (e.g., "owlcms-tracker_2.8.0" -> "2.8.0")
+	if idx := strings.LastIndex(nameWithoutExt, "_"); idx >= 0 {
+		prefix := nameWithoutExt[:idx]
+		nameWithoutExt = nameWithoutExt[idx+1:]
+		log.Printf("ExtractVersionFromFilename: stripped prefix '%s', extracted '%s' from '%s'", prefix, nameWithoutExt, fileName)
+	}
+
+	// Strip accents to convert Unicode to ASCII (e.g., "équipes" -> "equipes")
+	normalized := StripAccents(nameWithoutExt)
+	if normalized != nameWithoutExt {
+		log.Printf("ExtractVersionFromFilename: normalized accents '%s' -> '%s'", nameWithoutExt, normalized)
+		nameWithoutExt = normalized
+	}
+
+	// Validate as semver
+	if IsValidSemVer(nameWithoutExt) {
+		log.Printf("ExtractVersionFromFilename: successfully extracted version '%s' from '%s'", nameWithoutExt, fileName)
+		return nameWithoutExt, nil
+	}
+
+	log.Printf("ExtractVersionFromFilename: rejected '%s' - '%s' is not a valid semantic version", fileName, nameWithoutExt)
+	return "", fmt.Errorf("filename '%s' is not a valid semantic version", nameWithoutExt)
+}
+
+// StripAccents removes diacritics/accents from Unicode characters and converts to ASCII.
+// For example: "équipes" becomes "equipes"
+func StripAccents(s string) string {
+	// Transform to NFD (Canonical Decomposition) to separate base chars from combining marks
+	t := transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
+	result, _, err := transform.String(t, s)
+	if err != nil {
+		return s // Return original if transformation fails
+	}
+	return result
+}
+
+// ============================================================================
+// Version Management UI Components
+// ============================================================================
 
 // CreateDuplicateButton creates a duplicate button for a version.
 // installDir is the base directory containing version folders.
@@ -437,32 +564,6 @@ func FindNextUniqueVersionName(baseDir, version string) (string, error) {
 	}
 }
 
-// ParseVersionWithBuild parses a version string and extracts the base version and build metadata.
-// For example: "1.2.3+4" returns ("1.2.3", "4"), "1.2.3+test.1" returns ("1.2.3", "test.1"), "1.2.3" returns ("1.2.3", "")
-// Uses semver library to properly parse build metadata which can contain dots and alphanumerics.
-func ParseVersionWithBuild(version string) (string, string) {
-	v, err := semver.NewVersion(version)
-	if err != nil {
-		// If parsing fails, try simple split as fallback
-		parts := strings.Split(version, "+")
-		if len(parts) == 2 {
-			return parts[0], parts[1]
-		}
-		return version, ""
-	}
-
-	// Get the base version without build metadata
-	baseVersion := fmt.Sprintf("%d.%d.%d", v.Major(), v.Minor(), v.Patch())
-	if v.Prerelease() != "" {
-		baseVersion += "-" + v.Prerelease()
-	}
-
-	// Get build metadata
-	buildMetadata := v.Metadata()
-
-	return baseVersion, buildMetadata
-}
-
 // ResolveCollisionForBuild computes the collision-resolved build metadata for a version.
 // If there's no collision, returns the original build metadata.
 // If there's a collision, applies auto-increment logic.
@@ -811,40 +912,4 @@ func GetVersionsWithBuildMetadata(baseDir string) ([]string, error) {
 func GetCurrentBuildString(version string) string {
 	_, buildMetadata := ParseVersionWithBuild(version)
 	return buildMetadata
-}
-
-// IsPrerelease returns true if the version string contains a prerelease tag.
-// Uses semver parsing to properly detect prereleases.
-func IsPrerelease(version string) bool {
-	v, err := semver.NewVersion(version)
-	if err != nil {
-		// Fall back to string check if semver parsing fails
-		return strings.Contains(version, "-")
-	}
-	return v.Prerelease() != ""
-}
-
-// normalizeForComparison converts SNAPSHOT to lowercase so it sorts after rc/alpha/beta.
-// Semver sorts prereleases alphabetically, so "snapshot" > "rc" > "beta" > "alpha".
-// This is only used for comparison; actual version strings remain unchanged.
-func normalizeForComparison(version string) string {
-	// Replace SNAPSHOT with snapshot (lowercase) so it sorts after rc
-	return strings.Replace(version, "SNAPSHOT", "snapshot", 1)
-}
-
-// NewVersionForComparison creates a semver.Version with SNAPSHOT normalized for proper ordering.
-func NewVersionForComparison(version string) (*semver.Version, error) {
-	return semver.NewVersion(normalizeForComparison(version))
-}
-
-// CompareVersions compares two version strings and returns true if v1 > v2.
-// SNAPSHOT prereleases are considered more recent than other prereleases (rc, alpha, beta)
-// because SNAPSHOT is normalized to lowercase for comparison (snapshot > rc alphabetically).
-func CompareVersions(v1Str, v2Str string) bool {
-	v1, err1 := NewVersionForComparison(v1Str)
-	v2, err2 := NewVersionForComparison(v2Str)
-	if err1 != nil || err2 != nil {
-		return v1Str > v2Str
-	}
-	return v1.GreaterThan(v2)
 }
