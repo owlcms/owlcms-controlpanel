@@ -203,6 +203,9 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 				ProcessLocalZipFile(path, w, installDir, updateExplanation, recomputeVersionList, checkForNewerVersion)
 			})
 		}),
+		fyne.NewMenuItem("Save installed Tracker version as ZIP", func() {
+			ZipCurrentSetup(w, installDir, getAllInstalledVersions, selectSaveZip)
+		}),
 		fyne.NewMenuItemSeparator(),
 		// Commented out: remove all versions via Files menu (use Uninstall instead)
 		// fyne.NewMenuItem("Remove All Tracker Versions", func() {

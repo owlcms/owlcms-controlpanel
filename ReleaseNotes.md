@@ -6,6 +6,10 @@ This is a control panel for owlcms and associated modules.  It is meant to:
 
 The control panel is installed once. It will automatically download the correct version of Java when used for the first time.
 
+## New in version 3.0.4
+- Accept non-Latin letters in the semantic versioning descriptive metadata (after the +), since metadata is ignored for version comparison anyway.
+This deviation from the standard is so all the non-English countries can have proper descriptions when naming "Install from Zip" releases.
+
 ## New in version 3.0.3
 - Fix a (harmless) error message when firmata for Arduino Devices was not installed.  The configuration file is now correctly created.
 

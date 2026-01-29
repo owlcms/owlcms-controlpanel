@@ -246,9 +246,18 @@ func ZipCurrentSetup(w fyne.Window, owlcmsInstallDir string,
 				return
 			}
 
-			// Create filename with version and timestamp in ISO format
-			timestamp := time.Now().Format("2006-01-02_150405")
-			zipFileName := fmt.Sprintf("owlcms_%s.%s.zip", version, timestamp)
+			// Validate version name (allows Unicode in metadata)
+			if err := shared.ValidateVersionName(version); err != nil {
+				dialog.ShowError(fmt.Errorf("invalid version name: %w", err), w)
+				return
+			}
+
+			// Strip any existing metadata (anything after +) before adding new timestamp
+			baseVersion := shared.StripMetadata(version)
+
+			// Create filename with version and timestamp as metadata
+			timestamp := time.Now().Format("2006-01-02T150405")
+			zipFileName := fmt.Sprintf("owlcms_%s+%s.zip", baseVersion, timestamp)
 
 			// Ask user where to save the zip file using platform-specific dialog
 			selectSaveZip(w, zipFileName, func(zipPath string, err error) {
@@ -289,8 +298,7 @@ func ZipCurrentSetup(w fyne.Window, owlcmsInstallDir string,
 						fmt.Sprintf("Successfully created ZIP file:\n%s", zipPath), w)
 				}()
 			})
-		},
-		w)
+		}, w)
 }
 
 // CreateZipArchive creates a zip file from a directory

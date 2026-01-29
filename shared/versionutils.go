@@ -120,10 +120,16 @@ func ExtractVersionFromFilename(fileName string) (string, error) {
 		nameWithoutExt = normalized
 	}
 
-	// Validate as semver
-	if IsValidSemVer(nameWithoutExt) {
-		log.Printf("ExtractVersionFromFilename: successfully extracted version '%s' from '%s'", nameWithoutExt, fileName)
-		return nameWithoutExt, nil
+	// Strip metadata (everything after +) before semver validation
+	// Metadata can contain Unicode which is not valid in semver
+	baseVersion := StripMetadata(nameWithoutExt)
+
+	// Validate base version as semver
+	if IsValidSemVer(baseVersion) {
+		// Normalize the full version name to sanitize any forbidden chars in metadata
+		normalized := NormalizeVersionName(nameWithoutExt)
+		log.Printf("ExtractVersionFromFilename: successfully extracted version '%s' from '%s'", normalized, fileName)
+		return normalized, nil
 	}
 
 	log.Printf("ExtractVersionFromFilename: rejected '%s' - '%s' is not a valid semantic version", fileName, nameWithoutExt)
@@ -442,7 +448,8 @@ func PromptForInstallVersionName(installDir, version string, w fyne.Window, onCo
 	entryContainer := container.NewGridWrap(fyne.NewSize(300, 35), buildEntry)
 	formRow := container.NewHBox(label, entryContainer)
 
-	noteLabel := widget.NewLabel("Note: Spaces become dots, only ASCII alphanumerics allowed")
+	noteLabel := widget.NewLabel("Note: Unicode allowed in metadata, but no filesystem-forbidden characters (< > : \" / \\ | ? *)")
+	noteLabel.Wrapping = fyne.TextWrapWord
 	noteLabel.TextStyle = fyne.TextStyle{Italic: true}
 
 	content := container.NewVBox(
@@ -453,17 +460,19 @@ func PromptForInstallVersionName(installDir, version string, w fyne.Window, onCo
 
 	var d dialog.Dialog
 	confirm := func() {
-		newBuild := SanitizeVersionBuild(buildEntry.Text)
+		newBuild := strings.TrimSpace(buildEntry.Text)
 		if newBuild == "" {
 			dialog.ShowError(fmt.Errorf("new name cannot be empty"), w)
 			return
 		}
 
-		testVersion := fmt.Sprintf("%s+%s", baseVersion, newBuild)
-		if _, err := semver.NewVersion(testVersion); err != nil {
-			dialog.ShowError(fmt.Errorf("invalid build identifier '%s': %w", newBuild, err), w)
+		// Validate metadata (allows Unicode, bans forbidden chars)
+		if err := ValidateMetadata(newBuild); err != nil {
+			dialog.ShowError(fmt.Errorf("invalid metadata: %w", err), w)
 			return
 		}
+
+		testVersion := fmt.Sprintf("%s+%s", baseVersion, newBuild)
 
 		if _, err := os.Stat(filepath.Join(installDir, testVersion)); err == nil {
 			dialog.ShowError(fmt.Errorf("version %s already exists", testVersion), w)
