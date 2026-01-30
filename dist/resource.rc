@@ -1,6 +1,6 @@
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION     3,0,4,400
-PRODUCTVERSION  3,0,4,400
+FILEVERSION     3,0,5,400
+PRODUCTVERSION  3,0,5,400
 FILEFLAGSMASK   0x3fL
 FILEFLAGS      0
 FILEOS         0x40004L
@@ -13,12 +13,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "owlcms"
             VALUE "FileDescription", "owlcms Control Panel"
-            VALUE "FileVersion", "3.0.4"
+            VALUE "FileVersion", "3.0.5"
             VALUE "InternalName", "owlcms"
             VALUE "LegalCopyright", "© 2024 Jean-François Lamy"
             VALUE "OriginalFilename", "owlcms.exe"
             VALUE "ProductName", "owlcms Control Panel"
-            VALUE "ProductVersion", "3.0.4"
+            VALUE "ProductVersion", "3.0.5"
         END
     END
     BLOCK "VarFileInfo"
