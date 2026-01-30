@@ -38,6 +38,14 @@ var (
 	downloadsShown            bool              // New global to track whether downloads are shown
 	urlLink                   *widget.Hyperlink // Add this new variable
 	mainWindow                fyne.Window       // Reference to the main window
+	startupLogText            *widget.Entry
+	startupLogContainer       *fyne.Container
+	startupLogHost            *fyne.Container
+	appDirLink                *widget.Hyperlink
+	tailLogLink               *widget.Hyperlink
+	selectionContent          *fyne.Container
+	runningContent            *fyne.Container
+	modeStack                 *fyne.Container
 )
 
 func initMain() {
@@ -234,7 +242,15 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	urlLink = widget.NewHyperlink("", nil)
 	urlLink.Hide()
 
-	stopContainer = container.NewVBox(widget.NewSeparator(), stopButton, statusLabel, urlLink)
+	// Create app directory hyperlink
+	appDirLink = widget.NewHyperlink("", nil)
+	appDirLink.Hide()
+
+	// Create Tail logs hyperlink
+	tailLogLink = widget.NewHyperlink("", nil)
+	tailLogLink.Hide()
+
+	stopContainer = container.NewVBox(widget.NewSeparator(), stopButton, statusLabel, urlLink, appDirLink, tailLogLink)
 
 	// Initialize download titles
 	updateTitle = widget.NewRichTextFromMarkdown("")
@@ -275,12 +291,31 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	// Create menu bar
 	menuBar := createMenuBar(w)
 
+	// Two different layouts:
+	// - Selection mode: version list (center) + download section (bottom)
+	// - Running mode: startup log host (center), no bottom section
+	startupLogHost = container.NewStack()
+	startupLogHost.Hide()
+
+	selectionContent = container.NewBorder(
+		nil,
+		downloadContainer,
+		nil,
+		nil,
+		versionContainer,
+	)
+
+	runningContent = container.NewMax(startupLogHost)
+	runningContent.Hide()
+
+	modeStack = container.NewStack(selectionContent, runningContent)
+
 	mainContent := container.NewBorder(
 		container.NewVBox(menuBar, stopContainer), // Top (menu bar and stop container)
-		downloadContainer,                         // Bottom
-		nil,                                       // Left
-		nil,                                       // Right
-		versionContainer,                          // Center (now a NewStack, expands to fill space)
+		nil,       // Bottom (handled by selectionContent)
+		nil,       // Left
+		nil,       // Right
+		modeStack, // Center switches between selection/running layouts
 	)
 	statusLabel.SetText("Checking installation status...")
 	statusLabel.Refresh()
@@ -297,6 +332,38 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	}
 
 	return mainContent
+}
+
+func showSelectionLayout() {
+	if selectionContent != nil {
+		selectionContent.Show()
+	}
+	if runningContent != nil {
+		runningContent.Hide()
+	}
+	if startupLogHost != nil {
+		startupLogHost.Hide()
+	}
+}
+
+func showRunningLayout() {
+	if selectionContent != nil {
+		selectionContent.Hide()
+	}
+	if runningContent != nil {
+		runningContent.Show()
+	}
+}
+
+// setFirmataTabModeRunning switches the tab into the running layout (no version picker).
+func setFirmataTabModeRunning() {
+	showRunningLayout()
+	if versionContainer != nil {
+		versionContainer.Hide()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Hide()
+	}
 }
 
 // createMenuBar creates the menu bar with File and Processes menus
