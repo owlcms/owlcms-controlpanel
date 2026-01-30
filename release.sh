@@ -1,8 +1,12 @@
 #!/bin/bash
-export TAG=v3.0.4
-git tag -d ${TAG}
-git push origin --delete ${TAG}
-gh release delete ${TAG} --repo owlcms/owlcms-controlpanel --yes
+export TAG=v3.0.5
+
+# Check if tag already exists
+if git rev-parse "${TAG}" >/dev/null 2>&1; then
+    echo "❌ ERROR: Tag ${TAG} already exists!"
+    echo "Please choose a different version number."
+    exit 1
+fi
 
 BUILD_MAC=true
 BUILD_WINDOWS=true
