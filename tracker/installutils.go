@@ -1,6 +1,7 @@
 package tracker
 
 import (
+	"archive/zip"
 	"fmt"
 	"io"
 	"log"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"owlcms-launcher/shared"
 	"owlcms-launcher/tracker/downloadutils"
@@ -16,7 +18,6 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
-	"github.com/Masterminds/semver/v3"
 )
 
 // ProcessLocalZipFile handles a ZIP file selected from the file system.
@@ -24,67 +25,100 @@ func ProcessLocalZipFile(zipPath string, w fyne.Window, trackerInstallDir string
 	updateExplanation func(),
 	recomputeVersionList func(fyne.Window),
 	checkForNewerVersion func()) {
-	// Extract version number from filename if possible
-	fileName := filepath.Base(zipPath)
-	version := extractVersionFromFilename(fileName)
+	shared.ProcessLocalZipFile(zipPath, w, "1.2.3", func(zipPath, version string) {
+		InstallLocalZipFile(zipPath, version, w, trackerInstallDir, updateExplanation, recomputeVersionList, checkForNewerVersion)
+	})
+}
 
-	// If version couldn't be determined or is invalid, ask the user
-	if version == "" || !IsValidSemVer(version) {
-		content := widget.NewEntry()
-		content.SetPlaceHolder("e.g., 1.2.3")
-
-		message := widget.NewLabel("Could not identify a version number in the file name, please provide one")
-		message.Wrapping = fyne.TextWrapWord
-
-		formContent := container.NewVBox(message, content)
-
-		versionDialog := dialog.NewCustomConfirm(
-			"Enter Version",
-			"Install",
-			"Cancel",
-			formContent,
-			func(confirmed bool) {
-				if !confirmed || content.Text == "" {
-					return
-				}
-
-				if IsValidSemVer(content.Text) {
-					InstallLocalZipFile(zipPath, content.Text, w, trackerInstallDir, updateExplanation, recomputeVersionList, checkForNewerVersion)
-				} else {
-					dialog.ShowError(fmt.Errorf("invalid version format, please use semantic versioning (e.g., 1.2.3)"), w)
-				}
-			},
-			w,
-		)
-		versionDialog.Show()
+// ZipCurrentSetup creates a ZIP file of a selected installed Tracker version
+func ZipCurrentSetup(w fyne.Window, trackerInstallDir string,
+	getAllInstalledVersions func() []string,
+	selectSaveZip func(fyne.Window, string, func(string, error))) {
+	versions := getAllInstalledVersions()
+	if len(versions) == 0 {
+		dialog.ShowError(fmt.Errorf("no versions installed to zip"), w)
 		return
 	}
 
-	// We have a valid version, proceed with installation
-	InstallLocalZipFile(zipPath, version, w, trackerInstallDir, updateExplanation, recomputeVersionList, checkForNewerVersion)
-}
-
-func extractVersionFromFilename(fileName string) string {
-	if !strings.HasSuffix(strings.ToLower(fileName), ".zip") {
-		return ""
+	// Create a dialog to select which version to zip
+	versionSelect := widget.NewSelect(versions, func(selected string) {})
+	if len(versions) == 1 {
+		versionSelect.Selected = versions[0]
 	}
 
-	nameWithoutExt := strings.TrimSuffix(fileName, ".zip")
+	dialog.ShowForm("Zip Current Setup",
+		"Create ZIP",
+		"Cancel",
+		[]*widget.FormItem{
+			widget.NewFormItem("Select version to zip", versionSelect),
+		},
+		func(ok bool) {
+			if !ok || versionSelect.Selected == "" {
+				return
+			}
 
-	// Find first semver-like token in filename
-	semverRegex := regexp.MustCompile(`\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?`)
-	candidate := semverRegex.FindString(nameWithoutExt)
-	if candidate != "" && IsValidSemVer(candidate) {
-		return candidate
-	}
+			version := versionSelect.Selected
+			sourceDir := filepath.Join(trackerInstallDir, version)
 
-	return ""
-}
+			// Check if directory exists
+			if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
+				dialog.ShowError(fmt.Errorf("version directory does not exist: %s", version), w)
+				return
+			}
 
-// IsValidSemVer checks if a string is a valid semantic version.
-func IsValidSemVer(version string) bool {
-	_, err := semver.NewVersion(version)
-	return err == nil
+			// Validate version name (allows Unicode in metadata)
+			if err := shared.ValidateVersionName(version); err != nil {
+				dialog.ShowError(fmt.Errorf("invalid version name: %w", err), w)
+				return
+			}
+
+			// Strip any existing metadata (anything after +) before adding new timestamp
+			baseVersion := shared.StripMetadata(version)
+
+			// Create filename with version and timestamp as metadata
+			timestamp := time.Now().Format("2006-01-02T150405")
+			zipFileName := fmt.Sprintf("owlcms-tracker_%s+%s.zip", baseVersion, timestamp)
+
+			// Ask user where to save the zip file using platform-specific dialog
+			selectSaveZip(w, zipFileName, func(zipPath string, err error) {
+				if err != nil {
+					dialog.ShowError(fmt.Errorf("failed to select save location: %w", err), w)
+					return
+				}
+				if zipPath == "" {
+					// User cancelled
+					return
+				}
+
+				// Create progress dialog
+				progressBar := widget.NewProgressBar()
+				messageLabel := widget.NewLabel(fmt.Sprintf("Creating ZIP file for version %s...", version))
+				progressContent := container.NewVBox(messageLabel, progressBar)
+				progressDialog := dialog.NewCustom(
+					"Creating ZIP",
+					"Please wait...",
+					progressContent,
+					w)
+				progressDialog.Show()
+
+				go func() {
+					defer progressDialog.Hide()
+
+					// Create the zip file
+					err := CreateZipArchive(sourceDir, zipPath, func(progress float64) {
+						progressBar.SetValue(progress)
+					})
+
+					if err != nil {
+						dialog.ShowError(fmt.Errorf("failed to create ZIP file: %w", err), w)
+						return
+					}
+
+					dialog.ShowInformation("Success",
+						fmt.Sprintf("Successfully created ZIP file:\n%s", zipPath), w)
+				}()
+			})
+		}, w)
 }
 
 // GetInstallationDirectoryName determines the directory name for installing a version,
@@ -255,5 +289,86 @@ func copyFile(src, dst string) error {
 	}
 	defer out.Close()
 	_, err = io.Copy(out, in)
+	return err
+}
+
+// CreateZipArchive creates a zip file from a directory
+func CreateZipArchive(sourceDir, zipPath string, progressCallback func(float64)) error {
+	// Count total files first for progress tracking
+	var totalFiles int
+	filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		if err == nil && !info.IsDir() {
+			totalFiles++
+		}
+		return nil
+	})
+
+	zipFile, err := os.Create(zipPath)
+	if err != nil {
+		return fmt.Errorf("failed to create zip file: %w", err)
+	}
+	defer zipFile.Close()
+
+	zipWriter := zip.NewWriter(zipFile)
+	defer zipWriter.Close()
+
+	var processedFiles int
+	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Get relative path
+		relPath, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return err
+		}
+
+		// Skip the root directory itself
+		if relPath == "." {
+			return nil
+		}
+
+		// Create zip header
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return err
+		}
+
+		// Use forward slashes in zip paths
+		header.Name = filepath.ToSlash(relPath)
+
+		if info.IsDir() {
+			header.Name += "/"
+		} else {
+			header.Method = zip.Deflate
+		}
+
+		writer, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+
+		if !info.IsDir() {
+			file, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+			defer file.Close()
+
+			_, err = io.Copy(writer, file)
+			if err != nil {
+				return err
+			}
+
+			processedFiles++
+			if progressCallback != nil && totalFiles > 0 {
+				progressCallback(float64(processedFiles) / float64(totalFiles))
+			}
+		}
+
+		return nil
+	})
+
 	return err
 }

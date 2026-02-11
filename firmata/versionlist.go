@@ -217,12 +217,12 @@ func createImportButton(versions []string, version string, w fyne.Window, button
 		sourceVersions := filterVersions(versions, version) // Filter out the current version
 		sourceVersionDropdown := widget.NewSelect(sourceVersions, func(selected string) {})
 
-		label := widget.NewLabel("Copy the database and locally modified configurations from a previous installation")
+		label := widget.NewLabel("Copy the configuration from a previous installation")
 		label.Wrapping = fyne.TextWrapWord
 		selectContainer := container.NewGridWrap(fyne.NewSize(420, 35), sourceVersionDropdown)
 		content := container.NewVBox(label, selectContainer)
 
-		d := dialog.NewCustomConfirm("Import Data and Config",
+		d := dialog.NewCustomConfirm("Import Config",
 			"Import",
 			"Cancel",
 			content,
@@ -245,20 +245,21 @@ func createImportButton(versions []string, version string, w fyne.Window, button
 					return
 				}
 
-				// Copy database files
-				if err := copyFiles(filepath.Join(sourceDir, "database"), filepath.Join(destDir, "database"), true); err != nil {
-					log.Printf("No database files to copy from %s\n", sourceDir)
-				}
-				// Copy local files
-				if err := copyFiles(filepath.Join(sourceDir, "local"), filepath.Join(destDir, "local"), true); err != nil {
-					log.Printf("No local files to copy from %s\n", sourceDir)
-				}
 				// Copy config files
 				if err := copyFiles(filepath.Join(sourceDir, "config"), filepath.Join(destDir, "config"), true); err != nil {
-					log.Printf("No local files to copy from %s\n", sourceDir)
+					log.Printf("No config files to copy from %s\n", sourceDir)
 				}
 
-				dialog.ShowInformation("Import Complete", fmt.Sprintf("Successfully imported data and config from version %s to version %s", sourceVersion, version), w)
+				// Copy version-specific env.properties if it exists
+				srcEnv := filepath.Join(sourceDir, "env.properties")
+				if _, err := os.Stat(srcEnv); err == nil {
+					destEnv := filepath.Join(destDir, "env.properties")
+					if err := copyFile(srcEnv, destEnv); err != nil {
+						log.Printf("Failed to copy env.properties: %v\n", err)
+					}
+				}
+
+				dialog.ShowInformation("Import Complete", fmt.Sprintf("Successfully imported config from version %s to version %s", sourceVersion, version), w)
 			},
 			w)
 		d.Show()
@@ -435,25 +436,22 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		return
 	}
 
-	// Copy the database from the original directory to the new version
-	err = copyFiles(filepath.Join(currentVersionDir, "database"), filepath.Join(extractDir, "database"), true)
-	if err != nil {
-		log.Printf("No database files to copy from %s\n", currentVersionDir)
-	}
-
-	// Copy local files newer than the source directory to the new version
-	err = copyFiles(filepath.Join(currentVersionDir, "local"), filepath.Join(extractDir, "local"), true)
-	if err != nil {
-		log.Printf("No local files to copy from %s\n", currentVersionDir)
-	}
-
-	// Copy config files newer than the source directory to the new version
+	// Copy config files from the current version to the new version
 	newConfig := filepath.Join(extractDir, "config")
 	oldConfig := filepath.Join(currentVersionDir, "config")
 	log.Printf("Copying config files from %s to %s\n", oldConfig, newConfig)
 	err = copyFiles(oldConfig, newConfig, true)
 	if err != nil {
 		log.Printf("No config files to copy from %s\n", currentVersionDir)
+	}
+
+	// Copy version-specific env.properties if it exists
+	srcEnv := filepath.Join(currentVersionDir, "env.properties")
+	if _, statErr := os.Stat(srcEnv); statErr == nil {
+		destEnv := filepath.Join(extractDir, "env.properties")
+		if copyErr := copyFile(srcEnv, destEnv); copyErr != nil {
+			log.Printf("Failed to copy env.properties: %v\n", copyErr)
+		}
 	}
 
 	dialog.ShowInformation("Update Complete", fmt.Sprintf("Successfully updated to version %s", targetVersion), w)
@@ -531,6 +529,29 @@ func copyFiles(srcDir, destDir string, alwaysCopy bool) error {
 		_, err = io.Copy(destFile, srcFile)
 		return err
 	})
+}
+
+// copyFile copies a single file from src to dest
+func copyFile(src, dest string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	info, err := srcFile.Stat()
+	if err != nil {
+		return err
+	}
+
+	destFile, err := os.OpenFile(dest, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode())
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, srcFile)
+	return err
 }
 
 // RefreshVersionList refreshes the version list display

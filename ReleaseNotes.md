@@ -6,17 +6,20 @@ This is a control panel for owlcms and associated modules.  It is meant to:
 
 The control panel is installed once. It will automatically download the correct version of Java when used for the first time.
 
-## New in version 3.0.3
-- Fix a (harmless) error message when firmata for Arduino Devices was not installed.  The configuration file is now correctly created.
+## Release Log
+- 3.0.5: The shared owlms/tracker/firmata control panel is now the official way to install and run owlcms-firmata
+- 3.0.5: Copy env.properties when updating/importing owlcms and owlcms-firmata that have such a file
 
-## New in version 3.0.2
-- The latest available LTS (Java 25) for the architecture will be installed and used to benefit from performance improvements.
-- An env.properties file is created in each owlcms installation, initialized with the parent env.properties. This allows overriding environment variables per installation.
-- Under Windows, logging control-panel.log in the Control Panel installation directory should now work.
-- Factually accurate progress bar for the long unzip in tracker
-- Correctly deal with opening folders that have a + in their name
+- 3.0.4: Accept non-Latin letters in the semantic versioning descriptive metadata (after the +), since metadata is ignored for version comparison anyway.
+This deviation from the standard is so all the non-English countries can have proper descriptions when naming "Install from Zip" releases.
 
-### Notable for version 3.0.x
+- 3.0.3: Fix a (harmless) error message when firmata for Arduino Devices was not installed.  The configuration file is now correctly created.
+- 3.0.2: An env.properties file is created in each owlcms installation, initialized with the parent env.properties. This allows overriding environment variables per installation.
+- 3.0.2: Under Windows, logging control-panel.log in the Control Panel installation directory should now work.
+- 3.0.2: Factually accurate progress bar for the long unzip in tracker
+- 3.0.2: Correctly deal with opening folders that have a + in their name
+
+### Notable Changes for version 3.0.x
 - Control owlcms, owlcms-tracker and owlcms-firmata from the same control panel
 - Consolidation and cleanup of Java and Node runtimes
 - Added "Duplicate" and "Rename" functions to make copies of an application

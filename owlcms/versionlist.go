@@ -277,6 +277,15 @@ func createImportButton(versions []string, version string, w fyne.Window, button
 							log.Printf("No database files to copy from %s\n", sourceDir)
 						}
 
+						// Copy version-specific env.properties if it exists
+						srcEnv := filepath.Join(sourceDir, "env.properties")
+						if _, err := os.Stat(srcEnv); err == nil {
+							destEnv := filepath.Join(destDir, "env.properties")
+							if err := copyFile(srcEnv, destEnv); err != nil {
+								log.Printf("Failed to copy env.properties: %v\n", err)
+							}
+						}
+
 						// Use the new logic to restore local files
 						err := restoreLocalFilesFromPreviousVersion(destDir, sourceDir)
 						if err != nil {
@@ -573,6 +582,17 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		log.Println("Database files copied successfully")
 	} else {
 		log.Printf("Database directory does not exist in %s\n", existingDatabaseDir)
+	}
+
+	// Copy version-specific env.properties if it exists
+	srcEnv := filepath.Join(existingVersionDir, "env.properties")
+	if _, statErr := os.Stat(srcEnv); statErr == nil {
+		destEnv := filepath.Join(newVersionDir, "env.properties")
+		if copyErr := copyFile(srcEnv, destEnv); copyErr != nil {
+			log.Printf("Failed to copy env.properties: %v\n", copyErr)
+		} else {
+			log.Println("Version-specific env.properties copied successfully")
+		}
 	}
 
 	// Use the new logic to restore local files from previous version

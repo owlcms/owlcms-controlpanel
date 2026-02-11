@@ -456,12 +456,12 @@ jobs:
       run: |
         gh release upload ${{ env.TAG }} dist/Windows_Control_Panel_Installer.exe
 
-    - name: Release Windows Executable
-      if: ${{ env.BUILD_WINDOWS == 'true' }}
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        gh release upload ${{ env.TAG }} dist/owlcms_controlpanel.exe
+    # - name: Release Windows Executable
+    #   if: ${{ env.BUILD_WINDOWS == 'true' }}
+    #   env:
+    #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #   run: |
+    #     gh release upload ${{ env.TAG }} dist/owlcms_controlpanel.exe
 
     # - name: Release Windows MSIX package
     #   if: ${{ env.BUILD_WINDOWS == 'true' }}

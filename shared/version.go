@@ -3,7 +3,7 @@ package shared
 import "strings"
 
 var (
-	launcherVersion = "3.0.3-SNAPSHOT"
+	launcherVersion = "3.0.4-SNAPSHOT"
 	buildVersion    = "_TAG_"
 )
 
