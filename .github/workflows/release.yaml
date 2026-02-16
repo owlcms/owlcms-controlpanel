@@ -1,13 +1,12 @@
 name: Release owlcms-controlpanel
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
-      - 'v*.*.*-alpha*'
-      - 'v*.*.*-beta*'
-      - 'v*.*.*-rc*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., 1.9.0, 1.9.0-beta1)'
+        required: true
+        type: string
 
 jobs:
   build_mac:
@@ -40,7 +39,7 @@ jobs:
     - name: Extract tag
       id: extract_tag
       run: |
-        echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+        echo "TAG=${{ inputs.tag }}" >> $GITHUB_ENV
 
     - name: Substitute tag in config.go
       if: ${{ env.BUILD_MAC == 'true' }}
@@ -152,8 +151,10 @@ jobs:
     - name: Extract tag
       id: extract_tag
       run: |
-        echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-        echo "DEB_TAG=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+        echo "TAG=${{ inputs.tag }}" >> $GITHUB_ENV
+        VERSION="${{ inputs.tag }}"
+        VERSION="${VERSION#v}"
+        echo "DEB_TAG=${VERSION}" >> $GITHUB_ENV
 
     - name: Substitute tag in config.go
       run: |
@@ -242,8 +243,7 @@ jobs:
       shell: bash
       if: ${{ env.BUILD_WINDOWS == 'true' }}
       run: |
-        # This creates the env var in a way that works for all shells
-        tag=${GITHUB_REF#refs/tags/}
+        tag="${{ inputs.tag }}"
         echo "TAG=$tag" >> $GITHUB_ENV
         echo "DEB_TAG=${tag#v}" >> $GITHUB_ENV
         echo "Extracted TAG=$tag"
@@ -370,8 +370,10 @@ jobs:
     - name: Extract tag
       id: extract_tag
       run: |
-        echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-        echo "DEB_TAG=${GITHUB_REF#refs/tags/v}" >> $GITHUB_ENV
+        echo "TAG=${{ inputs.tag }}" >> $GITHUB_ENV
+        VERSION="${{ inputs.tag }}"
+        VERSION="${VERSION#v}"
+        echo "DEB_TAG=${VERSION}" >> $GITHUB_ENV
 
     - name: Create dist directory
       run: mkdir -p dist
