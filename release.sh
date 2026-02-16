@@ -1,81 +1,91 @@
 #!/bin/bash
 export TAG=v3.1.0-rc01
+# =============================================================================
+# Release script for owlcms-controlpanel
+# Uses workflow_dispatch trigger with tag input parameter
+# Monitors builds using timestamp-based filtering (owlcms4 approach)
+# =============================================================================
 
-# Check if tag already exists
-if git rev-parse "${TAG}" >/dev/null 2>&1; then
-    echo "❌ ERROR: Tag ${TAG} already exists!"
-    echo "Please choose a different version number."
+set -e
+
+# Check for gh CLI
+if ! command -v gh &> /dev/null; then
+    echo "Error: gh CLI is not installed. Please install it first."
     exit 1
 fi
 
-BUILD_MAC=true
-BUILD_WINDOWS=true
-BUILD_RASPBERRY=true
-BUILD_LINUX=true
-
-# Pull the latest changes
-git pull
-
-# Check for uncommitted changes (excluding release.sh and ReleaseNotes.md)
-# git status --porcelain (v1) uses two status columns, e.g. " M release.sh" or "M  file" or "?? file".
-# The file path starts at column 4.
-UNCOMMITTED=$(git status --porcelain | awk '{p=substr($0,4); if (p!="release.sh" && p!="ReleaseNotes.md") print $0;}')
-if [ -n "$UNCOMMITTED" ]; then
-    echo "❌ ERROR: You have uncommitted changes other than release.sh and ReleaseNotes.md:"
-    echo "$UNCOMMITTED"
-    echo ""
-    echo "Please commit all changes before creating a release!"
+# Check authentication
+if ! gh auth status &> /dev/null; then
+    echo "Error: gh CLI is not authenticated. Run 'gh auth login' first."
     exit 1
 fi
 
-# Commit release.sh and ReleaseNotes.md if they have changes
-if git status --porcelain | awk '{p=substr($0,4); if (p=="release.sh" || p=="ReleaseNotes.md") {found=1}} END{exit found?0:1}'; then
-    git add release.sh ReleaseNotes.md
-    git commit -m "Update release.sh and ReleaseNotes.md for $TAG"
-    git push
+# Get tag from argument
+if [[ -z "$1" ]]; then
+    echo "Usage: $0 <tag>"
+    echo "Example: $0 1.9.0"
+    exit 1
+fi
+TAG="$1"
+
+# Validate tag format (semver without v prefix)
+if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-alpha[0-9]*|-beta[0-9]*|-rc[0-9]*)?$ ]]; then
+    echo "Error: Tag must be semver format: 1.2.3, 1.2.3-alpha1, 1.2.3-beta1, or 1.2.3-rc1"
+    exit 1
 fi
 
-# Update the resource configuration
-export DEB_TAG=${TAG#v}
-dist/updateRc.sh ${DEB_TAG}
+# Get current branch
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [[ "$BRANCH" == "HEAD" ]]; then
+    echo "Error: Detached HEAD state. Checkout a branch before releasing."
+    exit 1
+fi
 
-# Substitute the values in release.yaml
-sed -i "s/BUILD_MAC: .*/BUILD_MAC: ${BUILD_MAC}/" .github/workflows/release.yaml
-sed -i "s/BUILD_WINDOWS: .*/BUILD_WINDOWS: ${BUILD_WINDOWS}/" .github/workflows/release.yaml
-sed -i "s/BUILD_RASPBERRY: .*/BUILD_RASPBERRY: ${BUILD_RASPBERRY}/" .github/workflows/release.yaml
-sed -i "s/BUILD_LINUX: .*/BUILD_LINUX: ${BUILD_LINUX}/" .github/workflows/release.yaml
+REPO="owlcms/owlcms-controlpanel"
+WORKFLOW_FILE="release.yaml"
 
-# Commit and push the changes
-git commit -am "owlcms-launcher $TAG"
-git push
-git tag -a ${TAG} -m "owlcms-launcher $TAG"
-git push origin --tags
+echo "==== Release $TAG for $REPO ===="
+echo "Branch: $BRANCH"
 
-# Find and watch the workflow progress
-echo "Watching workflow progress..."
-RUN_ID=""
-for i in {1..12}; do
-    RUN_ID=$(gh run list --workflow="Release owlcms-controlpanel" --limit=1 --json databaseId,headBranch --jq ".[] | select(.headBranch==\"${TAG}\") | .databaseId")
-    if [ -n "$RUN_ID" ]; then
+# Get the most recent run ID before triggering (for comparison)
+PREV_RUN_ID=$(gh run list --repo "$REPO" --workflow "$WORKFLOW_FILE" --limit 1 --json databaseId --jq '.[0].databaseId // 0')
+START_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+echo "Previous run ID: $PREV_RUN_ID, Start time: $START_ISO"
+
+# Trigger the workflow
+echo "Triggering workflow dispatch with tag=$TAG on branch $BRANCH..."
+gh workflow run "$WORKFLOW_FILE" --repo "$REPO" --ref "$BRANCH" --field tag="$TAG"
+
+# Wait for the new run to appear
+echo "Waiting for workflow run to start..."
+sleep 10
+
+# Find the new run (started after our timestamp, or with ID > previous)
+for i in {1..30}; do
+    RUN_ID=$(gh run list --repo "$REPO" --workflow "$WORKFLOW_FILE" --event workflow_dispatch --limit 5 --json databaseId,createdAt --jq "[.[] | select(.createdAt >= \"$START_ISO\" or .databaseId > $PREV_RUN_ID)] | .[0].databaseId // 0")
+    
+    if [[ "$RUN_ID" != "0" && -n "$RUN_ID" ]]; then
+        echo "Found new workflow run: $RUN_ID"
         break
     fi
-    echo "Waiting for workflow run to appear (attempt $i/12)..."
+    echo "Waiting for run to appear (attempt $i/30)..."
     sleep 5
 done
 
-if [ -z "$RUN_ID" ]; then
-    echo "ERROR: Could not find workflow run for tag ${TAG}"
-    echo "Check manually: gh run list --workflow='Release owlcms-controlpanel'"
+if [[ "$RUN_ID" == "0" || -z "$RUN_ID" ]]; then
+    echo "Error: Could not find new workflow run after 150 seconds"
+    echo "Check https://github.com/$REPO/actions"
     exit 1
 fi
 
-echo "Found workflow run: $RUN_ID"
-gh run watch "$RUN_ID"
+# Monitor the workflow
+echo ""
+echo "==== Monitoring workflow run $RUN_ID ===="
+echo "View at: https://github.com/$REPO/actions/runs/$RUN_ID"
+echo ""
 
-# Check final status
-if gh run view "$RUN_ID" --exit-status; then
-    echo "✅ Release workflow completed successfully!"
-else
-    echo "❌ Release workflow failed. Check: gh run view $RUN_ID --log-failed"
-    exit 1
-fi
+gh run watch "$RUN_ID" --repo "$REPO" --exit-status
+
+echo ""
+echo "==== Release $TAG completed successfully! ===="
+echo "View release at: https://github.com/$REPO/releases/tag/$TAG"
