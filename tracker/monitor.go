@@ -14,7 +14,6 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
-	"github.com/shirou/gopsutil/process"
 )
 
 // checkPort tries to connect to localhost:port and returns nil if successful
@@ -27,7 +26,7 @@ func checkPort() error {
 	return nil
 }
 
-func monitorProcess(cmd *exec.Cmd) chan error {
+func monitorProcess(done <-chan error) chan error {
 	result := make(chan error, 1)
 	go func() {
 		// Try connecting to the port for up to 30 seconds (Node.js starts faster than Java)
@@ -35,25 +34,19 @@ func monitorProcess(cmd *exec.Cmd) chan error {
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()
 
-		pid := int32(0)
-		if cmd != nil && cmd.Process != nil {
-			pid = int32(cmd.Process.Pid)
-		}
-
 		for {
 			select {
+			case err := <-done:
+				if err != nil {
+					result <- fmt.Errorf("process failed: %w", err)
+				} else {
+					result <- fmt.Errorf("process exited before becoming ready")
+				}
+				return
 			case <-timeout:
 				result <- fmt.Errorf("timed out waiting for process to become ready")
 				return
 			case <-ticker.C:
-				// If the process exited before the port became ready, fail fast.
-				if pid != 0 {
-					if exists, _ := process.PidExists(pid); !exists {
-						result <- fmt.Errorf("process exited before becoming ready")
-						return
-					}
-				}
-
 				if err := checkPort(); err == nil {
 					// Port is responding, process is ready
 					result <- nil

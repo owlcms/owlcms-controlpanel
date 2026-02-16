@@ -1,5 +1,5 @@
 #!/bin/bash
-export TAG=v3.0.5
+export TAG=v3.1.0-rc01
 
 # Check if tag already exists
 if git rev-parse "${TAG}" >/dev/null 2>&1; then

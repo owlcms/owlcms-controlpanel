@@ -330,8 +330,13 @@ func launchFirmata(version string, launchButton *widget.Button) error {
 	// Start monitoring for startup.log
 	go monitorStartupLog(appDir, version)
 
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
 	// Monitor the process in background
-	monitorChan := monitorProcess(cmd)
+	monitorChan := monitorProcess(done)
 
 	// Wait for monitoring result in background
 	go func() {
@@ -369,7 +374,7 @@ func launchFirmata(version string, launchButton *widget.Button) error {
 		configureTailLogLink(version, appDir)
 
 		// Process is stable, wait for it to end
-		err := cmd.Wait()
+		err := <-done
 		pid := cmd.Process.Pid
 
 		if killedByUs {

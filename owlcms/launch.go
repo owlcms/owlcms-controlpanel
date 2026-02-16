@@ -1,6 +1,7 @@
 package owlcms
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -130,6 +131,7 @@ var (
 	startupLogStopCh   chan struct{}
 	startupLogUpdating bool
 	startupLogLastText string
+	startupLogHeader   *widget.Label
 )
 
 func acquireJavaLock() (*flock.Flock, error) {
@@ -191,6 +193,8 @@ func killLockingProcess() error {
 
 func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 	currentVersion = version
+	const maxRestartRetries = 3
+	const restartDelay = 1 * time.Second
 
 	var err error
 	lock, err = acquireJavaLock()
@@ -223,13 +227,14 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 		}
 	}
 
-	jarPath := filepath.Join(owlcmsDir, version, "owlcms.jar")
+	versionDir := filepath.Join(owlcmsDir, version)
+	jarPath := filepath.Join(versionDir, "owlcms.jar")
 	if _, err := os.Stat(jarPath); os.IsNotExist(err) {
 		launchButton.Show()
 		return fmt.Errorf("owlcms.jar not found in %s directory", jarPath)
 	}
 
-	if err := os.Chdir(filepath.Join(owlcmsDir, version)); err != nil {
+	if err := os.Chdir(versionDir); err != nil {
 		launchButton.Show()
 		return fmt.Errorf("changing to version directory: %w", err)
 	}
@@ -272,83 +277,47 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 		env = append(env, fmt.Sprintf("%s=%s", key, value))
 	}
 
-	cmd := exec.Command(localJava, "-jar", "owlcms.jar")
-	cmd.Env = env
+	var launchAttempt func(retryCount int)
+	launchAttempt = func(retryCount int) {
+		cmd := exec.Command(localJava, "-jar", "owlcms.jar")
+		cmd.Env = env
+		cmd.Dir = versionDir
 
-	// Remove startup.log if it exists to ensure fresh log output
-	// (Only versions >= 64.0.0-rc08 generate this file.)
-	if owlcmsSupportsStartupLog(version) {
-		versionDir := filepath.Join(owlcmsDir, version)
-		startupLogPath := filepath.Join(versionDir, "logs", "startup.log")
-		if err := os.Remove(startupLogPath); err != nil && !os.IsNotExist(err) {
-			log.Printf("Warning: Failed to remove old startup.log: %v", err)
+		// Remove startup.log if it exists to ensure fresh log output
+		// (Only versions >= 64.0.0-rc08 generate this file.)
+		if owlcmsSupportsStartupLog(version) {
+			startupLogPath := filepath.Join(versionDir, "logs", "startup.log")
+			if err := os.Remove(startupLogPath); err != nil && !os.IsNotExist(err) {
+				log.Printf("Warning: Failed to remove old startup.log: %v", err)
+			}
 		}
-	}
 
-	log.Printf("Starting OWLCMS %s with command: %v\n", version, cmd.Args)
-	if err := cmd.Start(); err != nil {
-		statusLabel.SetText(fmt.Sprintf("Failed to start OWLCMS %s", version))
-		releaseJavaLock()
-		launchButton.Show()
-		goBackToMainScreen()
-		log.Printf("Failed to start OWLCMS %s: %v\n", version, err)
-		return fmt.Errorf("failed to start OWLCMS %s: %w", version, err)
-	}
-
-	javaPID = cmd.Process.Pid
-	if err := os.WriteFile(pidFilePath, []byte(fmt.Sprintf("%d\n", javaPID)), 0644); err != nil {
-		log.Printf("Failed to write PID to PID file: %v\n", err)
-	} else {
-		log.Printf("Wrote PID %d to PID file %s\n", javaPID, pidFilePath)
-	}
-
-	log.Printf("Launching OWLCMS %s (PID: %d), waiting for port %s...\n", version, javaPID, GetPort())
-	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s (PID: %d), waiting for port %s.\nFull startup can take up to 30 seconds.", version, javaPID, GetPort()))
-	currentProcess = cmd
-	stopBtn.SetText(fmt.Sprintf("Stop OWLCMS %s", version))
-	stopBtn.Show()
-	stopContainer.Show()
-	downloadContainer.Hide()
-	versionContainer.Hide()
-	setOwlcmsTabModeRunning()
-
-	appDir := filepath.Join(installDir, version)
-	appDirLink.SetText(fmt.Sprintf("Open OWLCMS %s directory", version))
-	appDirLink.SetURL(nil)
-	appDirLink.OnTapped = func() {
-		shared.OpenFileExplorer(appDir)
-	}
-	appDirLink.Show()
-	configureTailLogLink(version, appDir)
-
-	// Start monitoring for startup.log (when supported by the OWLCMS version)
-	go monitorStartupLog(appDir, version)
-
-	monitorChan := monitorProcess(cmd)
-
-	go func() {
-		if err := <-monitorChan; err != nil {
-			log.Printf("OWLCMS process %d failed to start properly: %v\n", javaPID, err)
-			statusLabel.SetText(fmt.Sprintf("OWLCMS process %d failed to start properly", javaPID))
-			stopBtn.Hide()
-			stopContainer.Hide()
-			launchButton.Show()
-			currentProcess = nil
-			setOwlcmsTabMode(mainWindow)
-
+		log.Printf("Starting OWLCMS %s with command: %v\n", version, cmd.Args)
+		if err := cmd.Start(); err != nil {
+			statusLabel.SetText(fmt.Sprintf("Failed to start OWLCMS %s", version))
 			releaseJavaLock()
+			launchButton.Show()
+			goBackToMainScreen()
+			log.Printf("Failed to start OWLCMS %s: %v\n", version, err)
 			return
 		}
 
-		log.Printf("OWLCMS process %d is ready (port %s responding)\n", javaPID, GetPort())
-		statusLabel.SetText(fmt.Sprintf("OWLCMS running (PID: %d) on port %s", javaPID, GetPort()))
-		url := fmt.Sprintf("http://localhost:%s", GetPort())
-		urlLink.SetURLFromString(url)
-		urlLink.SetText("Open OWLCMS in a browser")
-		urlLink.Show()
+		javaPID = cmd.Process.Pid
+		if err := os.WriteFile(pidFilePath, []byte(fmt.Sprintf("%d\n", javaPID)), 0644); err != nil {
+			log.Printf("Failed to write PID to PID file: %v\n", err)
+		} else {
+			log.Printf("Wrote PID %d to PID file %s\n", javaPID, pidFilePath)
+		}
 
-		// Close the startup log area now that OWLCMS is ready
-		hideStartupLogArea()
+		log.Printf("Launching OWLCMS %s (PID: %d), waiting for port %s...\n", version, javaPID, GetPort())
+		statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s (PID: %d), waiting for port %s.\nFull startup can take up to 30 seconds.", version, javaPID, GetPort()))
+		currentProcess = cmd
+		stopBtn.SetText(fmt.Sprintf("Stop OWLCMS %s", version))
+		stopBtn.Show()
+		stopContainer.Show()
+		downloadContainer.Hide()
+		versionContainer.Hide()
+		setOwlcmsTabModeRunning()
 
 		appDir := filepath.Join(installDir, version)
 		appDirLink.SetText(fmt.Sprintf("Open OWLCMS %s directory", version))
@@ -359,41 +328,109 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 		appDirLink.Show()
 		configureTailLogLink(version, appDir)
 
-		err := cmd.Wait()
-		pid := cmd.Process.Pid
+		// Start monitoring for startup.log (when supported by the OWLCMS version)
+		go monitorStartupLog(appDir, version)
 
-		if killedByUs {
-			log.Printf("OWLCMS %s (PID: %d) was stopped by user\n", version, pid)
-			statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) was stopped by user", version, pid))
-		} else if err != nil {
-			log.Printf("OWLCMS %s (PID: %d) terminated with error: %v\n", version, pid, err)
-			statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) terminated with error", version, pid))
-		} else {
-			log.Printf("OWLCMS %s (PID: %d) exited normally\n", version, pid)
-			statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) exited normally", version, pid))
-		}
+		done := make(chan error, 1)
+		go func() {
+			done <- cmd.Wait()
+		}()
 
-		currentProcess = nil
-		killedByUs = false
-		stopBtn.Hide()
-		stopContainer.Hide()
-		launchButton.Show()
-		setOwlcmsTabMode(mainWindow)
+		monitorChan := monitorProcess(done)
 
-		urlLink.Hide()
-		appDirLink.Hide()
-		if tailLogLink != nil {
-			tailLogLink.Hide()
-		}
-		hideStartupLogArea()
-		releaseJavaLock()
-	}()
+		go func(retryCount int, pid int) {
+			if err := <-monitorChan; err != nil {
+				log.Printf("OWLCMS process %d failed to start properly: %v\n", pid, err)
+				statusLabel.SetText(fmt.Sprintf("OWLCMS process %d failed to start properly", pid))
+				stopBtn.Hide()
+				stopContainer.Hide()
+				launchButton.Show()
+				currentProcess = nil
+				setOwlcmsTabMode(mainWindow)
+
+				releaseJavaLock()
+				return
+			}
+
+			log.Printf("OWLCMS process %d is ready (port %s responding)\n", pid, GetPort())
+			statusLabel.SetText(fmt.Sprintf("OWLCMS running (PID: %d) on port %s", pid, GetPort()))
+			url := fmt.Sprintf("http://localhost:%s", GetPort())
+			urlLink.SetURLFromString(url)
+			urlLink.SetText("Open OWLCMS in a browser")
+			urlLink.Show()
+
+			// Close the startup log area now that OWLCMS is ready
+			hideStartupLogArea()
+
+			appDir := filepath.Join(installDir, version)
+			appDirLink.SetText(fmt.Sprintf("Open OWLCMS %s directory", version))
+			appDirLink.SetURL(nil)
+			appDirLink.OnTapped = func() {
+				shared.OpenFileExplorer(appDir)
+			}
+			appDirLink.Show()
+			configureTailLogLink(version, appDir)
+
+			err := <-done
+
+			if !killedByUs && err != nil {
+				var exitErr *exec.ExitError
+				if errors.As(err, &exitErr) && exitErr.ExitCode() != 0 && retryCount < maxRestartRetries {
+					attemptNum := retryCount + 1
+					log.Printf("OWLCMS %s (PID: %d) exited with code %d; restarting in %s (attempt %d/%d)\n", version, pid, exitErr.ExitCode(), restartDelay, attemptNum, maxRestartRetries)
+					setOwlcmsTabModeRunning()
+					currentProcess = nil
+					stopBtn.Hide()
+					stopContainer.Hide()
+					launchButton.Hide()
+					urlLink.Hide()
+					appDirLink.Hide()
+					if tailLogLink != nil {
+						tailLogLink.Hide()
+					}
+					showStartupLogArea("Restarting OWLCMS")
+					setStartupLogText("")
+					time.Sleep(restartDelay)
+					launchAttempt(retryCount + 1)
+					return
+				}
+			}
+
+			if killedByUs {
+				log.Printf("OWLCMS %s (PID: %d) was stopped by user\n", version, pid)
+				statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) was stopped by user", version, pid))
+			} else if err != nil {
+				log.Printf("OWLCMS %s (PID: %d) terminated with error: %v\n", version, pid, err)
+				statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) terminated with error", version, pid))
+			} else {
+				log.Printf("OWLCMS %s (PID: %d) exited normally\n", version, pid)
+				statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) exited normally", version, pid))
+			}
+
+			currentProcess = nil
+			killedByUs = false
+			stopBtn.Hide()
+			stopContainer.Hide()
+			launchButton.Show()
+			setOwlcmsTabMode(mainWindow)
+
+			urlLink.Hide()
+			appDirLink.Hide()
+			if tailLogLink != nil {
+				tailLogLink.Hide()
+			}
+			hideStartupLogArea()
+			releaseJavaLock()
+		}(retryCount, javaPID)
+	}
+
+	launchAttempt(0)
 
 	return nil
 }
 
 // showStartupLogArea creates and shows the startup log text area
-func showStartupLogArea() {
+func showStartupLogArea(headerText string) {
 	// Reset/initialize stop channel for this run
 	startupLogMu.Lock()
 	if startupLogStopCh != nil {
@@ -426,14 +463,24 @@ func showStartupLogArea() {
 	}
 
 	if startupLogContainer == nil {
+		startupLogHeader = widget.NewLabel("Startup Progress:")
+
 		// Use a Border layout so the text area expands to fill remaining space.
 		// VBox would size children to MinSize and leave unused space below.
 		header := container.NewVBox(
 			widget.NewSeparator(),
-			widget.NewLabel("Startup Progress:"),
+			startupLogHeader,
 		)
 		scroller := container.NewScroll(startupLogText)
 		startupLogContainer = container.NewBorder(header, nil, nil, nil, scroller)
+	}
+
+	if startupLogHeader != nil {
+		if headerText == "" {
+			headerText = "Startup Progress"
+		}
+		startupLogHeader.SetText(headerText)
+		startupLogHeader.Refresh()
 	}
 
 	// Show within the running layout center so it can expand.
@@ -527,7 +574,7 @@ func monitorStartupLog(appDir, version string) {
 	if !owlcmsSupportsStartupLog(version) {
 		// Older OWLCMS versions don't generate logs/startup.log; don't poll for it.
 		// Keep UI consistent: show an informational startup area while we wait for port readiness.
-		showStartupLogArea()
+		showStartupLogArea("Startup Progress")
 		setStartupLogText(fmt.Sprintf(
 			"OWLCMS %s does not generate logs/startup.log.\nWaiting for OWLCMS to respond on port %s...\n",
 			version,
@@ -540,7 +587,7 @@ func monitorStartupLog(appDir, version string) {
 	log.Printf("Monitoring for startup.log at: %s\n", startupLogPath)
 
 	// Show the startup log area immediately
-	showStartupLogArea()
+	showStartupLogArea("Startup Progress")
 	setStartupLogText("Waiting for startup.log...\n")
 
 	// For testing: simulate dummy data

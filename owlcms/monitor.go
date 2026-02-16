@@ -24,14 +24,9 @@ func checkPort() error {
 	return nil
 }
 
-func monitorProcess(cmd *exec.Cmd) chan error {
+func monitorProcess(done <-chan error) chan error {
 	result := make(chan error, 1)
 	go func() {
-		done := make(chan error, 1)
-		go func() {
-			done <- cmd.Wait()
-		}()
-
 		timeout := time.After(60 * time.Second)
 		ticker := time.NewTicker(500 * time.Millisecond)
 		defer ticker.Stop()

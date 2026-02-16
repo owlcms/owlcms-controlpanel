@@ -28,15 +28,9 @@ func checkPort() error {
 	return nil
 }
 
-func monitorProcess(cmd *exec.Cmd) chan error {
+func monitorProcess(done <-chan error) chan error {
 	result := make(chan error, 1)
 	go func() {
-		// Start a goroutine to wait for process exit
-		done := make(chan error, 1)
-		go func() {
-			done <- cmd.Wait()
-		}()
-
 		// Try connecting to port for up to 60 seconds
 		timeout := time.After(60 * time.Second)
 		ticker := time.NewTicker(500 * time.Millisecond)

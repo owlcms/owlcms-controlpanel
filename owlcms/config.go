@@ -505,10 +505,12 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 			log.Printf("Failed to parse release URL: %v", err)
 			return
 		}
-		link := widget.NewHyperlink("Release Notes and Installer", parsedURL)
+		releaseNotesLink := widget.NewHyperlink("Release Notes", parsedURL)
+		installerLink := widget.NewHyperlink("Installer", parsedURL)
+		links := container.NewHBox(installerLink, releaseNotesLink)
 		content := container.NewVBox(
 			widget.NewLabel(fmt.Sprintf("A new version (%s) is available. You are currently using version %s.\nYou can simply download the new installer and install over the current version.", newerRelease.TagName, shared.GetLauncherVersion())),
-			link,
+			links,
 		)
 		dialog.ShowCustom("Update Available", "Close", content, win)
 	} else {

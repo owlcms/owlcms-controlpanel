@@ -448,7 +448,12 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 	configureTailLogLink(version, appDir)
 
 	// Monitor the process in background
-	monitorChan := monitorProcess(cmd)
+	done := make(chan error, 1)
+	go func() {
+		done <- cmd.Wait()
+	}()
+
+	monitorChan := monitorProcess(done)
 
 	// Wait for monitoring result in background
 	go func() {
@@ -487,7 +492,7 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 		}
 
 		// Process is stable, wait for it to end
-		err := cmd.Wait()
+		err := <-done
 		pid := cmd.Process.Pid
 		if logFile != nil {
 			_ = logFile.Close()
