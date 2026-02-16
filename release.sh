@@ -1,5 +1,6 @@
 #!/bin/bash
-export TAG=v3.1.0-rc01
+# Default release tag (can be overridden by first CLI argument)
+TAG="v3.1.0-rc01"
 # =============================================================================
 # Release script for owlcms-controlpanel
 # Uses workflow_dispatch trigger with tag input parameter
@@ -20,17 +21,20 @@ if ! gh auth status &> /dev/null; then
     exit 1
 fi
 
-# Get tag from argument
-if [[ -z "$1" ]]; then
-    echo "Usage: $0 <tag>"
-    echo "Example: $0 1.9.0"
+# Optional CLI override for tag
+if [[ -n "$1" ]]; then
+    TAG="$1"
+fi
+
+if [[ -z "$TAG" ]]; then
+    echo "Error: TAG is empty. Set TAG at top of file or pass it as first argument."
+    echo "Example: TAG=1.9.0 or: $0 1.9.0"
     exit 1
 fi
-TAG="$1"
 
-# Validate tag format (semver without v prefix)
-if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-alpha[0-9]*|-beta[0-9]*|-rc[0-9]*)?$ ]]; then
-    echo "Error: Tag must be semver format: 1.2.3, 1.2.3-alpha1, 1.2.3-beta1, or 1.2.3-rc1"
+# Validate tag format (semver, with optional v prefix)
+if [[ ! "$TAG" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-alpha[0-9]*|-beta[0-9]*|-rc[0-9]*)?$ ]]; then
+    echo "Error: Tag must be semver format: 1.2.3, 1.2.3-alpha1, 1.2.3-beta1, 1.2.3-rc1 (optional leading v)"
     exit 1
 fi
 
