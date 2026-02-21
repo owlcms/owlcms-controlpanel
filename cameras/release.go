@@ -12,8 +12,8 @@ import (
 	"sort"
 	"time"
 
-	"owlcms-launcher/shared"
 	customdialog "owlcms-launcher/cameras/dialog"
+	"owlcms-launcher/shared"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
