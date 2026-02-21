@@ -12,9 +12,11 @@ import (
 	"syscall"
 	"time"
 
+	"owlcms-launcher/cameras"
 	"owlcms-launcher/firmata"
 	"owlcms-launcher/owlcms"
 	"owlcms-launcher/owlcms/javacheck"
+	"owlcms-launcher/replays"
 	"owlcms-launcher/shared"
 	"owlcms-launcher/tracker"
 
@@ -111,11 +113,15 @@ func main() {
 	owlcmsTabContent := owlcms.CreateTab(w, a)
 	trackerTabContent := tracker.CreateTab(w)
 	firmataTabContent := firmata.CreateTab(w)
+	camerasTabContent := cameras.CreateTab(w)
+	replaysTabContent := replays.CreateTab(w)
 
 	mainContent := container.NewAppTabs(
 		container.NewTabItem("OWLCMS", owlcmsTabContent),
 		container.NewTabItem("Tracker", trackerTabContent),
 		container.NewTabItem("Arduino Devices", firmataTabContent),
+		container.NewTabItem("Cameras", camerasTabContent),
+		container.NewTabItem("Replays", replaysTabContent),
 	)
 
 	// Refresh tracker version list when its tab is selected (to update OWLCMS version warning)
@@ -135,8 +141,9 @@ func main() {
 	owlp := owlcms.GetInstallDir()
 	tp := tracker.GetInstallDir()
 	fp := firmata.GetInstallDir()
+	vp := cameras.GetInstallDir()
 
-	mods := shared.DetectInstalledModules(owlp, tp, fp)
+	mods := shared.DetectInstalledModules(owlp, tp, fp, vp)
 
 	owlcmsCheck := widget.NewCheck("OWLCMS", nil)
 	owlcmsCheck.SetChecked(mods.OWLCMS)
@@ -144,7 +151,9 @@ func main() {
 	trackerCheck.SetChecked(mods.Tracker)
 	firmataCheck := widget.NewCheck("Firmata", nil)
 	firmataCheck.SetChecked(mods.Firmata)
-	checks := container.NewVBox(owlcmsCheck, trackerCheck, firmataCheck)
+	videoCheck := widget.NewCheck("Video", nil)
+	videoCheck.SetChecked(mods.Video)
+	checks := container.NewVBox(owlcmsCheck, trackerCheck, firmataCheck, videoCheck)
 
 	// The initial installed-modules popup is kept in code for future use
 	// but is not shown by default. To re-enable, call `dialog.ShowCustom(...)`.
@@ -164,16 +173,20 @@ func anyProgramRunning() bool {
 	owlcmsRunning := owlcms.IsRunning()
 	trackerRunning := tracker.IsRunning()
 	firmataRunning := firmata.IsRunning()
+	camerasRunning := cameras.IsRunning()
+	replaysRunning := replays.IsRunning()
 
-	log.Printf("anyProgramRunning: OWLCMS=%v, Tracker=%v, Firmata=%v", owlcmsRunning, trackerRunning, firmataRunning)
+	log.Printf("anyProgramRunning: OWLCMS=%v, Tracker=%v, Firmata=%v, Cameras=%v, Replays=%v", owlcmsRunning, trackerRunning, firmataRunning, camerasRunning, replaysRunning)
 
-	return owlcmsRunning || trackerRunning || firmataRunning
+	return owlcmsRunning || trackerRunning || firmataRunning || camerasRunning || replaysRunning
 }
 
 func stopAllRunningProcesses(w fyne.Window) {
 	owlcms.StopRunningProcess(w)
 	tracker.StopRunningProcess(w)
 	firmata.StopRunningProcess(w)
+	cameras.StopRunningProcess(w)
+	replays.StopRunningProcess(w)
 }
 
 func stopAllRunningProcessesForSignal() {
@@ -189,6 +202,14 @@ func stopAllRunningProcessesForSignal() {
 	if firmata.IsRunning() {
 		log.Println("Signal cleanup: forcefully stopping Firmata process")
 		firmata.HandleSignalCleanup()
+	}
+	if cameras.IsRunning() {
+		log.Println("Signal cleanup: forcefully stopping Cameras process")
+		cameras.HandleSignalCleanup()
+	}
+	if replays.IsRunning() {
+		log.Println("Signal cleanup: forcefully stopping Replays process")
+		replays.HandleSignalCleanup()
 	}
 }
 
@@ -332,6 +353,8 @@ func setupMenus(w fyne.Window) {
 			owlcms.RefreshVersionList(w)
 			tracker.RefreshVersionList(w)
 			firmata.RefreshVersionList(w)
+			cameras.RefreshVersionList(w)
+			replays.RefreshVersionList(w)
 		}),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Quit", func() {

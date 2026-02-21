@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -21,7 +20,6 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
-	"github.com/Masterminds/semver/v3"
 )
 
 // Release represents a GitHub release
@@ -100,14 +98,14 @@ func fetchReleases() ([]string, error) {
 	// After sorting releases but before returning, log the latest versions
 	var latestStable, latestPrerelease string
 	for _, release := range releaseNames {
-		version := extractSemverTag(release)
+		version := shared.ExtractSemver(release)
 		if !containsPreReleaseTag(version) {
 			latestStable = version
 			break // First one is latest since they're sorted
 		}
 	}
 	for _, release := range releaseNames {
-		version := extractSemverTag(release)
+		version := shared.ExtractSemver(release)
 		if containsPreReleaseTag(version) {
 			latestPrerelease = version
 			break // First one is latest since they're sorted
@@ -123,7 +121,7 @@ func populateReleaseSelect(selectWidget *widget.Select) {
 	filteredReleases := []string{}
 	stableReleases := []string{}
 	for _, release := range allReleases {
-		version := extractSemverTag(release)
+		version := shared.ExtractSemver(release)
 		if showPrereleases || !containsPreReleaseTag(version) {
 			filteredReleases = append(filteredReleases, release)
 		}
@@ -141,7 +139,7 @@ func populateReleaseSelect(selectWidget *widget.Select) {
 func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 	selectWidget := widget.NewSelect([]string{}, func(selected string) {
 		// Extract clean version from selected string
-		version := extractSemverTag(selected)
+		version := shared.ExtractSemver(selected)
 		var urlPrefix string
 		if containsPreReleaseTag(version) {
 			urlPrefix = "https://github.com/jflamy/owlcms-firmata/releases/download"
@@ -312,56 +310,11 @@ func containsPreReleaseTag(version string) bool {
 }
 
 func getMostRecentStableRelease() (string, error) {
-	var mostRecentStable *semver.Version
-	for _, release := range allReleases {
-		version := extractSemverTag(release) // Clean the version string first
-		releaseVersion, err := semver.NewVersion(version)
-		if err != nil {
-			continue
-		}
-		if !containsPreReleaseTag(version) {
-			if mostRecentStable == nil || releaseVersion.GreaterThan(mostRecentStable) {
-				mostRecentStable = releaseVersion
-			}
-		}
-	}
-	if mostRecentStable == nil {
-		return "", fmt.Errorf("no stable release found")
-	}
-	return mostRecentStable.String(), nil
+	return shared.GetMostRecentStable(allReleases)
 }
 
 func getMostRecentPrerelease() (string, error) {
-	var mostRecentPrerelease *semver.Version
-	var mostRecentPrereleaseStr string
-	for _, release := range allReleases {
-		version := extractSemverTag(release) // Clean the version string first
-		releaseVersion, err := shared.NewVersionForComparison(version)
-		if err != nil {
-			continue
-		}
-		if containsPreReleaseTag(version) {
-			if mostRecentPrerelease == nil || releaseVersion.GreaterThan(mostRecentPrerelease) {
-				mostRecentPrerelease = releaseVersion
-				mostRecentPrereleaseStr = version // Keep original string with SNAPSHOT
-			}
-		}
-	}
-	if mostRecentPrerelease == nil {
-		return "", fmt.Errorf("no prerelease found")
-	}
-	return mostRecentPrereleaseStr, nil
-}
-
-func extractSemverTag(s string) string {
-	re := regexp.MustCompile(`(v?\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+)?)$`)
-	if match := re.FindString(s); match != "" {
-		if match[0] == 'v' {
-			return match[1:]
-		}
-		return match
-	}
-	return s
+	return shared.GetMostRecentPrerelease(allReleases)
 }
 
 // InstallDefault performs the default install action for the Firmata package.
@@ -385,7 +338,6 @@ func InstallDefault(w fyne.Window) {
 	}
 
 	latest, err := getMostRecentStableRelease()
-	log.Printf("Firmata InstallDefault: getMostRecentStableRelease -> latest=%q err=%v", latest, err)
 	if err == nil && latest != "" {
 		// Start a first-install flow: hide download UI and kick off install of the latest stable.
 		HideDownloadables()

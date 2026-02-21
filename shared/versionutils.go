@@ -86,12 +86,91 @@ func NewVersionForComparison(version string) (*semver.Version, error) {
 // SNAPSHOT prereleases are considered more recent than other prereleases (rc, alpha, beta)
 // because SNAPSHOT is normalized to lowercase for comparison (snapshot > rc alphabetically).
 func CompareVersions(v1Str, v2Str string) bool {
-	v1, err1 := NewVersionForComparison(v1Str)
-	v2, err2 := NewVersionForComparison(v2Str)
-	if err1 != nil || err2 != nil {
-		return v1Str > v2Str
+	v1Tag := ExtractSemver(v1Str)
+	v2Tag := ExtractSemver(v2Str)
+
+	v1, err1 := NewVersionForComparison(v1Tag)
+	v2, err2 := NewVersionForComparison(v2Tag)
+
+	if err1 == nil && err2 == nil {
+		return v1.GreaterThan(v2)
 	}
-	return v1.GreaterThan(v2)
+
+	if err1 != nil && err2 == nil {
+		return false
+	}
+	if err1 == nil && err2 != nil {
+		return true
+	}
+
+	return v1Tag > v2Tag
+}
+
+// semverRegex extracts the semver portion from a tag string, handling prefixes
+// like "v", "firmata-v", "owlcms-", etc.
+var semverRegex = regexp.MustCompile(`(v?\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+)?)$`)
+
+// ExtractSemver extracts the semantic version from a tag string, stripping any
+// prefix (e.g. "firmata-v1.2.3" → "1.2.3", "v1.9.0-beta06" → "1.9.0-beta06").
+// Returns the original string unchanged if no semver pattern is found.
+func ExtractSemver(tag string) string {
+	if match := semverRegex.FindString(tag); match != "" {
+		return strings.TrimPrefix(match, "v")
+	}
+	return tag
+}
+
+// GetMostRecentStable finds the most recent stable (non-prerelease) version
+// from a list of version strings using proper semver comparison.
+// Prefixes are stripped automatically. Returns the clean semver string.
+func GetMostRecentStable(releases []string) (string, error) {
+	var best *semver.Version
+	var bestStr string
+	for _, release := range releases {
+		tag := ExtractSemver(release)
+		v, err := semver.NewVersion(tag)
+		if err != nil {
+			continue
+		}
+		if IsPrerelease(tag) {
+			continue
+		}
+		if best == nil || v.GreaterThan(best) {
+			best = v
+			bestStr = tag
+		}
+	}
+	if best == nil {
+		return "", fmt.Errorf("no stable release found")
+	}
+	return bestStr, nil
+}
+
+// GetMostRecentPrerelease finds the most recent prerelease version
+// from a list of version strings using proper semver comparison.
+// SNAPSHOT versions are normalized for comparison so they sort after rc/beta/alpha.
+// Prefixes are stripped automatically. Returns the clean semver string.
+func GetMostRecentPrerelease(releases []string) (string, error) {
+	var best *semver.Version
+	var bestStr string
+	for _, release := range releases {
+		tag := ExtractSemver(release)
+		v, err := NewVersionForComparison(tag)
+		if err != nil {
+			continue
+		}
+		if !IsPrerelease(tag) {
+			continue
+		}
+		if best == nil || v.GreaterThan(best) {
+			best = v
+			bestStr = tag
+		}
+	}
+	if best == nil {
+		return "", fmt.Errorf("no prerelease found")
+	}
+	return bestStr, nil
 }
 
 // ExtractVersionFromFilename extracts a semantic version from a ZIP filename.

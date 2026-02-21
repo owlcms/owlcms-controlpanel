@@ -352,21 +352,11 @@ func checkAssetExists(url string) bool {
 }
 
 func getMostRecentStableRelease() (string, error) {
-	for _, release := range allReleases {
-		if !containsPreReleaseTag(release) {
-			return release, nil
-		}
-	}
-	return "", fmt.Errorf("no stable release found")
+	return shared.GetMostRecentStable(allReleases)
 }
 
 func getMostRecentPrerelease() (string, error) {
-	for _, release := range allReleases {
-		if containsPreReleaseTag(release) {
-			return release, nil
-		}
-	}
-	return "", fmt.Errorf("no prerelease found")
+	return shared.GetMostRecentPrerelease(allReleases)
 }
 
 // InstallDefault performs the default install action for the Tracker package.
@@ -384,7 +374,6 @@ func InstallDefault(w fyne.Window) {
 	}
 
 	latest, err := getMostRecentStableRelease()
-	log.Printf("Tracker InstallDefault: getMostRecentStableRelease -> latest=%q err=%v", latest, err)
 	if err == nil && latest != "" {
 		confirmAndDownloadVersion(latest, w)
 	} else {

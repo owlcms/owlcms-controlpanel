@@ -645,7 +645,7 @@ func checkForNewerVersion() {
 				if err == nil && releaseVersion.GreaterThan(latestInstalledVersion) {
 					log.Printf("Found newer version: %s\n", release)
 					releaseURL := fmt.Sprintf("https://github.com/jflamy/owlcms-firmata/releases/tag/%s", releaseVersion)
-					versionToInstall := extractSemverTag(release)
+					versionToInstall := shared.ExtractSemver(release)
 
 					var versionType string
 					if containsPreReleaseTag(release) {

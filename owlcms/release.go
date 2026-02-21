@@ -19,7 +19,6 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
-	"github.com/Masterminds/semver/v3"
 )
 
 // Release represents a GitHub release
@@ -356,43 +355,11 @@ func containsPreReleaseTag(version string) bool {
 }
 
 func getMostRecentStableRelease() (string, error) {
-	var mostRecentStable *semver.Version
-	for _, release := range allReleases {
-		releaseVersion, err := semver.NewVersion(release)
-		if err != nil {
-			continue
-		}
-		if !containsPreReleaseTag(release) {
-			if mostRecentStable == nil || releaseVersion.GreaterThan(mostRecentStable) {
-				mostRecentStable = releaseVersion
-			}
-		}
-	}
-	if mostRecentStable == nil {
-		return "", fmt.Errorf("no stable release found")
-	}
-	return mostRecentStable.String(), nil
+	return shared.GetMostRecentStable(allReleases)
 }
 
 func getMostRecentPrerelease() (string, error) {
-	var mostRecentPrerelease *semver.Version
-	var mostRecentPrereleaseStr string
-	for _, release := range allReleases {
-		releaseVersion, err := shared.NewVersionForComparison(release)
-		if err != nil {
-			continue
-		}
-		if containsPreReleaseTag(release) {
-			if mostRecentPrerelease == nil || releaseVersion.GreaterThan(mostRecentPrerelease) {
-				mostRecentPrerelease = releaseVersion
-				mostRecentPrereleaseStr = release // Keep original string with SNAPSHOT
-			}
-		}
-	}
-	if mostRecentPrerelease == nil {
-		return "", fmt.Errorf("no prerelease found")
-	}
-	return mostRecentPrereleaseStr, nil
+	return shared.GetMostRecentPrerelease(allReleases)
 }
 
 // InstallDefault performs the default install action for the OWLCMS package.
@@ -419,7 +386,6 @@ func InstallDefault(w fyne.Window) {
 	}
 
 	latest, err := getMostRecentStableRelease()
-	log.Printf("OWLCMS InstallDefault: getMostRecentStableRelease -> latest=%q err=%v", latest, err)
 	if err == nil && latest != "" {
 		confirmAndDownloadVersion(latest, w)
 	} else {

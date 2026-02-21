@@ -96,7 +96,7 @@ func findLatestStableInstalledVersion() string {
 	var latestStable *semver.Version
 	for _, dir := range getAllInstalledVersions() {
 		// Clean the version string before processing
-		version := extractSemverTag(dir)
+		version := shared.ExtractSemver(dir)
 		v, err := semver.NewVersion(version)
 		if err == nil && !containsPreReleaseTag(version) {
 			if latestStable == nil || v.GreaterThan(latestStable) {
