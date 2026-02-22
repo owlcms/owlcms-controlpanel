@@ -10,8 +10,8 @@ import (
 	"sort"
 	"time"
 
-	customdialog "owlcms-launcher/firmata/dialog"
-	"owlcms-launcher/shared"
+	customdialog "controlpanel/firmata/dialog"
+	"controlpanel/shared"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"

@@ -9,9 +9,9 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	customdialog "owlcms-launcher/firmata/dialog"
-	"owlcms-launcher/firmata/javacheck"
-	"owlcms-launcher/shared"
+	customdialog "controlpanel/firmata/dialog"
+	"controlpanel/firmata/javacheck"
+	"controlpanel/shared"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -46,6 +46,10 @@ var (
 	selectionContent          *fyne.Container
 	runningContent            *fyne.Container
 	modeStack                 *fyne.Container
+	topInstallContent         *fyne.Container
+	topVersionContent         *fyne.Container
+	topRunContent             *fyne.Container
+	topModeStack              *fyne.Container
 )
 
 func initMain() {
@@ -77,16 +81,41 @@ func (m myTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) colo
 }
 
 func getInstallDir() string {
+	dirExists := func(path string) bool {
+		info, err := os.Stat(path)
+		return err == nil && info.IsDir()
+	}
+
+	var legacyDir string
+	var newDir string
+
 	switch shared.GetGoos() {
 	case "windows":
-		return filepath.Join(os.Getenv("APPDATA"), "firmata")
+		legacyDir = filepath.Join(os.Getenv("APPDATA"), "firmata")
+		newDir = filepath.Join(os.Getenv("APPDATA"), "owlcms-firmata")
 	case "darwin":
-		return filepath.Join(os.Getenv("HOME"), "Library", "Application Support", "firmata")
+		legacyDir = filepath.Join(os.Getenv("HOME"), "Library", "Application Support", "firmata")
+		newDir = filepath.Join(os.Getenv("HOME"), "Library", "Application Support", "owlcms-firmata")
 	case "linux":
-		return filepath.Join(os.Getenv("HOME"), ".local", "share", "firmata")
+		legacyDir = filepath.Join(os.Getenv("HOME"), ".local", "share", "firmata")
+		newDir = filepath.Join(os.Getenv("HOME"), ".local", "share", "owlcms-firmata")
 	default:
-		return "./firmata"
+		legacyDir = "./firmata"
+		newDir = "./owlcms-firmata"
 	}
+
+	if dirExists(legacyDir) {
+		log.Printf("Firmata install directory: using legacy path %s", legacyDir)
+		return legacyDir
+	}
+	if dirExists(newDir) {
+		log.Printf("Firmata install directory: using existing new path %s", newDir)
+		return newDir
+	}
+
+	log.Printf("Firmata install directory: using new default path %s", newDir)
+
+	return newDir
 }
 
 // GetInstallDir returns the installation directory used by the firmata package
@@ -290,6 +319,8 @@ func CreateTab(w fyne.Window) *fyne.Container {
 
 	// Create menu bar
 	menuBar := createMenuBar(w)
+	topSpacer := canvas.NewRectangle(color.Transparent)
+	topSpacer.SetMinSize(fyne.NewSize(1, 8))
 
 	// Two different layouts:
 	// - Selection mode: version list (center) + download section (bottom)
@@ -310,8 +341,13 @@ func CreateTab(w fyne.Window) *fyne.Container {
 
 	modeStack = container.NewStack(selectionContent, runningContent)
 
+	topInstallContent = container.NewVBox()
+	topVersionContent = container.NewVBox(menuBar, topSpacer)
+	topRunContent = container.NewVBox(stopContainer)
+	topModeStack = container.NewStack(topInstallContent, topVersionContent, topRunContent)
+
 	mainContent := container.NewBorder(
-		container.NewVBox(menuBar, stopContainer), // Top (menu bar and stop container)
+		topModeStack,
 		nil,       // Bottom (handled by selectionContent)
 		nil,       // Left
 		nil,       // Right
@@ -355,9 +391,70 @@ func showRunningLayout() {
 	}
 }
 
+func showInstallMode() {
+	showSelectionLayout()
+	if topInstallContent != nil {
+		topInstallContent.Show()
+	}
+	if topVersionContent != nil {
+		topVersionContent.Hide()
+	}
+	if topRunContent != nil {
+		topRunContent.Hide()
+	}
+	if stopContainer != nil {
+		stopContainer.Hide()
+	}
+	if versionContainer != nil {
+		versionContainer.Show()
+		versionContainer.Refresh()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Hide()
+		downloadContainer.Refresh()
+	}
+}
+
+func showVersionListMode() {
+	showSelectionLayout()
+	if topInstallContent != nil {
+		topInstallContent.Hide()
+	}
+	if topVersionContent != nil {
+		topVersionContent.Show()
+	}
+	if topRunContent != nil {
+		topRunContent.Hide()
+	}
+	if stopContainer != nil {
+		stopContainer.Hide()
+	}
+	if versionContainer != nil {
+		versionContainer.Show()
+		versionContainer.Refresh()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Show()
+		downloadContainer.Refresh()
+	}
+}
+
 // setFirmataTabModeRunning switches the tab into the running layout (no version picker).
 func setFirmataTabModeRunning() {
 	showRunningLayout()
+	if topInstallContent != nil {
+		topInstallContent.Hide()
+	}
+	if topVersionContent != nil {
+		topVersionContent.Hide()
+	}
+	if topRunContent != nil {
+		topRunContent.Show()
+	}
+	if stopContainer != nil {
+		stopContainer.Show()
+		stopContainer.Refresh()
+	}
 	if versionContainer != nil {
 		versionContainer.Hide()
 	}
@@ -455,6 +552,7 @@ func initializeFirmataTab(w fyne.Window) {
 
 // setFirmataTabModeUninstalled shows the install prompt for when no versions are installed.
 func setFirmataTabModeUninstalled(w fyne.Window) {
+	showInstallMode()
 	resetToExplainMode(w)
 	log.Printf("UI Mode: Uninstalled (0 versions)")
 }
@@ -466,23 +564,12 @@ func setFirmataTabModeInstalled(w fyne.Window) {
 	// Now recompute list with release info available
 	recomputeVersionList(w)
 	checkForNewerVersion()
-
+	showVersionListMode()
 	if stopButton != nil {
 		stopButton.Hide()
 	}
-	if stopContainer != nil {
-		stopContainer.Hide()
-	}
 	if statusLabel != nil {
 		statusLabel.Hide()
-	}
-	if versionContainer != nil {
-		versionContainer.Show()
-		versionContainer.Refresh()
-	}
-	if downloadContainer != nil {
-		downloadContainer.Show()
-		downloadContainer.Refresh()
 	}
 
 	log.Printf("UI Mode: Installed (versions=%d; list+download visible)", len(getAllInstalledVersions()))

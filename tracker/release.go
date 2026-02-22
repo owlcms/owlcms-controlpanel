@@ -12,8 +12,8 @@ import (
 	"sort"
 	"time"
 
-	"owlcms-launcher/shared"
-	"owlcms-launcher/tracker/downloadutils"
+	"controlpanel/shared"
+	"controlpanel/tracker/downloadutils"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"

@@ -108,7 +108,7 @@ func DownloadAndInstallJava(temurinVersion string, statusLabel *widget.Label, w 
 	if progressBar != nil {
 		progressBar.SetValue(0.05)
 	}
-	downloadURL, err := GetTemurinDownloadURL(temurinVersion, goosFunc, "owlcms-launcher")
+	downloadURL, err := GetTemurinDownloadURL(temurinVersion, goosFunc, "controlpanel")
 	if err != nil {
 		if progressDialog != nil {
 			progressDialog.Hide()

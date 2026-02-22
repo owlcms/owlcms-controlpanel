@@ -1,6 +1,6 @@
 package owlcms
 
-import "owlcms-launcher/shared"
+import "controlpanel/shared"
 
 // CheckForInternet checks if there is an internet connection
 func CheckForInternet() bool {

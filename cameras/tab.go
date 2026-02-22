@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"owlcms-launcher/shared"
+	"controlpanel/shared"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -40,6 +40,10 @@ var (
 	camerasLogLink            *widget.Hyperlink
 	replaysLogLink            *widget.Hyperlink
 	mainWindow                fyne.Window
+	topInstallContent         *fyne.Container
+	topVersionContent         *fyne.Container
+	topRunContent             *fyne.Container
+	topModeStack              *fyne.Container
 )
 
 // IsRunning returns true if any video process (cameras or replays) is running
@@ -158,8 +162,13 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	topSpacer := canvas.NewRectangle(color.Transparent)
 	topSpacer.SetMinSize(fyne.NewSize(1, 8))
 
+	topInstallContent = container.NewVBox()
+	topVersionContent = container.NewVBox(menuBar, topSpacer)
+	topRunContent = container.NewVBox(stopContainer)
+	topModeStack = container.NewStack(topInstallContent, topVersionContent, topRunContent)
+
 	mainContent := container.NewBorder(
-		container.NewVBox(menuBar, topSpacer, stopContainer),
+		topModeStack,
 		downloadContainer,
 		nil,
 		nil,
@@ -180,9 +189,78 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	return mainContent
 }
 
+func showInstallMode() {
+	if topInstallContent != nil {
+		topInstallContent.Show()
+	}
+	if topVersionContent != nil {
+		topVersionContent.Hide()
+	}
+	if topRunContent != nil {
+		topRunContent.Hide()
+	}
+	if stopContainer != nil {
+		stopContainer.Hide()
+	}
+	if versionContainer != nil {
+		versionContainer.Show()
+		versionContainer.Refresh()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Hide()
+		downloadContainer.Refresh()
+	}
+}
+
+func showVersionListMode() {
+	if topInstallContent != nil {
+		topInstallContent.Hide()
+	}
+	if topVersionContent != nil {
+		topVersionContent.Show()
+	}
+	if topRunContent != nil {
+		topRunContent.Hide()
+	}
+	if stopContainer != nil {
+		stopContainer.Hide()
+	}
+	if versionContainer != nil {
+		versionContainer.Show()
+		versionContainer.Refresh()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Show()
+		downloadContainer.Refresh()
+	}
+}
+
+func setVideoTabModeRunning() {
+	if topInstallContent != nil {
+		topInstallContent.Hide()
+	}
+	if topVersionContent != nil {
+		topVersionContent.Hide()
+	}
+	if topRunContent != nil {
+		topRunContent.Show()
+	}
+	if stopContainer != nil {
+		stopContainer.Show()
+		stopContainer.Refresh()
+	}
+	if versionContainer != nil {
+		versionContainer.Hide()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Hide()
+		downloadContainer.Refresh()
+	}
+}
+
 func createMenuBar(w fyne.Window) *fyne.Container {
 	fileMenuItems := []*fyne.MenuItem{
-		fyne.NewMenuItem("Open Video Installation Directory", func() {
+		fyne.NewMenuItem("Open Cameras Installation Directory", func() {
 			if err := shared.OpenFileExplorer(installDir); err != nil {
 				dialog.ShowError(fmt.Errorf("failed to open directory: %w", err), w)
 			}
@@ -191,7 +269,7 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 			refreshAvailableVersions(w)
 		}),
 		fyne.NewMenuItemSeparator(),
-		fyne.NewMenuItem("Uninstall Video Tools", func() {
+		fyne.NewMenuItem("Uninstall Cameras", func() {
 			uninstallAll()
 		}),
 	}
@@ -207,7 +285,7 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 			if err := killLockingProcess(); err != nil {
 				dialog.ShowError(fmt.Errorf("failed to kill running process: %w", err), w)
 			} else {
-				dialog.ShowInformation("Success", "Successfully killed running video processes", w)
+				dialog.ShowInformation("Success", "Successfully killed running Cameras processes", w)
 			}
 		}),
 	}
@@ -253,6 +331,7 @@ func initializeTab(w fyne.Window) {
 }
 
 func setVideoTabModeUninstalled(w fyne.Window) {
+	showInstallMode()
 	resetToExplainMode(w)
 	log.Printf("Video UI Mode: Uninstalled")
 }
@@ -266,15 +345,10 @@ func setVideoTabModeInstalled(w fyne.Window) {
 	setupReleaseDropdown(w)
 	recomputeVersionList(w)
 	checkForNewerVersion()
-
+	showVersionListMode()
 	cameraStopButton.Hide()
 	replaysStopButton.Hide()
-	stopContainer.Hide()
 	statusLabel.Hide()
-	versionContainer.Show()
-	versionContainer.Refresh()
-	downloadContainer.Show()
-	downloadContainer.Refresh()
 
 	log.Printf("Video UI Mode: Installed (%d versions)", len(getAllInstalledVersions()))
 }

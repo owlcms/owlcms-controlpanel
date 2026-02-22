@@ -1,7 +1,7 @@
 package replays
 
 import (
-	"owlcms-launcher/shared"
+	"controlpanel/shared"
 
 	"fyne.io/fyne/v2"
 )
@@ -35,7 +35,7 @@ func resetToExplainMode(w fyne.Window) {
 		stopContainer.Hide()
 	}
 
-	shared.ShowUninstalledTabContent(versionContainer, "asset/video.md", func() { InstallDefault(w) }, nil)
+	shared.ShowUninstalledTabContent(versionContainer, "asset/replays.md", func() { InstallDefault(w) }, nil)
 	versionContainer.Show()
 	versionContainer.Refresh()
 }

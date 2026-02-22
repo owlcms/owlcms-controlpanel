@@ -12,13 +12,13 @@ import (
 	"syscall"
 	"time"
 
-	"owlcms-launcher/cameras"
-	"owlcms-launcher/firmata"
-	"owlcms-launcher/owlcms"
-	"owlcms-launcher/owlcms/javacheck"
-	"owlcms-launcher/replays"
-	"owlcms-launcher/shared"
-	"owlcms-launcher/tracker"
+	"controlpanel/cameras"
+	"controlpanel/firmata"
+	"controlpanel/owlcms"
+	"controlpanel/owlcms/javacheck"
+	"controlpanel/replays"
+	"controlpanel/shared"
+	"controlpanel/tracker"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -103,8 +103,8 @@ func main() {
 		}
 	}
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Llongfile)
-	log.Println("Starting OWLCMS Launcher")
-	a := app.NewWithID("app.owlcms.owlcms-launcher")
+	log.Println("Starting OWLCMS Control Panel")
+	a := app.NewWithID("app.owlcms.controlpanel")
 	a.Settings().SetTheme(newMyTheme())
 	w := a.NewWindow("OWLCMS Control Panel")
 	w.Resize(fyne.NewSize(950, 600))
@@ -113,16 +113,23 @@ func main() {
 	owlcmsTabContent := owlcms.CreateTab(w, a)
 	trackerTabContent := tracker.CreateTab(w)
 	firmataTabContent := firmata.CreateTab(w)
-	camerasTabContent := cameras.CreateTab(w)
-	replaysTabContent := replays.CreateTab(w)
 
-	mainContent := container.NewAppTabs(
+	tabs := []*container.TabItem{
 		container.NewTabItem("OWLCMS", owlcmsTabContent),
 		container.NewTabItem("Tracker", trackerTabContent),
 		container.NewTabItem("Arduino Devices", firmataTabContent),
-		container.NewTabItem("Cameras", camerasTabContent),
-		container.NewTabItem("Replays", replaysTabContent),
-	)
+	}
+
+	if shared.GetGoos() != "darwin" {
+		camerasTabContent := cameras.CreateTab(w)
+		replaysTabContent := replays.CreateTab(w)
+		tabs = append(tabs,
+			container.NewTabItem("Cameras", camerasTabContent),
+			container.NewTabItem("Replays", replaysTabContent),
+		)
+	}
+
+	mainContent := container.NewAppTabs(tabs...)
 
 	// Refresh tracker version list when its tab is selected (to update OWLCMS version warning)
 	mainContent.OnSelected = func(tab *container.TabItem) {

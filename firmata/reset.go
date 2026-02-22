@@ -1,7 +1,7 @@
 package firmata
 
 import (
-	"owlcms-launcher/shared"
+	"controlpanel/shared"
 
 	"fyne.io/fyne/v2"
 )

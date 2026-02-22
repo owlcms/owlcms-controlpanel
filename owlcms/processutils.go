@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	"owlcms-launcher/shared"
+	"controlpanel/shared"
 )
 
 // GracefullyStopProcess attempts to stop a process with the given PID,

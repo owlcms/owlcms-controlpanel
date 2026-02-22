@@ -8,10 +8,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"owlcms-launcher/owlcms/installutils"
-	"owlcms-launcher/owlcms/javacheck"
-	"owlcms-launcher/shared"
-	"owlcms-launcher/tracker"
+	"controlpanel/owlcms/installutils"
+	"controlpanel/owlcms/javacheck"
+	"controlpanel/shared"
+	"controlpanel/tracker"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -41,6 +41,10 @@ var (
 	selectionContent          *fyne.Container
 	runningContent            *fyne.Container
 	modeStack                 *fyne.Container
+	topInstallContent         *fyne.Container
+	topVersionContent         *fyne.Container
+	topRunContent             *fyne.Container
+	topModeStack              *fyne.Container
 	mainWindow                fyne.Window
 	mainApp                   fyne.App
 )
@@ -164,8 +168,13 @@ func CreateTab(w fyne.Window, app fyne.App) *fyne.Container {
 
 	modeStack = container.NewStack(selectionContent, runningContent)
 
+	topInstallContent = container.NewVBox()
+	topVersionContent = container.NewVBox(menuBar, topSpacer)
+	topRunContent = container.NewVBox(stopContainer)
+	topModeStack = container.NewStack(topInstallContent, topVersionContent, topRunContent)
+
 	mainContent := container.NewBorder(
-		container.NewVBox(menuBar, topSpacer, stopContainer), // Top (menu bar, spacer and stop container)
+		topModeStack,
 		nil,       // Bottom (handled by selectionContent)
 		nil,       // Left
 		nil,       // Right
@@ -205,9 +214,70 @@ func showRunningLayout() {
 	}
 }
 
+func showInstallMode() {
+	showSelectionLayout()
+	if topInstallContent != nil {
+		topInstallContent.Show()
+	}
+	if topVersionContent != nil {
+		topVersionContent.Hide()
+	}
+	if topRunContent != nil {
+		topRunContent.Hide()
+	}
+	if stopContainer != nil {
+		stopContainer.Hide()
+	}
+	if versionContainer != nil {
+		versionContainer.Show()
+		versionContainer.Refresh()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Hide()
+		downloadContainer.Refresh()
+	}
+}
+
+func showVersionListMode() {
+	showSelectionLayout()
+	if topInstallContent != nil {
+		topInstallContent.Hide()
+	}
+	if topVersionContent != nil {
+		topVersionContent.Show()
+	}
+	if topRunContent != nil {
+		topRunContent.Hide()
+	}
+	if stopContainer != nil {
+		stopContainer.Hide()
+	}
+	if versionContainer != nil {
+		versionContainer.Show()
+		versionContainer.Refresh()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Show()
+		downloadContainer.Refresh()
+	}
+}
+
 // setOwlcmsTabModeRunning switches the tab into the running layout (no version picker).
 func setOwlcmsTabModeRunning() {
 	showRunningLayout()
+	if topInstallContent != nil {
+		topInstallContent.Hide()
+	}
+	if topVersionContent != nil {
+		topVersionContent.Hide()
+	}
+	if topRunContent != nil {
+		topRunContent.Show()
+	}
+	if stopContainer != nil {
+		stopContainer.Show()
+		stopContainer.Refresh()
+	}
 	if versionContainer != nil {
 		versionContainer.Hide()
 	}
@@ -403,7 +473,7 @@ func ShowDownloadables() {
 // setOwlcmsTabModeUninstalled is the ONLY way to show the "0 installed versions" UI.
 // It must NOT show the download section.
 func setOwlcmsTabModeUninstalled(w fyne.Window) {
-	showSelectionLayout()
+	showInstallMode()
 	resetToExplainMode(w)
 	log.Printf("UI Mode: Uninstalled (0 versions)")
 }
@@ -411,29 +481,17 @@ func setOwlcmsTabModeUninstalled(w fyne.Window) {
 // setOwlcmsTabModeInstalled is the ONLY way to show the "≥1 installed versions" UI.
 // It MUST show BOTH the version list and the download section.
 func setOwlcmsTabModeInstalled(w fyne.Window) {
-	showSelectionLayout()
+	showVersionListMode()
 	// Fetch releases first so update buttons can be computed
 	setupReleaseDropdown(w)
 	// Now recompute list with release info available
 	recomputeVersionList(w)
 	checkForNewerVersion()
-
 	if stopButton != nil {
 		stopButton.Hide()
 	}
-	if stopContainer != nil {
-		stopContainer.Hide()
-	}
 	if statusLabel != nil {
 		statusLabel.Hide()
-	}
-	if versionContainer != nil {
-		versionContainer.Show()
-		versionContainer.Refresh()
-	}
-	if downloadContainer != nil {
-		downloadContainer.Show()
-		downloadContainer.Refresh()
 	}
 
 	log.Printf("UI Mode: Installed (versions=%d; list+download visible)", len(getAllInstalledVersions()))

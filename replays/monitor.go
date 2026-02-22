@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"syscall"
 
-	"owlcms-launcher/shared"
+	"controlpanel/shared"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
@@ -58,6 +58,7 @@ func stopCamerasProcess(curProcess *exec.Cmd, curVersion string, stopBtn *widget
 	checkForNewerVersion()
 	downloadContainer.Show()
 	versionContainer.Show()
+	hideAllRunLinks()
 }
 
 func stopReplaysProcess(curProcess *exec.Cmd, curVersion string, stopBtn *widget.Button, w fyne.Window) {
@@ -103,6 +104,7 @@ func stopReplaysProcess(curProcess *exec.Cmd, curVersion string, stopBtn *widget
 	checkForNewerVersion()
 	downloadContainer.Show()
 	versionContainer.Show()
+	hideAllRunLinks()
 }
 
 func killLockingProcess() error {

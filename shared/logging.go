@@ -14,14 +14,14 @@ func ExtractPackagePath(p string) string {
 	norm := strings.ReplaceAll(p, "\\", "/")
 
 	// Strip repo/module roots when present (dev builds, or builds without -trimpath).
-	for _, marker := range []string{"/owlcms-controlpanel/", "/owlcms-launcher/"} {
+	for _, marker := range []string{"/owlcms-controlpanel/", "/controlpanel/", "/owlcms-launcher/"} {
 		if idx := strings.LastIndex(norm, marker); idx >= 0 {
 			return norm[idx+len(marker):]
 		}
 	}
 
 	// Also handle when the path is already relative (common in release builds).
-	for _, prefix := range []string{"owlcms-controlpanel/", "owlcms-launcher/"} {
+	for _, prefix := range []string{"owlcms-controlpanel/", "controlpanel/"} {
 		if strings.HasPrefix(norm, prefix) {
 			return norm[len(prefix):]
 		}

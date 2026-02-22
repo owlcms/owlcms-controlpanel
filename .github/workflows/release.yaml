@@ -186,7 +186,7 @@ jobs:
 
     - name: Copy Linux binary
       if: ${{ env.BUILD_LINUX == 'true' }}
-      run: cp fyne-cross/bin/linux-amd64/owlcms-launcher fyne-cross/bin/linux-amd64/owlcms-linux
+      run: cp fyne-cross/bin/linux-amd64/controlpanel fyne-cross/bin/linux-amd64/owlcms-linux
 
     - name: Create Linux Intel DEB package
       if: ${{ env.BUILD_LINUX == 'true' }}
@@ -205,7 +205,7 @@ jobs:
 
     - name: Copy Raspberry Pi binary
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
-      run: cp fyne-cross/bin/linux-arm64/owlcms-launcher fyne-cross/bin/linux-arm64/owlcms-pi
+      run: cp fyne-cross/bin/linux-arm64/controlpanel fyne-cross/bin/linux-arm64/owlcms-pi
 
     - name: Create Raspberry Pi DEB package
       if: ${{ env.BUILD_RASPBERRY == 'true' }}

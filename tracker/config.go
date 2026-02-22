@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"owlcms-launcher/shared"
-	"owlcms-launcher/tracker/downloadutils"
+	"controlpanel/shared"
+	"controlpanel/tracker/downloadutils"
 
 	"github.com/magiconair/properties"
 )

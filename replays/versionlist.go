@@ -10,7 +10,7 @@ import (
 	"sort"
 	"time"
 
-	"owlcms-launcher/shared"
+	"controlpanel/shared"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"

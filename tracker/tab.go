@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/exec"
 
-	"owlcms-launcher/shared"
+	"controlpanel/shared"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -37,6 +37,10 @@ var (
 	tailLogLink               *widget.Hyperlink
 	mainWindow                fyne.Window
 	killedByUs                bool
+	topInstallContent         *fyne.Container
+	topVersionContent         *fyne.Container
+	topRunContent             *fyne.Container
+	topModeStack              *fyne.Container
 )
 
 // IsRunning returns true if Tracker is currently running
@@ -154,8 +158,13 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	topSpacer := canvas.NewRectangle(color.Transparent)
 	topSpacer.SetMinSize(fyne.NewSize(1, 8))
 
+	topInstallContent = container.NewVBox()
+	topVersionContent = container.NewVBox(menuBar, topSpacer)
+	topRunContent = container.NewVBox(stopContainer)
+	topModeStack = container.NewStack(topInstallContent, topVersionContent, topRunContent)
+
 	mainContent := container.NewBorder(
-		container.NewVBox(menuBar, topSpacer, stopContainer), // Top (menu bar, spacer and stop container)
+		topModeStack,
 		downloadContainer, // Bottom
 		nil,               // Left
 		nil,               // Right
@@ -177,6 +186,75 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	go initializeTab(w)
 
 	return mainContent
+}
+
+func showInstallMode() {
+	if topInstallContent != nil {
+		topInstallContent.Show()
+	}
+	if topVersionContent != nil {
+		topVersionContent.Hide()
+	}
+	if topRunContent != nil {
+		topRunContent.Hide()
+	}
+	if stopContainer != nil {
+		stopContainer.Hide()
+	}
+	if versionContainer != nil {
+		versionContainer.Show()
+		versionContainer.Refresh()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Hide()
+		downloadContainer.Refresh()
+	}
+}
+
+func showVersionListMode() {
+	if topInstallContent != nil {
+		topInstallContent.Hide()
+	}
+	if topVersionContent != nil {
+		topVersionContent.Show()
+	}
+	if topRunContent != nil {
+		topRunContent.Hide()
+	}
+	if stopContainer != nil {
+		stopContainer.Hide()
+	}
+	if versionContainer != nil {
+		versionContainer.Show()
+		versionContainer.Refresh()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Show()
+		downloadContainer.Refresh()
+	}
+}
+
+func setTrackerTabModeRunning() {
+	if topInstallContent != nil {
+		topInstallContent.Hide()
+	}
+	if topVersionContent != nil {
+		topVersionContent.Hide()
+	}
+	if topRunContent != nil {
+		topRunContent.Show()
+	}
+	if stopContainer != nil {
+		stopContainer.Show()
+		stopContainer.Refresh()
+	}
+	if versionContainer != nil {
+		versionContainer.Hide()
+	}
+	if downloadContainer != nil {
+		downloadContainer.Hide()
+		downloadContainer.Refresh()
+	}
 }
 
 // createMenuBar creates the menu bar with File and Processes menus
@@ -279,6 +357,7 @@ func initializeTab(w fyne.Window) {
 
 // setTrackerTabModeUninstalled shows the install prompt for when no versions are installed.
 func setTrackerTabModeUninstalled(_ fyne.Window) {
+	showInstallMode()
 	resetToExplainMode()
 	log.Printf("UI Mode: Uninstalled (0 versions)")
 }
@@ -296,23 +375,9 @@ func setTrackerTabModeInstalled(w fyne.Window) {
 	// Now recompute list with release info available
 	recomputeVersionList(w)
 	checkForNewerVersion()
-
-	if stopButton != nil {
-		stopButton.Hide()
-	}
-	if stopContainer != nil {
-		stopContainer.Hide()
-	}
+	showVersionListMode()
 	if statusLabel != nil {
 		statusLabel.Hide()
-	}
-	if versionContainer != nil {
-		versionContainer.Show()
-		versionContainer.Refresh()
-	}
-	if downloadContainer != nil {
-		downloadContainer.Show()
-		downloadContainer.Refresh()
 	}
 
 	log.Printf("UI Mode: Installed (versions=%d; list+download visible)", len(getAllInstalledVersions()))

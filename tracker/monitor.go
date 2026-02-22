@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"owlcms-launcher/tracker/downloadutils"
+	"controlpanel/tracker/downloadutils"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"

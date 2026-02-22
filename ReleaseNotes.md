@@ -7,6 +7,9 @@ This is a control panel for owlcms and associated modules.  It is meant to:
 The control panel is installed once. It will automatically download the correct version of Java when used for the first time.
 
 ## Release Log
+
+- 3.2.0: Additional tabs for replays and cameras
+
 - 3.1.0: Restart OWLCMS (version 62.2 or later) if it exits with a non-zero status (will be the case for JSON and SBDE imports)
 
 - 3.0.5: The shared owlms/tracker/firmata control panel is now the official way to install and run owlcms-firmata

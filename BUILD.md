@@ -31,9 +31,9 @@
   
   - Cross-compile
      ```
-     fyne-cross windows --app-id app.owlcms.owlcms-launcher -name owlcms
-     fyne-cross linux -arch arm64 --app-id app.owlcms.owlcms-launcher -name owlcms-pi
-     fyne-cross linux -arch amd64 --app-id app.owlcms.owlcms-launcher -name owlcms-linux
+      fyne-cross windows --app-id app.owlcms.controlpanel -name owlcms
+      fyne-cross linux -arch arm64 --app-id app.owlcms.controlpanel -name owlcms-pi
+      fyne-cross linux -arch amd64 --app-id app.owlcms.controlpanel -name owlcms-linux
 
 ### Releasing
 

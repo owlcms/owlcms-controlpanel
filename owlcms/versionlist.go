@@ -16,8 +16,8 @@ import (
 	"syscall"
 	"time"
 
-	customdialog "owlcms-launcher/owlcms/dialog"
-	"owlcms-launcher/shared"
+	customdialog "controlpanel/owlcms/dialog"
+	"controlpanel/shared"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"

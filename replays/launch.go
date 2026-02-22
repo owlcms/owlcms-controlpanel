@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"owlcms-launcher/shared"
+	"controlpanel/shared"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
@@ -18,6 +18,19 @@ var (
 	camerasPIDFile = filepath.Join(getInstallDir(), "cameras.pid")
 	replaysPIDFile = filepath.Join(getInstallDir(), "replays.pid")
 )
+
+func camerasInstallDir() string {
+	switch shared.GetGoos() {
+	case "windows":
+		return filepath.Join(os.Getenv("APPDATA"), "owlcms-cameras")
+	case "darwin":
+		return filepath.Join(os.Getenv("HOME"), "Library", "Application Support", "owlcms-cameras")
+	case "linux":
+		return filepath.Join(os.Getenv("HOME"), ".local", "share", "owlcms-cameras")
+	default:
+		return "./owlcms-cameras"
+	}
+}
 
 // camerasExeName returns the platform-specific binary name for cameras
 func camerasExeName() string {
@@ -50,7 +63,7 @@ func replaysExeName() string {
 }
 
 func launchCameras(version string, _ *widget.Button, _ fyne.Window) error {
-	versionDir := filepath.Join(installDir, version)
+	versionDir := filepath.Join(camerasInstallDir(), version)
 	exePath := filepath.Join(versionDir, camerasExeName())
 
 	if _, err := os.Stat(exePath); os.IsNotExist(err) {
@@ -64,8 +77,13 @@ func launchCameras(version string, _ *widget.Button, _ fyne.Window) error {
 		}
 	}
 
-	cmd := exec.Command(exePath)
+	cmd := exec.Command(exePath, "--configDir", versionDir)
 	cmd.Dir = versionDir
+
+	logPath := filepath.Join(versionDir, "logs", "cameras.log")
+	if err := shared.ResetLogFile(logPath); err != nil {
+		return fmt.Errorf("failed to reset cameras log: %w", err)
+	}
 
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("VIDEO_CONFIGDIR=%s", versionDir))
@@ -92,15 +110,12 @@ func launchCameras(version string, _ *widget.Button, _ fyne.Window) error {
 	cameraStopButton.SetText(fmt.Sprintf("Stop Cameras %s", version))
 	cameraStopButton.Show()
 	updateStopContainer()
-	downloadContainer.Hide()
-	versionContainer.Hide()
+	setVideoTabModeRunning()
 
 	if appDirLink != nil {
-		appDirLink.SetText(fmt.Sprintf("Open video %s directory", version))
-		appDirLink.SetURL(nil)
-		appDirLink.OnTapped = func() { shared.OpenFileExplorer(versionDir) }
-		appDirLink.Show()
+		appDirLink.Hide()
 	}
+	configureCamerasRunLinks(version, versionDir)
 
 	go func() {
 		err := cmd.Wait()
@@ -132,11 +147,8 @@ func launchCameras(version string, _ *widget.Button, _ fyne.Window) error {
 			if statusLabel != nil {
 				statusLabel.SetText("")
 			}
-			downloadContainer.Show()
-			versionContainer.Show()
-			if appDirLink != nil {
-				appDirLink.Hide()
-			}
+			setVideoTabMode(mainWindow)
+			hideAllRunLinks()
 			checkForNewerVersion()
 		} else {
 			if statusLabel != nil {
@@ -163,8 +175,13 @@ func launchReplays(version string, _ *widget.Button, _ fyne.Window) error {
 		}
 	}
 
-	cmd := exec.Command(exePath)
+	cmd := exec.Command(exePath, "--configDir", versionDir)
 	cmd.Dir = versionDir
+
+	logPath := filepath.Join(versionDir, "logs", "replays.log")
+	if err := shared.ResetLogFile(logPath); err != nil {
+		return fmt.Errorf("failed to reset replays log: %w", err)
+	}
 
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("VIDEO_CONFIGDIR=%s", versionDir))
@@ -191,15 +208,12 @@ func launchReplays(version string, _ *widget.Button, _ fyne.Window) error {
 	replaysStopButton.SetText(fmt.Sprintf("Stop Replays %s", version))
 	replaysStopButton.Show()
 	updateStopContainer()
-	downloadContainer.Hide()
-	versionContainer.Hide()
+	setVideoTabModeRunning()
 
 	if appDirLink != nil {
-		appDirLink.SetText(fmt.Sprintf("Open video %s directory", version))
-		appDirLink.SetURL(nil)
-		appDirLink.OnTapped = func() { shared.OpenFileExplorer(versionDir) }
-		appDirLink.Show()
+		appDirLink.Hide()
 	}
+	configureReplaysRunLinks(version, versionDir)
 
 	go func() {
 		err := cmd.Wait()
@@ -224,11 +238,8 @@ func launchReplays(version string, _ *widget.Button, _ fyne.Window) error {
 			if statusLabel != nil {
 				statusLabel.SetText("")
 			}
-			downloadContainer.Show()
-			versionContainer.Show()
-			if appDirLink != nil {
-				appDirLink.Hide()
-			}
+			setVideoTabMode(mainWindow)
+			hideAllRunLinks()
 			checkForNewerVersion()
 		} else {
 			if statusLabel != nil {
@@ -238,4 +249,72 @@ func launchReplays(version string, _ *widget.Button, _ fyne.Window) error {
 	}()
 
 	return nil
+}
+
+func configureCamerasRunLinks(version, versionDir string) {
+	if camerasDirLink != nil {
+		camerasDirLink.SetText(fmt.Sprintf("Open Cameras %s directory", version))
+		camerasDirLink.SetURL(nil)
+		camerasDirLink.OnTapped = func() {
+			if err := shared.OpenFileExplorer(versionDir); err != nil && statusLabel != nil {
+				statusLabel.SetText(fmt.Sprintf("Failed to open Cameras directory: %v", err))
+			}
+		}
+		camerasDirLink.Show()
+	}
+
+	if camerasLogLink != nil {
+		logPath := filepath.Join(versionDir, "logs", "cameras.log")
+		camerasLogLink.SetText(fmt.Sprintf("Tail cameras %s logs", version))
+		camerasLogLink.SetURL(nil)
+		camerasLogLink.OnTapped = func() {
+			if err := shared.TailLogFile(logPath); err != nil && statusLabel != nil {
+				statusLabel.SetText(fmt.Sprintf("Failed to tail cameras logs: %v", err))
+			}
+		}
+		camerasLogLink.Show()
+	}
+}
+
+func configureReplaysRunLinks(version, versionDir string) {
+	if replaysDirLink != nil {
+		replaysDirLink.SetText(fmt.Sprintf("Open Replays %s directory", version))
+		replaysDirLink.SetURL(nil)
+		replaysDirLink.OnTapped = func() {
+			if err := shared.OpenFileExplorer(versionDir); err != nil && statusLabel != nil {
+				statusLabel.SetText(fmt.Sprintf("Failed to open Replays directory: %v", err))
+			}
+		}
+		replaysDirLink.Show()
+	}
+
+	if replaysLogLink != nil {
+		logPath := filepath.Join(versionDir, "logs", "replays.log")
+		replaysLogLink.SetText(fmt.Sprintf("Tail replays %s logs", version))
+		replaysLogLink.SetURL(nil)
+		replaysLogLink.OnTapped = func() {
+			if err := shared.TailLogFile(logPath); err != nil && statusLabel != nil {
+				statusLabel.SetText(fmt.Sprintf("Failed to tail replays logs: %v", err))
+			}
+		}
+		replaysLogLink.Show()
+	}
+}
+
+func hideAllRunLinks() {
+	if appDirLink != nil {
+		appDirLink.Hide()
+	}
+	if camerasDirLink != nil {
+		camerasDirLink.Hide()
+	}
+	if replaysDirLink != nil {
+		replaysDirLink.Hide()
+	}
+	if camerasLogLink != nil {
+		camerasLogLink.Hide()
+	}
+	if replaysLogLink != nil {
+		replaysLogLink.Hide()
+	}
 }

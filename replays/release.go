@@ -8,12 +8,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"time"
 
-	customdialog "owlcms-launcher/replays/dialog"
-	"owlcms-launcher/shared"
+	customdialog "controlpanel/replays/dialog"
+	"controlpanel/shared"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -84,12 +85,6 @@ func getMostRecentStableRelease() (string, error) {
 
 func getMostRecentPrerelease() (string, error) {
 	return shared.GetMostRecentPrerelease(allReleases)
-}
-
-func assetFilenames(_ string) (cameras, replays string) {
-	cameras = camerasExeName()
-	replays = replaysExeName()
-	return
 }
 
 func populateReleaseSelect(selectWidget *widget.Select) {
@@ -178,7 +173,7 @@ func setupReleaseDropdown(w fyne.Window) {
 
 func confirmAndDownloadVersion(version string, w fyne.Window) {
 	dialog.ShowConfirm("Confirm Download",
-		fmt.Sprintf("Do you want to download and install Video Tools version %s?", version),
+		fmt.Sprintf("Do you want to download and install Replays module version %s?", version),
 		func(confirm bool) {
 			if confirm {
 				shared.PromptForInstallVersionName(installDir, version, w, func(newVersion string) {
@@ -190,10 +185,10 @@ func confirmAndDownloadVersion(version string, w fyne.Window) {
 
 func downloadAndInstallVersion(downloadVersion, installVersion string, w fyne.Window) {
 	cancel := make(chan bool)
-	progressDialog, progressBar := customdialog.NewDownloadDialog("Installing Video Tools", w, cancel)
+	progressDialog, progressBar := customdialog.NewDownloadDialog("Installing Replays Module", w, cancel)
 	progressDialog.Show()
 
-	camsFile, repsFile := assetFilenames(downloadVersion)
+	repsFile := replaysExeName()
 
 	versionDir := filepath.Join(installDir, installVersion)
 	if err := shared.EnsureDir0755(versionDir); err != nil {
@@ -202,40 +197,15 @@ func downloadAndInstallVersion(downloadVersion, installVersion string, w fyne.Wi
 		return
 	}
 
-	progressCallback := func(downloaded, total int64) {
-		if total > 0 {
-			progressBar.SetValue(float64(downloaded) / float64(total))
-		}
-	}
-
-	// Download cameras binary
-	camsURL := fmt.Sprintf("%s/%s/%s", downloadURLPrefix, downloadVersion, camsFile)
-	camsPath := filepath.Join(versionDir, camsFile)
-	log.Printf("Downloading cameras from: %s", camsURL)
-	progressBar.SetValue(0.01)
-
-	if err := shared.DownloadArchive(camsURL, camsPath, progressCallback, cancel); err != nil {
-		progressDialog.Hide()
-		if err.Error() == "download cancelled" {
-			return
-		}
-		dialog.ShowError(fmt.Errorf("cameras download failed: %w", err), w)
-		return
-	}
-
-	if shared.GetGoos() != "windows" {
-		os.Chmod(camsPath, 0755)
-	}
-
 	// Download replays binary
 	repsURL := fmt.Sprintf("%s/%s/%s", downloadURLPrefix, downloadVersion, repsFile)
 	repsPath := filepath.Join(versionDir, repsFile)
 	log.Printf("Downloading replays from: %s", repsURL)
-	progressBar.SetValue(0.5)
+	progressBar.SetValue(0.1)
 
 	if err := shared.DownloadArchive(repsURL, repsPath, func(d, t int64) {
 		if t > 0 {
-			progressBar.SetValue(0.5 + 0.5*float64(d)/float64(t))
+			progressBar.SetValue(0.1 + 0.9*float64(d)/float64(t))
 		}
 	}, cancel); err != nil {
 		progressDialog.Hide()
@@ -250,11 +220,20 @@ func downloadAndInstallVersion(downloadVersion, installVersion string, w fyne.Wi
 		os.Chmod(repsPath, 0755)
 	}
 
+	// Extract editable config files into the version directory.
+	log.Printf("Extracting replays config files using %s --configDir %s --extractConfig", repsPath, versionDir)
+	if err := runExtractConfig(repsPath, versionDir); err != nil {
+		log.Printf("Failed to extract replay config files (binary=%s, configDir=%s): %v", repsPath, versionDir, err)
+		progressDialog.Hide()
+		dialog.ShowError(fmt.Errorf("failed to extract replay config files: %w", err), w)
+		return
+	}
+
 	progressBar.SetValue(1.0)
 	progressDialog.Hide()
 
 	message := fmt.Sprintf(
-		"Successfully installed Video Tools version %s\n\nLocation: %s",
+		"Successfully installed Replays module version %s\n\nLocation: %s",
 		installVersion, versionDir)
 	dialog.ShowInformation("Installation Complete", message, w)
 	HideDownloadables()
@@ -262,6 +241,18 @@ func downloadAndInstallVersion(downloadVersion, installVersion string, w fyne.Wi
 	setVideoTabMode(w)
 	recomputeVersionList(w)
 	checkForNewerVersion()
+}
+
+func runExtractConfig(binaryPath, configDir string) error {
+	cmd := exec.Command(binaryPath, "--configDir", configDir, "--extractConfig")
+	cmd.Dir = configDir
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Printf("runExtractConfig failed: cmd=%q dir=%q err=%v output=%q", cmd.String(), cmd.Dir, err, string(output))
+		return fmt.Errorf("%w (output: %s)", err, string(output))
+	}
+	log.Printf("runExtractConfig succeeded: cmd=%q dir=%q output=%q", cmd.String(), cmd.Dir, string(output))
+	return nil
 }
 
 // InstallDefault downloads the latest prerelease (prereleases always shown for video tab)
@@ -400,10 +391,10 @@ func updateExplanation() {
 func updateVersion(existingVersion, targetVersion string, w fyne.Window) {
 	existingDir := filepath.Join(installDir, existingVersion)
 	cancel := make(chan bool)
-	progressDialog, progressBar := customdialog.NewDownloadDialog("Updating Video Tools", w, cancel)
+	progressDialog, progressBar := customdialog.NewDownloadDialog("Updating Replays Module", w, cancel)
 	progressDialog.Show()
 
-	camsFile, repsFile := assetFilenames(targetVersion)
+	repsFile := replaysExeName()
 	newVersionDir := filepath.Join(installDir, targetVersion)
 	if err := shared.EnsureDir0755(newVersionDir); err != nil {
 		progressDialog.Hide()
@@ -411,31 +402,11 @@ func updateVersion(existingVersion, targetVersion string, w fyne.Window) {
 		return
 	}
 
-	progressCallback := func(downloaded, total int64) {
-		if total > 0 {
-			progressBar.SetValue(float64(downloaded) / float64(total))
-		}
-	}
-
-	camsPath := filepath.Join(newVersionDir, camsFile)
-	camsURL := fmt.Sprintf("%s/%s/%s", downloadURLPrefix, targetVersion, camsFile)
-	if err := shared.DownloadArchive(camsURL, camsPath, progressCallback, cancel); err != nil {
-		progressDialog.Hide()
-		if err.Error() == "download cancelled" {
-			return
-		}
-		dialog.ShowError(fmt.Errorf("cameras download failed: %w", err), w)
-		return
-	}
-	if shared.GetGoos() != "windows" {
-		os.Chmod(camsPath, 0755)
-	}
-
 	repsPath := filepath.Join(newVersionDir, repsFile)
 	repsURL := fmt.Sprintf("%s/%s/%s", downloadURLPrefix, targetVersion, repsFile)
 	if err := shared.DownloadArchive(repsURL, repsPath, func(d, t int64) {
 		if t > 0 {
-			progressBar.SetValue(0.5 + 0.5*float64(d)/float64(t))
+			progressBar.SetValue(float64(d) / float64(t))
 		}
 	}, cancel); err != nil {
 		progressDialog.Hide()
@@ -456,7 +427,7 @@ func updateVersion(existingVersion, targetVersion string, w fyne.Window) {
 
 	progressBar.SetValue(1.0)
 	progressDialog.Hide()
-	dialog.ShowInformation("Update Complete", fmt.Sprintf("Successfully updated to version %s", targetVersion), w)
+	dialog.ShowInformation("Update Complete", fmt.Sprintf("Successfully updated Replays module to version %s", targetVersion), w)
 
 	recomputeVersionList(w)
 	checkForNewerVersion()

@@ -9,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
-	customdialog "owlcms-launcher/firmata/dialog"
+	customdialog "controlpanel/firmata/dialog"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"

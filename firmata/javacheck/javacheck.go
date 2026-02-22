@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	firmatadialog "owlcms-launcher/firmata/dialog"
-	"owlcms-launcher/shared"
+	firmatadialog "controlpanel/firmata/dialog"
+	"controlpanel/shared"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"

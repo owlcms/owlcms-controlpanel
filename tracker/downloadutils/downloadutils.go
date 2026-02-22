@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"owlcms-launcher/shared"
+	"controlpanel/shared"
 )
 
 // DownloadArchive downloads a zip file from the given URL and saves it to the specified path.

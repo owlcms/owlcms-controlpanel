@@ -1,13 +1,13 @@
 package owlcms
 
 import (
+	"controlpanel/shared"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"net/url"
 	"os"
-	"owlcms-launcher/shared"
 	"path/filepath"
 	"strings"
 	"time"
@@ -414,7 +414,7 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 		log.Printf("Failed to build update request: %v", err)
 		return
 	}
-	req.Header.Set("User-Agent", "owlcms-launcher")
+	req.Header.Set("User-Agent", "controlpanel")
 	req.Header.Set("Accept", "application/vnd.github+json")
 
 	resp, err := client.Do(req)

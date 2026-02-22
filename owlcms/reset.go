@@ -1,7 +1,7 @@
 package owlcms
 
 import (
-	"owlcms-launcher/shared"
+	"controlpanel/shared"
 
 	"fyne.io/fyne/v2"
 )

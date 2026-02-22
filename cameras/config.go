@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"owlcms-launcher/shared"
+	"controlpanel/shared"
 
 	"github.com/magiconair/properties"
 )
@@ -25,24 +25,24 @@ func initConfig() {
 func getInstallDir() string {
 	switch shared.GetGoos() {
 	case "windows":
-		return filepath.Join(os.Getenv("APPDATA"), "owlcms-video")
+		return filepath.Join(os.Getenv("APPDATA"), "owlcms-cameras")
 	case "darwin":
-		return filepath.Join(os.Getenv("HOME"), "Library", "Application Support", "owlcms-video")
+		return filepath.Join(os.Getenv("HOME"), "Library", "Application Support", "owlcms-cameras")
 	case "linux":
-		return filepath.Join(os.Getenv("HOME"), ".local", "share", "owlcms-video")
+		return filepath.Join(os.Getenv("HOME"), ".local", "share", "owlcms-cameras")
 	default:
-		return "./owlcms-video"
+		return "./owlcms-cameras"
 	}
 }
 
-// GetInstallDir returns the video installation directory
+// GetInstallDir returns the cameras installation directory
 func GetInstallDir() string {
 	return getInstallDir()
 }
 
-// InitEnv creates or loads env.properties in the video install directory
+// InitEnv creates or loads env.properties in the cameras install directory
 func InitEnv() error {
-	log.Println("Initializing video environment")
+	log.Println("Initializing cameras environment")
 	envFilePath := filepath.Join(installDir, "env.properties")
 	if _, err := os.Stat(envFilePath); os.IsNotExist(err) {
 		log.Printf("env.properties not found at %s, creating with defaults", envFilePath)

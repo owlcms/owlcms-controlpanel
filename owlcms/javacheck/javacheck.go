@@ -6,8 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
-	customdialog "owlcms-launcher/owlcms/dialog"
-	"owlcms-launcher/shared"
+	customdialog "controlpanel/owlcms/dialog"
+	"controlpanel/shared"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/widget"
@@ -92,7 +92,7 @@ func CheckJava(statusLabel *widget.Label) error {
 
 	// Show activity while getting the download URL
 	progressBar.SetValue(0.05)
-	downloadURL, err := shared.GetTemurinDownloadURL(temurinVersion, shared.GetGoos, "owlcms-launcher")
+	downloadURL, err := shared.GetTemurinDownloadURL(temurinVersion, shared.GetGoos, "controlpanel")
 	if err != nil {
 		progressDialog.Hide()
 		return fmt.Errorf("getting Temurin download URL: %w", err)
