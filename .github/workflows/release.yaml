@@ -248,9 +248,9 @@ jobs:
         echo "DEB_TAG=${tag#v}" >> $GITHUB_ENV
         echo "Extracted TAG=$tag"
 
-    - name: Install gh CLI
+    - name: Verify gh CLI
       if: ${{ env.BUILD_WINDOWS == 'true' }}
-      run: choco install gh
+      run: gh --version
 
     - name: Download build_crosscompile_artifacts
       if: ${{ env.BUILD_WINDOWS == 'true' }}
@@ -333,7 +333,7 @@ jobs:
 
     - name: Install Inno Setup
       if: ${{ env.BUILD_WINDOWS == 'true' }}
-      run: choco install innosetup
+      run: choco install innosetup --no-progress || choco install innosetup --no-progress
       
     - name: Run Inno Setup
       if: ${{ env.BUILD_WINDOWS == 'true' }}
