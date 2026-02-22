@@ -188,11 +188,27 @@ jobs:
       if: ${{ env.BUILD_LINUX == 'true' }}
       run: cp fyne-cross/bin/linux-amd64/controlpanel fyne-cross/bin/linux-amd64/owlcms-linux
 
+    - name: Fix Linux amd64 package paths
+      if: ${{ env.BUILD_LINUX == 'true' }}
+      run: |
+        mkdir -p /tmp/fix-amd64
+        cd /tmp/fix-amd64
+        tar -xf $GITHUB_WORKSPACE/fyne-cross/dist/linux-amd64/owlcms.tar.xz
+        # Move icon and desktop file from /usr/local/share to /usr/share (FreeDesktop standard)
+        mkdir -p usr/share/pixmaps usr/share/applications
+        mv usr/local/share/pixmaps/owlcms.png usr/share/pixmaps/
+        mv usr/local/share/applications/owlcms.desktop usr/share/applications/
+        rm -rf usr/local/share/pixmaps usr/local/share/applications
+        # Remove unwanted Makefile if present
+        rm -f Makefile
+        # Repackage
+        tar -cJf $GITHUB_WORKSPACE/fyne-cross/dist/linux-amd64/owlcms.tar.xz .
+
     - name: Create Linux Intel DEB package
       if: ${{ env.BUILD_LINUX == 'true' }}
       run: |
         fpm -s tar -t deb -n owlcms-launcher -v ${DEB_TAG} -a amd64 --prefix / \
-          --after-install ./dist/after_install.sh \
+          --after-install ./dist/after_install_amd64.sh \
           --after-remove ./dist/after_remove.sh \
           ./fyne-cross/dist/linux-amd64/owlcms.tar.xz
         mkdir -p artifacts
