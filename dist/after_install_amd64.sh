@@ -1,27 +1,31 @@
 #!/bin/bash
+
 if [[ -n "$SUDO_USER" ]]; then
-  user_home=$(getent passwd "$SUDO_USER" | cut -d: -f6)
-cat > $user_home/Desktop/owlcms.desktop <<EOF
-[Desktop Entry]
-Type=Link
-Name=owlcms
-Icon=owlcms
-URL=/usr/share/applications/owlcms.desktop
-EOF
-  chmod +x $user_home/Desktop/owlcms.desktop
+  target_user="$SUDO_USER"
+elif [[ -n "$PACKAGEKIT_CALLER_UID" ]]; then
+  target_user=$(getent passwd "$PACKAGEKIT_CALLER_UID" | cut -d: -f1)
 else
-  if [[ -n "$PACKAGEKIT_CALLER_UID" ]]; then
-    user_home=$(getent passwd "$PACKAGEKIT_CALLER_UID" | cut -d: -f6)
-cat > $user_home/Desktop/owlcms.desktop <<EOF
-[Desktop Entry]
-Type=Link
-Name=owlcms
-Icon=owlcms
-URL=/usr/share/applications/owlcms.desktop
-EOF
-  chmod +x $user_home/Desktop/owlcms.desktop
-  else
-    echo "No user found to create the desktop file" > /tmp/owlcms.log
-    printenv >> /tmp/owlcms.log
-  fi
+  echo "No user found to create the desktop file" > /tmp/owlcms.log
+  printenv >> /tmp/owlcms.log
+  exit 0
 fi
+
+user_home=$(getent passwd "$target_user" | cut -d: -f6)
+desktop_dir=$(sudo -u "$target_user" xdg-user-dir DESKTOP 2>/dev/null)
+if [[ -z "$desktop_dir" ]]; then
+  desktop_dir="$user_home/Desktop"
+fi
+
+mkdir -p "$desktop_dir"
+shortcut_path="$desktop_dir/owlcms.desktop"
+
+cat > "$shortcut_path" <<EOF
+[Desktop Entry]
+Type=Application
+Name=owlcms
+Exec=controlpanel
+Icon=owlcms
+Terminal=false
+EOF
+
+chmod +x "$shortcut_path"

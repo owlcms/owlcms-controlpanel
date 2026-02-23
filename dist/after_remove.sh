@@ -1,13 +1,19 @@
 #!/bin/bash
+
 if [[ -n "$SUDO_USER" ]]; then
-  user_home=$(getent passwd "$SUDO_USER" | cut -d: -f6)
-  rm -f $user_home/Desktop/owlcms.desktop
+  target_user="$SUDO_USER"
+elif [[ -n "$PACKAGEKIT_CALLER_UID" ]]; then
+  target_user=$(getent passwd "$PACKAGEKIT_CALLER_UID" | cut -d: -f1)
 else
-  if [[ -n "$PACKAGEKIT_CALLER_UID" ]]; then
-    user_home=$(getent passwd "$PACKAGEKIT_CALLER_UID" | cut -d: -f6)
-    rm -f $user_home/Desktop/owlcms.desktop
-  else
-    echo "No user found to remove the desktop file" > /tmp/owlcms.log
-    printenv >> /tmp/owlcms.log
-  fi
+  echo "No user found to remove the desktop file" > /tmp/owlcms.log
+  printenv >> /tmp/owlcms.log
+  exit 0
 fi
+
+user_home=$(getent passwd "$target_user" | cut -d: -f6)
+desktop_dir=$(sudo -u "$target_user" xdg-user-dir DESKTOP 2>/dev/null)
+if [[ -z "$desktop_dir" ]]; then
+  desktop_dir="$user_home/Desktop"
+fi
+
+rm -f "$desktop_dir/owlcms.desktop"
