@@ -52,7 +52,7 @@ func InitEnv() error {
 		}
 
 		props := properties.NewProperties()
-		props.Set("VIDEO_CONFIGDIR", installDir)
+		props.Set("VIDEO_CONFIGDIR", filepath.Join(shared.GetControlPanelInstallDir(), "video_config"))
 
 		file, err := os.Create(envFilePath)
 		if err != nil {

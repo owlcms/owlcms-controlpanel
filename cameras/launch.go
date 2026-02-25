@@ -64,6 +64,7 @@ func replaysExeName() string {
 
 func launchCameras(version string, _ *widget.Button, _ fyne.Window) error {
 	versionDir := filepath.Join(installDir, version)
+	configDir := shared.VideoConfigDir(versionDir)
 	exePath := filepath.Join(versionDir, camerasExeName())
 
 	if _, err := os.Stat(exePath); os.IsNotExist(err) {
@@ -77,19 +78,22 @@ func launchCameras(version string, _ *widget.Button, _ fyne.Window) error {
 		}
 	}
 
-	cmd := exec.Command(exePath, "--configDir", versionDir)
+	if shared.ShouldRunVideoExtract(versionDir, "cameras") {
+		log.Printf("Running cameras extract bootstrap for %s", versionDir)
+		if err := shared.RunVideoExtractBootstrap(exePath, versionDir); err != nil {
+			return err
+		}
+	}
+
+	cmd := exec.Command(exePath, "--configDir", configDir)
 	cmd.Dir = versionDir
 
-	logPath := filepath.Join(versionDir, "logs", "cameras.log")
+	logPath := filepath.Join(configDir, "logs", "cameras.log")
 	if err := shared.ResetLogFile(logPath); err != nil {
 		return fmt.Errorf("failed to reset cameras log: %w", err)
 	}
 
-	env := os.Environ()
-	env = append(env, fmt.Sprintf("VIDEO_CONFIGDIR=%s", versionDir))
-	env = append(env, fmt.Sprintf("VIDEO_LAUNCHER=%s", shared.GetLauncherVersionSemver()))
-	env = append(env, fmt.Sprintf("OWLCMS_CONTROLPANEL=%s", shared.GetLauncherVersionSemver()))
-	cmd.Env = env
+	cmd.Env = shared.BuildVideoLaunchEnv(versionDir)
 
 	log.Printf("Starting cameras %s: %s", version, exePath)
 	if err := cmd.Start(); err != nil {
@@ -159,6 +163,7 @@ func launchCameras(version string, _ *widget.Button, _ fyne.Window) error {
 
 func launchReplays(version string, _ *widget.Button, _ fyne.Window) error {
 	versionDir := filepath.Join(replaysInstallDir(), version)
+	configDir := shared.VideoConfigDir(versionDir)
 	exePath := filepath.Join(versionDir, replaysExeName())
 
 	if _, err := os.Stat(exePath); os.IsNotExist(err) {
@@ -172,19 +177,22 @@ func launchReplays(version string, _ *widget.Button, _ fyne.Window) error {
 		}
 	}
 
-	cmd := exec.Command(exePath, "--configDir", versionDir)
+	if shared.ShouldRunVideoExtract(versionDir, "replays") {
+		log.Printf("Running replays extract bootstrap for %s", versionDir)
+		if err := shared.RunVideoExtractBootstrap(exePath, versionDir); err != nil {
+			return err
+		}
+	}
+
+	cmd := exec.Command(exePath, "--configDir", configDir)
 	cmd.Dir = versionDir
 
-	logPath := filepath.Join(versionDir, "logs", "replays.log")
+	logPath := filepath.Join(configDir, "logs", "replays.log")
 	if err := shared.ResetLogFile(logPath); err != nil {
 		return fmt.Errorf("failed to reset replays log: %w", err)
 	}
 
-	env := os.Environ()
-	env = append(env, fmt.Sprintf("VIDEO_CONFIGDIR=%s", versionDir))
-	env = append(env, fmt.Sprintf("VIDEO_LAUNCHER=%s", shared.GetLauncherVersionSemver()))
-	env = append(env, fmt.Sprintf("OWLCMS_CONTROLPANEL=%s", shared.GetLauncherVersionSemver()))
-	cmd.Env = env
+	cmd.Env = shared.BuildVideoLaunchEnv(versionDir)
 
 	log.Printf("Starting replays %s: %s", version, exePath)
 	if err := cmd.Start(); err != nil {
@@ -247,10 +255,10 @@ func launchReplays(version string, _ *widget.Button, _ fyne.Window) error {
 
 func configureCamerasRunLinks(version, versionDir string) {
 	if camerasDirLink != nil {
-		camerasDirLink.SetText(fmt.Sprintf("Open Cameras %s directory", version))
+		camerasDirLink.SetText(fmt.Sprintf("Open Cameras %s configuration directory", version))
 		camerasDirLink.SetURL(nil)
 		camerasDirLink.OnTapped = func() {
-			if err := shared.OpenFileExplorer(versionDir); err != nil && statusLabel != nil {
+			if err := shared.OpenFileExplorer(shared.VideoConfigDir(versionDir)); err != nil && statusLabel != nil {
 				statusLabel.SetText(fmt.Sprintf("Failed to open Cameras directory: %v", err))
 			}
 		}
@@ -258,7 +266,7 @@ func configureCamerasRunLinks(version, versionDir string) {
 	}
 
 	if camerasLogLink != nil {
-		logPath := filepath.Join(versionDir, "logs", "cameras.log")
+		logPath := filepath.Join(shared.VideoConfigDir(versionDir), "logs", "cameras.log")
 		camerasLogLink.SetText(fmt.Sprintf("Tail cameras %s logs", version))
 		camerasLogLink.SetURL(nil)
 		camerasLogLink.OnTapped = func() {
@@ -272,10 +280,10 @@ func configureCamerasRunLinks(version, versionDir string) {
 
 func configureReplaysRunLinks(version, versionDir string) {
 	if replaysDirLink != nil {
-		replaysDirLink.SetText(fmt.Sprintf("Open Replays %s directory", version))
+		replaysDirLink.SetText(fmt.Sprintf("Open Replays %s configuration directory", version))
 		replaysDirLink.SetURL(nil)
 		replaysDirLink.OnTapped = func() {
-			if err := shared.OpenFileExplorer(versionDir); err != nil && statusLabel != nil {
+			if err := shared.OpenFileExplorer(shared.VideoConfigDir(versionDir)); err != nil && statusLabel != nil {
 				statusLabel.SetText(fmt.Sprintf("Failed to open Replays directory: %v", err))
 			}
 		}
@@ -283,7 +291,7 @@ func configureReplaysRunLinks(version, versionDir string) {
 	}
 
 	if replaysLogLink != nil {
-		logPath := filepath.Join(versionDir, "logs", "replays.log")
+		logPath := filepath.Join(shared.VideoConfigDir(versionDir), "logs", "replays.log")
 		replaysLogLink.SetText(fmt.Sprintf("Tail replays %s logs", version))
 		replaysLogLink.SetURL(nil)
 		replaysLogLink.OnTapped = func() {
