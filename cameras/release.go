@@ -257,7 +257,7 @@ func runExtractConfig(binaryPath, configDir string) error {
 	return nil
 }
 
-// InstallDefault downloads the latest prerelease (prereleases always shown for video tab)
+// InstallDefault downloads the latest prerelease (temporary override: prerelease-only)
 func InstallDefault(w fyne.Window) {
 	if len(allReleases) == 0 {
 		if r, err := fetchReleases(); err == nil {
@@ -268,14 +268,10 @@ func InstallDefault(w fyne.Window) {
 	}
 
 	latest, err := getMostRecentPrerelease()
-	if err != nil || latest == "" {
-		// fall back to stable if no prerelease exists
-		latest, err = getMostRecentStableRelease()
-	}
 	if err == nil && latest != "" {
 		confirmAndDownloadVersion(latest, w)
 	} else {
-		log.Println("Video InstallDefault: no release found, showing download UI")
+		log.Println("Video InstallDefault: no prerelease found, showing download UI")
 		ShowDownloadables()
 	}
 }
