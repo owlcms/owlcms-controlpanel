@@ -9,7 +9,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -259,6 +261,21 @@ func ExtractTarGz(tarGzPath, dest string) error {
 	// Remove the downloaded tar.gz file
 	if err := os.Remove(tarGzPath); err != nil {
 		return fmt.Errorf("failed to remove downloaded file %s: %w", tarGzPath, err)
+	}
+
+	return nil
+}
+
+// ExtractTarXz extracts a tar.xz archive using the system tar command.
+// The archive file is removed after successful extraction.
+func ExtractTarXz(tarXzPath, dest string) error {
+	cmd := exec.Command("tar", "-xJf", tarXzPath, "-C", dest)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to extract tar.xz %s: %w (%s)", tarXzPath, err, strings.TrimSpace(string(output)))
+	}
+
+	if err := os.Remove(tarXzPath); err != nil {
+		log.Printf("warning: could not remove downloaded file %s: %v", tarXzPath, err)
 	}
 
 	return nil

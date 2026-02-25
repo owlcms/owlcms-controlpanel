@@ -62,13 +62,18 @@ func replaysExeName() string {
 	}
 }
 
-func launchCameras(version string, _ *widget.Button, _ fyne.Window) error {
+func launchCameras(version string, _ *widget.Button, w fyne.Window) error {
 	versionDir := filepath.Join(camerasInstallDir(), version)
-	configDir := shared.VideoConfigDir(versionDir)
+	configDir := versionDir
 	exePath := filepath.Join(versionDir, camerasExeName())
 
 	if _, err := os.Stat(exePath); os.IsNotExist(err) {
 		return fmt.Errorf("cameras binary not found: %s", exePath)
+	}
+
+	// Ensure FFmpeg is available (download if needed)
+	if _, err := shared.EnsureFFmpegPrerequisite(w); err != nil {
+		return fmt.Errorf("FFmpeg prerequisite: %w", err)
 	}
 
 	// Make executable on Linux
@@ -88,7 +93,7 @@ func launchCameras(version string, _ *widget.Button, _ fyne.Window) error {
 	cmd := exec.Command(exePath, "--configDir", configDir)
 	cmd.Dir = versionDir
 
-	logPath := filepath.Join(configDir, "logs", "cameras.log")
+	logPath := filepath.Join(versionDir, "logs", "cameras.log")
 	if err := shared.ResetLogFile(logPath); err != nil {
 		return fmt.Errorf("failed to reset cameras log: %w", err)
 	}
@@ -164,13 +169,18 @@ func launchCameras(version string, _ *widget.Button, _ fyne.Window) error {
 	return nil
 }
 
-func launchReplays(version string, _ *widget.Button, _ fyne.Window) error {
+func launchReplays(version string, _ *widget.Button, w fyne.Window) error {
 	versionDir := filepath.Join(installDir, version)
-	configDir := shared.VideoConfigDir(versionDir)
+	configDir := versionDir
 	exePath := filepath.Join(versionDir, replaysExeName())
 
 	if _, err := os.Stat(exePath); os.IsNotExist(err) {
 		return fmt.Errorf("replays binary not found: %s", exePath)
+	}
+
+	// Ensure FFmpeg is available (download if needed)
+	if _, err := shared.EnsureFFmpegPrerequisite(w); err != nil {
+		return fmt.Errorf("FFmpeg prerequisite: %w", err)
 	}
 
 	// Make executable on Linux
@@ -190,7 +200,7 @@ func launchReplays(version string, _ *widget.Button, _ fyne.Window) error {
 	cmd := exec.Command(exePath, "--configDir", configDir)
 	cmd.Dir = versionDir
 
-	logPath := filepath.Join(configDir, "logs", "replays.log")
+	logPath := filepath.Join(versionDir, "logs", "replays.log")
 	if err := shared.ResetLogFile(logPath); err != nil {
 		return fmt.Errorf("failed to reset replays log: %w", err)
 	}
@@ -264,7 +274,7 @@ func configureCamerasRunLinks(version, versionDir string) {
 		camerasDirLink.SetText(fmt.Sprintf("Open Cameras %s configuration directory", version))
 		camerasDirLink.SetURL(nil)
 		camerasDirLink.OnTapped = func() {
-			if err := shared.OpenFileExplorer(shared.VideoConfigDir(versionDir)); err != nil && statusLabel != nil {
+			if err := shared.OpenFileExplorer(versionDir); err != nil && statusLabel != nil {
 				statusLabel.SetText(fmt.Sprintf("Failed to open Cameras directory: %v", err))
 			}
 		}
@@ -272,7 +282,7 @@ func configureCamerasRunLinks(version, versionDir string) {
 	}
 
 	if camerasLogLink != nil {
-		logPath := filepath.Join(shared.VideoConfigDir(versionDir), "logs", "cameras.log")
+		logPath := filepath.Join(versionDir, "logs", "cameras.log")
 		camerasLogLink.SetText(fmt.Sprintf("Tail cameras %s logs", version))
 		camerasLogLink.SetURL(nil)
 		camerasLogLink.OnTapped = func() {
@@ -289,7 +299,7 @@ func configureReplaysRunLinks(version, versionDir string) {
 		replaysDirLink.SetText(fmt.Sprintf("Open Replays %s configuration directory", version))
 		replaysDirLink.SetURL(nil)
 		replaysDirLink.OnTapped = func() {
-			if err := shared.OpenFileExplorer(shared.VideoConfigDir(versionDir)); err != nil && statusLabel != nil {
+			if err := shared.OpenFileExplorer(versionDir); err != nil && statusLabel != nil {
 				statusLabel.SetText(fmt.Sprintf("Failed to open Replays directory: %v", err))
 			}
 		}
@@ -297,7 +307,7 @@ func configureReplaysRunLinks(version, versionDir string) {
 	}
 
 	if replaysLogLink != nil {
-		logPath := filepath.Join(shared.VideoConfigDir(versionDir), "logs", "replays.log")
+		logPath := filepath.Join(versionDir, "logs", "replays.log")
 		replaysLogLink.SetText(fmt.Sprintf("Tail replays %s logs", version))
 		replaysLogLink.SetURL(nil)
 		replaysLogLink.OnTapped = func() {

@@ -232,6 +232,13 @@ func downloadAndInstallVersion(downloadVersion, installVersion string, w fyne.Wi
 	progressBar.SetValue(1.0)
 	progressDialog.Hide()
 
+	// Ensure FFmpeg is available (download if needed)
+	if _, err := shared.EnsureFFmpegPrerequisite(w); err != nil {
+		log.Printf("FFmpeg prerequisite failed during replays install: %v", err)
+		dialog.ShowError(fmt.Errorf("FFmpeg installation failed: %w", err), w)
+		return
+	}
+
 	message := fmt.Sprintf(
 		"Successfully installed Replays module version %s\n\nLocation: %s",
 		installVersion, versionDir)
@@ -246,6 +253,7 @@ func downloadAndInstallVersion(downloadVersion, installVersion string, w fyne.Wi
 func runExtractConfig(binaryPath, configDir string) error {
 	cmd := exec.Command(binaryPath, "--configDir", configDir, "--extractConfig")
 	cmd.Dir = configDir
+	cmd.Env = shared.BuildVideoLaunchEnv(configDir)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Printf("runExtractConfig failed: cmd=%q dir=%q err=%v output=%q", cmd.String(), cmd.Dir, err, string(output))
