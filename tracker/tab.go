@@ -489,7 +489,7 @@ func resetToExplainMode() {
 	}
 
 	// Now show the uninstalled explanation and Install button
-	shared.ShowUninstalledTabContent(versionContainer, "asset/tracker.md", func() { InstallDefault(fyne.CurrentApp().Driver().AllWindows()[0]) }, nil)
+	shared.ShowUninstalledTabContent(versionContainer, "asset/tracker.md", func(usePrerelease bool) { InstallDefault(fyne.CurrentApp().Driver().AllWindows()[0], usePrerelease) }, nil)
 	// Ensure the version container is visible after switching to explanation mode
 	versionContainer.Show()
 	versionContainer.Refresh()

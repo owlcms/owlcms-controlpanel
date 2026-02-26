@@ -363,8 +363,8 @@ func getMostRecentPrerelease() (string, error) {
 }
 
 // InstallDefault performs the default install action for the OWLCMS package.
-// It selects the most recent stable release and begins the confirm+download flow.
-func InstallDefault(w fyne.Window) {
+// It selects the most recent stable or pre-release version depending on the flag.
+func InstallDefault(w fyne.Window, usePrerelease bool) {
 	// Before installing, ensure Java runtime is available. Delegate to shared helper
 	// which will call the package-local `checkJava` implementation.
 	if err := EnsureParentEnvDefaults(); err != nil {
@@ -385,11 +385,21 @@ func InstallDefault(w fyne.Window) {
 		}
 	}
 
-	latest, err := getMostRecentStableRelease()
+	var latest string
+	var err error
+	if usePrerelease {
+		latest, err = getMostRecentPrerelease()
+	} else {
+		latest, err = getMostRecentStableRelease()
+	}
 	if err == nil && latest != "" {
 		confirmAndDownloadVersion(latest, w)
 	} else {
-		log.Println("OWLCMS InstallDefault: no latest stable found, showing download UI")
+		track := "stable"
+		if usePrerelease {
+			track = "pre-release"
+		}
+		log.Printf("OWLCMS InstallDefault: no %s release found, showing download UI", track)
 		ShowDownloadables()
 	}
 }

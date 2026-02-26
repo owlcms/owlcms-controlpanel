@@ -35,7 +35,7 @@ func resetToExplainMode(w fyne.Window) {
 		stopContainer.Hide()
 	}
 
-	shared.ShowUninstalledTabContent(versionContainer, "asset/replays.md", func() { InstallDefault(w) }, nil)
+	shared.ShowUninstalledTabContent(versionContainer, "asset/replays.md", func(usePrerelease bool) { InstallDefault(w, usePrerelease) }, nil)
 	versionContainer.Show()
 	versionContainer.Refresh()
 }

@@ -10,19 +10,26 @@ import (
 )
 
 // ShowUninstalledTabContent updates the provided `versionContainer` to show an
-// explanation (loaded from embedded assets if present) and an Install button.
-// `installAction` is called when the Install button is tapped. `backgroundInit`
-// is executed in a new goroutine so the caller can prepare downloads or other
-// async initialization while the UI stays responsive.
-func ShowUninstalledTabContent(versionContainer *fyne.Container, assetPath string, installAction func(), backgroundInit func()) {
+// explanation (loaded from embedded assets if present), an optional
+// "Use latest pre-release" checkbox, and an Install button.
+// `installAction` receives the checkbox state (true = pre-release requested).
+// `backgroundInit` is executed in a new goroutine so the caller can prepare
+// downloads or other async initialization while the UI stays responsive.
+func ShowUninstalledTabContent(versionContainer *fyne.Container, assetPath string, installAction func(usePrerelease bool), backgroundInit func()) {
 	expl := GetAssetContent(assetPath)
 	if expl == "" {
 		expl = assetPath
 	}
 
 	explLabel := widget.NewRichTextFromMarkdown(expl)
+
+	usePrerelease := false
+	prereleaseCheck := widget.NewCheck("Use latest pre-release", func(checked bool) {
+		usePrerelease = checked
+	})
+
 	installBtn := widget.NewButton("Install", func() {
-		log.Printf("Install button pressed for asset %s", assetPath)
+		log.Printf("Install button pressed for asset %s (prerelease=%v)", assetPath, usePrerelease)
 		if installAction == nil {
 			log.Printf("Install action is nil for asset %s", assetPath)
 			// Provide user feedback instead of doing nothing
@@ -31,13 +38,12 @@ func ShowUninstalledTabContent(versionContainer *fyne.Container, assetPath strin
 			}
 			return
 		}
-		log.Printf("Calling installAction for asset %s", assetPath)
-		installAction()
+		installAction(usePrerelease)
 	})
 
 	// Replace the container contents and refresh
 	if versionContainer != nil {
-		versionContainer.Objects = []fyne.CanvasObject{container.NewVBox(explLabel, installBtn)}
+		versionContainer.Objects = []fyne.CanvasObject{container.NewVBox(explLabel, prereleaseCheck, installBtn)}
 		versionContainer.Refresh()
 	}
 

@@ -360,11 +360,11 @@ func getMostRecentPrerelease() (string, error) {
 }
 
 // InstallDefault performs the default install action for the Tracker package.
-// It selects the most recent stable release and starts the confirm+download flow,
-// or shows the download UI if no stable release is found.
-func InstallDefault(w fyne.Window) {
+// It selects the most recent stable or pre-release version depending on the flag,
+// or shows the download UI if no matching release is found.
+func InstallDefault(w fyne.Window, usePrerelease bool) {
 	// If we haven't fetched releases yet, try to fetch them now so the
-	// Install button can auto-select the latest stable release.
+	// Install button can auto-select the latest release.
 	if len(allReleases) == 0 {
 		if r, err := fetchReleases(); err == nil {
 			allReleases = r
@@ -373,11 +373,21 @@ func InstallDefault(w fyne.Window) {
 		}
 	}
 
-	latest, err := getMostRecentStableRelease()
+	var latest string
+	var err error
+	if usePrerelease {
+		latest, err = getMostRecentPrerelease()
+	} else {
+		latest, err = getMostRecentStableRelease()
+	}
 	if err == nil && latest != "" {
 		confirmAndDownloadVersion(latest, w)
 	} else {
-		log.Println("Tracker InstallDefault: no latest stable found, showing download UI")
+		track := "stable"
+		if usePrerelease {
+			track = "pre-release"
+		}
+		log.Printf("Tracker InstallDefault: no %s release found, showing download UI", track)
 		ShowDownloadables()
 	}
 }

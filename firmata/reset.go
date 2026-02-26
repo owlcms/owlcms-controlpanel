@@ -37,7 +37,7 @@ func resetToExplainMode(w fyne.Window) {
 		stopContainer.Hide()
 	}
 
-	shared.ShowUninstalledTabContent(versionContainer, "asset/firmata.md", func() { InstallDefault(w) }, nil)
+	shared.ShowUninstalledTabContent(versionContainer, "asset/firmata.md", func(usePrerelease bool) { InstallDefault(w, usePrerelease) }, nil)
 	versionContainer.Show()
 	versionContainer.Refresh()
 }

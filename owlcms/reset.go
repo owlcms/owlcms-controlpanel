@@ -40,7 +40,7 @@ func resetToExplainMode(w fyne.Window) {
 		tailLogLink.Hide()
 	}
 
-	shared.ShowUninstalledTabContent(versionContainer, "asset/owlcms.md", func() { InstallDefault(w) }, nil)
+	shared.ShowUninstalledTabContent(versionContainer, "asset/owlcms.md", func(usePrerelease bool) { InstallDefault(w, usePrerelease) }, nil)
 	versionContainer.Show()
 	versionContainer.Refresh()
 }

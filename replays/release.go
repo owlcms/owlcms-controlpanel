@@ -29,7 +29,7 @@ type Release struct {
 }
 
 var (
-	showPrereleases      bool = true
+	showPrereleases      bool = false
 	allReleases          []string
 	releaseDropdown      *fyne.Container
 	prereleaseCheckbox   *widget.Check
@@ -263,8 +263,8 @@ func runExtractConfig(binaryPath, configDir string) error {
 	return nil
 }
 
-// InstallDefault downloads the latest prerelease (temporary override: prerelease-only)
-func InstallDefault(w fyne.Window) {
+// InstallDefault downloads the latest stable or pre-release version.
+func InstallDefault(w fyne.Window, usePrerelease bool) {
 	if len(allReleases) == 0 {
 		if r, err := fetchReleases(); err == nil {
 			allReleases = r
@@ -273,11 +273,21 @@ func InstallDefault(w fyne.Window) {
 		}
 	}
 
-	latest, err := getMostRecentPrerelease()
+	var latest string
+	var err error
+	if usePrerelease {
+		latest, err = getMostRecentPrerelease()
+	} else {
+		latest, err = getMostRecentStableRelease()
+	}
 	if err == nil && latest != "" {
 		confirmAndDownloadVersion(latest, w)
 	} else {
-		log.Println("Video InstallDefault: no prerelease found, showing download UI")
+		track := "stable"
+		if usePrerelease {
+			track = "pre-release"
+		}
+		log.Printf("Video InstallDefault: no %s release found, showing download UI", track)
 		ShowDownloadables()
 	}
 }

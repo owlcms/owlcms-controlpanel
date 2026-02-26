@@ -318,9 +318,8 @@ func getMostRecentPrerelease() (string, error) {
 }
 
 // InstallDefault performs the default install action for the Firmata package.
-// It will attempt to choose the most recent stable release; if not available,
-// it will show the download UI for manual selection.
-func InstallDefault(w fyne.Window) {
+// It selects the most recent stable or pre-release version depending on the flag.
+func InstallDefault(w fyne.Window, usePrerelease bool) {
 	// Before installing, ensure Java runtime is available. Delegate to shared helper
 	// which will call the package-local `checkJava` implementation.
 	ver := GetTemurinVersion()
@@ -337,9 +336,15 @@ func InstallDefault(w fyne.Window) {
 		}
 	}
 
-	latest, err := getMostRecentStableRelease()
+	var latest string
+	var err error
+	if usePrerelease {
+		latest, err = getMostRecentPrerelease()
+	} else {
+		latest, err = getMostRecentStableRelease()
+	}
 	if err == nil && latest != "" {
-		// Start a first-install flow: hide download UI and kick off install of the latest stable.
+		// Start a first-install flow: hide download UI and kick off install.
 		HideDownloadables()
 		if statusLabel != nil {
 			statusLabel.SetText("Installing Firmata " + latest)
@@ -347,7 +352,11 @@ func InstallDefault(w fyne.Window) {
 		}
 		go downloadAndInstallVersion(latest, w)
 	} else {
-		log.Println("Firmata InstallDefault: no latest stable found, showing download UI")
+		track := "stable"
+		if usePrerelease {
+			track = "pre-release"
+		}
+		log.Printf("Firmata InstallDefault: no %s release found, showing download UI", track)
 		ShowDownloadables()
 	}
 }
