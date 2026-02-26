@@ -9,8 +9,11 @@ The control panel is installed once. It will automatically download the correct 
 ## Release Log
 
 - 3.2.0: Additional tabs for replays and cameras
+  - Not enabled on macOS (video features require extensive testing and adjustments with the actual platform)
+  - A hared copy of ffmpeg installed next to Java and Node.js (same repo for Windows and Linux ARM/AMD)
 
-- 3.1.0: Restart OWLCMS (version 62.2 or later) if it exits with a non-zero status (will be the case for JSON and SBDE imports)
+- 3.1.0: The control panel will restart OWLCMS (version 62.2 or later) if it exits with a non-zero status
+  - OWLCMS does this intentionally after loading a JSON database import or an SBDE full registration file.
 
 - 3.0.5: The shared owlms/tracker/firmata control panel is now the official way to install and run owlcms-firmata
 - 3.0.5: Copy env.properties when updating/importing owlcms and owlcms-firmata that have such a file
