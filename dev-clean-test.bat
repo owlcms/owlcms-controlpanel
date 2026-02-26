@@ -6,10 +6,9 @@ REM Run from the owlcms-controlpanel directory.
 set "PANEL_DIR=%APPDATA%\owlcms-controlpanel"
 set "CAMERAS_DIR=%APPDATA%\owlcms-cameras"
 set "REPLAYS_DIR=%APPDATA%\owlcms-replays"
-set "REPLAYS_SRC=%USERPROFILE%\git\replays"
-set "PANEL_SRC=%~dp0"
-REM Strip trailing backslash from PANEL_SRC
-if "%PANEL_SRC:~-1%"=="\" set "PANEL_SRC=%PANEL_SRC:~0,-1%"
+set "GIT_DIR=C:\Dev\git"
+set "REPLAYS_SRC=%GIT_DIR%\replays"
+set "PANEL_SRC=%GIT_DIR%\owlcms-controlpanel"
 
 set "DEV_VERSION=0.0.0-dev"
 
@@ -36,7 +35,7 @@ if errorlevel 1 (
 )
 
 echo   Building cameras_windows.exe...
-go build -o cameras_windows.exe ./cmd/cameras
+go build -buildvcs=false -o cameras_windows.exe ./cmd/cameras
 if errorlevel 1 (
     echo ERROR: cameras build failed
     popd
@@ -44,7 +43,7 @@ if errorlevel 1 (
 )
 
 echo   Building replays_windows.exe...
-go build -o replays_windows.exe ./cmd/replays
+go build -buildvcs=false -o replays_windows.exe ./cmd/replays
 if errorlevel 1 (
     echo ERROR: replays build failed
     popd
@@ -55,7 +54,7 @@ popd
 echo.
 echo === 3. Building control panel ===
 pushd "%PANEL_SRC%"
-go build -o controlpanel.exe .
+go build -buildvcs=false -o controlpanel.exe .
 if errorlevel 1 (
     echo ERROR: control panel build failed
     popd
