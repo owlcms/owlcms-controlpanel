@@ -345,16 +345,15 @@ func checkForNewerVersion() {
 	}
 
 	// Already up to date
-	releaseURL := fmt.Sprintf("https://github.com/owlcms/replays/releases/tag/%s", latestInstalled)
-	parsedURL, _ := url.Parse(releaseURL)
-	releaseNotesLink := widget.NewHyperlink("Release Notes", parsedURL)
+	releasesPageURL, _ := url.Parse("https://github.com/owlcms/replays/releases")
+	releasesPageLink := widget.NewHyperlink("Release Notes", releasesPageURL)
 	versionType := "stable"
 	if containsPreReleaseTag(latestInstalled) {
 		versionType = "prerelease"
 	}
 	messageBox := container.NewHBox(
 		widget.NewLabel(fmt.Sprintf("The latest %s version %s is installed.", versionType, latestInstalled)),
-		releaseNotesLink,
+		releasesPageLink,
 	)
 	updateTitleContainer.Objects = []fyne.CanvasObject{messageBox}
 	updateTitleContainer.Refresh()

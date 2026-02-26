@@ -516,7 +516,13 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 	} else {
 		log.Println("No updates available - the latest version is installed.")
 		if showConfirmation {
-			dialog.ShowInformation("No Updates", fmt.Sprintf("The latest version is installed (%s)", shared.GetLauncherVersion()), win)
+			releasesURL, _ := url.Parse("https://github.com/owlcms/owlcms-controlpanel/releases")
+			releasesLink := widget.NewHyperlink("GitHub Releases", releasesURL)
+			content := container.NewVBox(
+				widget.NewLabel(fmt.Sprintf("The latest version is installed (%s)", shared.GetLauncherVersion())),
+				releasesLink,
+			)
+			dialog.ShowCustom("No Updates", "Close", content, win)
 		}
 	}
 }

@@ -449,6 +449,7 @@ func checkForNewerVersion() {
 			releaseNotesLink.Show()
 			// Log what we think is installed for debugging
 			log.Printf("Tracker:updateTitle - latestInstalled=%q installedVersions=%v", latestInstalled, getAllInstalledVersions())
+
 			messageBox := container.NewHBox(
 				widget.NewLabel(fmt.Sprintf("The latest %s version %s is installed.", func() string {
 					if containsPreReleaseTag(latestInstalled) {
