@@ -27,25 +27,31 @@ func fileMissing(path string) bool {
 func BuildVideoLaunchEnv(versionDir string) []string {
 	configDir := VideoConfigDir(versionDir)
 	env := os.Environ()
-	env = append(env, fmt.Sprintf("VIDEO_CONFIGDIR=%s", configDir))
-	env = append(env, fmt.Sprintf("VIDEO_CONTROLPANEL_DIR=%s", GetControlPanelInstallDir()))
-	env = append(env, fmt.Sprintf("VIDEO_LAUNCHER=%s", GetLauncherVersionSemver()))
-	env = append(env, fmt.Sprintf("OWLCMS_CONTROLPANEL=%s", GetLauncherVersionSemver()))
+	env = UpsertEnv(env, "VIDEO_CONFIGDIR", configDir)
+	env = UpsertEnv(env, "VIDEO_CONTROLPANEL_DIR", GetControlPanelInstallDir())
+	env = UpsertEnv(env, "VIDEO_LAUNCHER", GetLauncherVersionSemver())
+	env = UpsertEnv(env, "OWLCMS_CONTROLPANEL", GetLauncherVersionSemver())
 
 	// Export the shared FFmpeg path so child processes find it directly.
 	if ffmpegPath := FindLocalFFmpeg(); ffmpegPath != "" {
-		env = append(env, fmt.Sprintf("VIDEO_FFMPEG_PATH=%s", ffmpegPath))
+		env = UpsertEnv(env, "VIDEO_FFMPEG_PATH", ffmpegPath)
 		// For Linux shared builds, prepend the bundled lib/ to LD_LIBRARY_PATH.
 		if GetGoos() == "linux" {
 			libDir := filepath.Join(filepath.Dir(filepath.Dir(ffmpegPath)), "lib")
 			if st, err := os.Stat(libDir); err == nil && st.IsDir() {
 				if existing := os.Getenv("LD_LIBRARY_PATH"); existing != "" {
-					env = append(env, fmt.Sprintf("LD_LIBRARY_PATH=%s:%s", libDir, existing))
+					env = UpsertEnv(env, "LD_LIBRARY_PATH", fmt.Sprintf("%s:%s", libDir, existing))
 				} else {
-					env = append(env, fmt.Sprintf("LD_LIBRARY_PATH=%s", libDir))
+					env = UpsertEnv(env, "LD_LIBRARY_PATH", libDir)
 				}
 			}
 		}
+	}
+
+	parentEnvPath := filepath.Join(filepath.Dir(versionDir), "env.properties")
+	releaseEnvPath := filepath.Join(versionDir, "env.properties")
+	if props, err := MergeEnvironmentProperties(parentEnvPath, releaseEnvPath); err == nil {
+		env = ApplyPropertiesToEnv(env, props, nil)
 	}
 
 	return env
