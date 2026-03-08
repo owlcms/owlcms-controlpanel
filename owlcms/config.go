@@ -54,6 +54,99 @@ func GetTemurinVersion() string {
 	return version
 }
 
+// GetPortForRelease returns OWLCMS_PORT from a version-specific env.properties,
+// falling back to the shared env.properties value.
+func GetPortForRelease(releaseVersion string) string {
+	releaseVersion = strings.TrimSpace(releaseVersion)
+	if releaseVersion == "" {
+		return GetPort()
+	}
+
+	releaseEnvPath := filepath.Join(installDir, releaseVersion, "env.properties")
+	content, err := os.ReadFile(releaseEnvPath)
+	if err != nil {
+		return GetPort()
+	}
+
+	props := properties.NewProperties()
+	if err := props.Load(content, properties.UTF8); err != nil {
+		return GetPort()
+	}
+
+	if port, ok := props.Get("OWLCMS_PORT"); ok {
+		trimmed := strings.TrimSpace(port)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+
+	return GetPort()
+}
+
+func loadPropertiesFromFile(envFilePath string) (*properties.Properties, error) {
+	content, err := os.ReadFile(envFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read env.properties file: %w", err)
+	}
+
+	props := properties.NewProperties()
+	if err := props.Load(content, properties.UTF8); err != nil {
+		return nil, fmt.Errorf("failed to load env.properties file: %w", err)
+	}
+
+	return props, nil
+}
+
+func cloneProperties(src *properties.Properties) *properties.Properties {
+	clone := properties.NewProperties()
+	if src == nil {
+		return clone
+	}
+
+	for _, key := range src.Keys() {
+		value, _ := src.Get(key)
+		clone.Set(key, value)
+	}
+
+	return clone
+}
+
+// LoadEnvironmentForRelease loads the shared env.properties and overlays any
+// version-specific values from the selected release.
+func LoadEnvironmentForRelease(releaseVersion string) error {
+	if err := EnsureParentEnvDefaults(); err != nil {
+		return err
+	}
+
+	sharedEnvPath := filepath.Join(installDir, "env.properties")
+	sharedProps, err := loadPropertiesFromFile(sharedEnvPath)
+	if err != nil {
+		return err
+	}
+
+	merged := cloneProperties(sharedProps)
+	releaseVersion = strings.TrimSpace(releaseVersion)
+	if releaseVersion != "" {
+		releaseEnvPath := filepath.Join(installDir, releaseVersion, "env.properties")
+		if _, statErr := os.Stat(releaseEnvPath); statErr == nil {
+			releaseProps, loadErr := loadPropertiesFromFile(releaseEnvPath)
+			if loadErr != nil {
+				return fmt.Errorf("failed to load release env.properties: %w", loadErr)
+			}
+
+			for _, key := range releaseProps.Keys() {
+				value, _ := releaseProps.Get(key)
+				merged.Set(key, value)
+			}
+		} else if !os.IsNotExist(statErr) {
+			return fmt.Errorf("failed to check release env.properties: %w", statErr)
+		}
+	}
+
+	environment = merged
+	return nil
+}
+
 // GetTemurinVersionForRelease returns the Temurin version for a specific release.
 // It first checks the version-specific env.properties file, then falls back to
 // the shared env.properties file, and finally to the default value.
@@ -396,6 +489,84 @@ func SaveProperty(key, value string) error {
 	return nil
 }
 
+// SavePropertyForRelease saves a key-value pair to a version-specific
+// env.properties file, creating it from parent defaults if needed.
+func SavePropertyForRelease(releaseVersion, key, value string) error {
+	releaseVersion = strings.TrimSpace(releaseVersion)
+	if releaseVersion == "" {
+		return fmt.Errorf("release version is required")
+	}
+
+	if err := EnsureReleaseEnvFromParent(releaseVersion); err != nil {
+		return fmt.Errorf("failed to initialize release env.properties: %w", err)
+	}
+
+	envFilePath := filepath.Join(installDir, releaseVersion, "env.properties")
+	props := properties.NewProperties()
+	content, err := os.ReadFile(envFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to read release env.properties: %w", err)
+	}
+
+	if err := props.Load(content, properties.UTF8); err != nil {
+		return fmt.Errorf("failed to load release env.properties: %w", err)
+	}
+
+	props.Set(key, value)
+
+	file, err := os.Create(envFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to open release env.properties for writing: %w", err)
+	}
+	defer file.Close()
+
+	if _, err := props.Write(file, properties.UTF8); err != nil {
+		return fmt.Errorf("failed to write release env.properties: %w", err)
+	}
+
+	log.Printf("Saved property %s = %s to %s", key, value, envFilePath)
+	return nil
+}
+
+// DeletePropertyForRelease removes a key from a version-specific env.properties
+// file, creating the file from parent defaults if needed.
+func DeletePropertyForRelease(releaseVersion, key string) error {
+	releaseVersion = strings.TrimSpace(releaseVersion)
+	if releaseVersion == "" {
+		return fmt.Errorf("release version is required")
+	}
+
+	if err := EnsureReleaseEnvFromParent(releaseVersion); err != nil {
+		return fmt.Errorf("failed to initialize release env.properties: %w", err)
+	}
+
+	envFilePath := filepath.Join(installDir, releaseVersion, "env.properties")
+	props := properties.NewProperties()
+	content, err := os.ReadFile(envFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to read release env.properties: %w", err)
+	}
+
+	if err := props.Load(content, properties.UTF8); err != nil {
+		return fmt.Errorf("failed to load release env.properties: %w", err)
+	}
+
+	props.Delete(key)
+
+	file, err := os.Create(envFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to open release env.properties for writing: %w", err)
+	}
+	defer file.Close()
+
+	if _, err := props.Write(file, properties.UTF8); err != nil {
+		return fmt.Errorf("failed to write release env.properties: %w", err)
+	}
+
+	log.Printf("Deleted property %s from %s", key, envFilePath)
+	return nil
+}
+
 // DeleteProperty removes a key from env.properties and reloads the environment
 func DeleteProperty(key string) error {
 	envFilePath := filepath.Join(installDir, "env.properties")
@@ -436,6 +607,15 @@ func GetTrackerConnectionEnabled() bool {
 	}
 	// Check if it's a local tracker URL (ws://127.0.0.1:*/ws)
 	return value != "" && (value[:len("ws://127.0.0.1:")] == "ws://127.0.0.1:" && value[len(value)-3:] == "/ws")
+}
+
+// GetTrackerConnectionEnabledForRelease returns true if the version-specific
+// effective environment points OWLCMS_VIDEODATA to a local tracker websocket.
+func GetTrackerConnectionEnabledForRelease(releaseVersion string) bool {
+	if err := LoadEnvironmentForRelease(releaseVersion); err != nil {
+		return false
+	}
+	return GetTrackerConnectionEnabled()
 }
 
 // CheckForUpdates checks for updates to the control panel itself

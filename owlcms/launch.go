@@ -129,12 +129,13 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 		return err
 	}
 
-	if err := checkPort(); err == nil {
-		statusLabel.SetText(fmt.Sprintf("Another program is running on port %s", GetPort()))
+	targetPort := GetPortForRelease(version)
+	if err := checkPort(targetPort); err == nil {
+		statusLabel.SetText(fmt.Sprintf("Another program is running on port %s", targetPort))
 		statusLabel.Refresh()
 		goBackToMainScreen()
-		log.Printf("Another program is running on port %s", GetPort())
-		return fmt.Errorf("another program is running on port %s", GetPort())
+		log.Printf("Another program is running on port %s", targetPort)
+		return fmt.Errorf("another program is running on port %s", targetPort)
 	}
 
 	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s...", version))
@@ -184,13 +185,14 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 		return fmt.Errorf("failed to find local Java: %w", err)
 	}
 
-	if err := InitEnv(); err != nil {
+	if err := LoadEnvironmentForRelease(version); err != nil {
 		statusLabel.SetText(fmt.Sprintf("Failed to initialize environment: %v", err))
 		launchButton.Show()
 		goBackToMainScreen()
 		releaseJavaLock()
 		return fmt.Errorf("failed to initialize environment: %w", err)
 	}
+	targetPort = GetPort()
 
 	env := os.Environ()
 	newVar := shared.GetLauncherVersionSemver()
@@ -235,8 +237,8 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 			log.Printf("Wrote PID %d to PID file %s\n", javaPID, pidFilePath)
 		}
 
-		log.Printf("Launching OWLCMS %s (PID: %d), waiting for port %s...\n", version, javaPID, GetPort())
-		statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s (PID: %d), waiting for port %s.\nFull startup can take up to 30 seconds.", version, javaPID, GetPort()))
+		log.Printf("Launching OWLCMS %s (PID: %d), waiting for port %s...\n", version, javaPID, targetPort)
+		statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s (PID: %d), waiting for port %s.\nFull startup can take up to 30 seconds.", version, javaPID, targetPort))
 		currentProcess = cmd
 		stopBtn.SetText(fmt.Sprintf("Stop OWLCMS %s", version))
 		stopBtn.Show()
@@ -262,7 +264,7 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 			done <- cmd.Wait()
 		}()
 
-		monitorChan := monitorProcess(done)
+		monitorChan := monitorProcess(done, targetPort)
 
 		go func(retryCount int, pid int) {
 			if err := <-monitorChan; err != nil {
@@ -278,9 +280,9 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 				return
 			}
 
-			log.Printf("OWLCMS process %d is ready (port %s responding)\n", pid, GetPort())
-			statusLabel.SetText(fmt.Sprintf("OWLCMS running (PID: %d) on port %s", pid, GetPort()))
-			url := fmt.Sprintf("http://localhost:%s", GetPort())
+			log.Printf("OWLCMS process %d is ready (port %s responding)\n", pid, targetPort)
+			statusLabel.SetText(fmt.Sprintf("OWLCMS running (PID: %d) on port %s", pid, targetPort))
+			url := fmt.Sprintf("http://localhost:%s", targetPort)
 			urlLink.SetURLFromString(url)
 			urlLink.SetText("Open OWLCMS in a browser")
 			urlLink.Show()
