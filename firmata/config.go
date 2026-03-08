@@ -1,6 +1,7 @@
 package firmata
 
 import (
+	"controlpanel/shared"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -8,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 
 	customdialog "controlpanel/firmata/dialog"
 
@@ -53,6 +55,27 @@ func GetTemurinVersion() string {
 		return "jdk-25"
 	}
 	return version
+}
+
+// GetPortForRelease returns the effective FIRMATA_PORT for a specific release,
+// falling back to the shared env.properties value.
+func GetPortForRelease(releaseVersion string) string {
+	merged, err := shared.MergeEnvironmentProperties(
+		filepath.Join(installDir, "env.properties"),
+		filepath.Join(installDir, strings.TrimSpace(releaseVersion), "env.properties"),
+	)
+	if err != nil {
+		return GetPort()
+	}
+
+	if port, ok := merged.Get("FIRMATA_PORT"); ok {
+		trimmed := strings.TrimSpace(port)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+
+	return GetPort()
 }
 
 // GetTemurinVersionForRelease returns the Temurin version for a specific release.
@@ -184,6 +207,25 @@ func loadProperties(envFilePath string) error {
 	if err := environment.Load(content, properties.UTF8); err != nil {
 		return fmt.Errorf("failed to load env.properties file: %w", err)
 	}
+	return nil
+}
+
+// LoadEnvironmentForRelease loads the shared env.properties and overlays any
+// version-specific env.properties for the selected release.
+func LoadEnvironmentForRelease(releaseVersion string) error {
+	if err := EnsureParentEnvDefaults(); err != nil {
+		return err
+	}
+
+	merged, err := shared.MergeEnvironmentProperties(
+		filepath.Join(installDir, "env.properties"),
+		filepath.Join(installDir, strings.TrimSpace(releaseVersion), "env.properties"),
+	)
+	if err != nil {
+		return err
+	}
+
+	environment = merged
 	return nil
 }
 

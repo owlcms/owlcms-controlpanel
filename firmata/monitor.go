@@ -18,9 +18,9 @@ import (
 
 var killedByUs bool
 
-// checkPort tries to connect to localhost:port and returns nil if successful
-func checkPort() error {
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%s", GetPort()))
+// checkPort tries to connect to localhost:port and returns nil if successful.
+func checkPort(port string) error {
+	resp, err := http.Get(fmt.Sprintf("http://localhost:%s", port))
 	if err != nil {
 		return err
 	}
@@ -28,7 +28,7 @@ func checkPort() error {
 	return nil
 }
 
-func monitorProcess(done <-chan error) chan error {
+func monitorProcess(done <-chan error, port string) chan error {
 	result := make(chan error, 1)
 	go func() {
 		// Try connecting to port for up to 60 seconds
@@ -50,7 +50,7 @@ func monitorProcess(done <-chan error) chan error {
 				result <- fmt.Errorf("timed out waiting for process to become ready")
 				return
 			case <-ticker.C:
-				if err := checkPort(); err == nil {
+				if err := checkPort(port); err == nil {
 					// Port is responding, process is ready
 					result <- nil
 					return

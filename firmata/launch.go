@@ -133,13 +133,15 @@ func launchFirmata(version string, launchButton *widget.Button) error {
 		return err
 	}
 
+	targetPort := GetPortForRelease(version)
+
 	// Check if port is already in use
-	if err := checkPort(); err == nil {
-		statusLabel.SetText(fmt.Sprintf("Another program is running on port %s", GetPort()))
+	if err := checkPort(targetPort); err == nil {
+		statusLabel.SetText(fmt.Sprintf("Another program is running on port %s", targetPort))
 		statusLabel.Refresh()
 		goBackToMainScreen()
-		log.Printf("Another program is running on port %s", GetPort())
-		return fmt.Errorf("another program is running on port %s", GetPort())
+		log.Printf("Another program is running on port %s", targetPort)
+		return fmt.Errorf("another program is running on port %s", targetPort)
 	}
 
 	statusLabel.SetText(fmt.Sprintf("Starting owlcms-firmata %s...", version))
@@ -191,7 +193,15 @@ func launchFirmata(version string, launchButton *widget.Button) error {
 		return fmt.Errorf("failed to find local Java: %w", err)
 	}
 
-	// environment is already loaded by EnsureParentEnvDefaults()
+	if err := LoadEnvironmentForRelease(version); err != nil {
+		statusLabel.SetText(fmt.Sprintf("Failed to initialize environment: %v", err))
+		launchButton.Show()
+		goBackToMainScreen()
+		releaseJavaLock()
+		return fmt.Errorf("failed to initialize environment: %w", err)
+	}
+	targetPort = GetPort()
+
 	env := os.Environ()
 	newVar := shared.GetLauncherVersionSemver()
 	env = append(env, fmt.Sprintf("FIRMATA_LAUNCHER=%s", newVar))
@@ -204,7 +214,7 @@ func launchFirmata(version string, launchButton *widget.Button) error {
 		env = append(env, fmt.Sprintf("%s=%s", key, value))
 	}
 
-	cmd := exec.Command(localJava, "-jar", "owlcms-firmata.jar", "--port", GetPort(), "--device-configs", "./config")
+	cmd := exec.Command(localJava, "-jar", "owlcms-firmata.jar", "--port", targetPort, "--device-configs", "./config")
 	cmd.Env = env
 
 	// Remove startup.log if it exists to ensure fresh log output
@@ -234,8 +244,8 @@ func launchFirmata(version string, launchButton *widget.Button) error {
 		log.Printf("Wrote PID %d to PID file %s\n", javaPID, pidFilePath)
 	}
 
-	log.Printf("Launching owlcms-firmata %s (PID: %d), waiting for port %s...\n", version, javaPID, GetPort())
-	statusLabel.SetText(fmt.Sprintf("Starting owlcms-firmata %s (PID: %d), waiting for port %s.\nFull startup can take up to 30 seconds.", version, javaPID, GetPort()))
+	log.Printf("Launching owlcms-firmata %s (PID: %d), waiting for port %s...\n", version, javaPID, targetPort)
+	statusLabel.SetText(fmt.Sprintf("Starting owlcms-firmata %s (PID: %d), waiting for port %s.\nFull startup can take up to 30 seconds.", version, javaPID, targetPort))
 	currentProcess = cmd
 	stopButton.SetText(fmt.Sprintf("Stop owlcms-firmata %s", version))
 	stopButton.Show()
@@ -262,7 +272,7 @@ func launchFirmata(version string, launchButton *widget.Button) error {
 	}()
 
 	// Monitor the process in background
-	monitorChan := monitorProcess(done)
+	monitorChan := monitorProcess(done, targetPort)
 
 	// Wait for monitoring result in background
 	go func() {
@@ -280,9 +290,9 @@ func launchFirmata(version string, launchButton *widget.Button) error {
 			return
 		}
 
-		log.Printf("owlcms-firmata process %d is ready (port %s responding)\n", javaPID, GetPort())
-		statusLabel.SetText(fmt.Sprintf("owlcms-firmata running (PID: %d) on port %s", javaPID, GetPort()))
-		url := fmt.Sprintf("http://localhost:%s", GetPort())
+		log.Printf("owlcms-firmata process %d is ready (port %s responding)\n", javaPID, targetPort)
+		statusLabel.SetText(fmt.Sprintf("owlcms-firmata running (PID: %d) on port %s", javaPID, targetPort))
+		url := fmt.Sprintf("http://localhost:%s", targetPort)
 		urlLink.SetURLFromString(url)
 		urlLink.SetText("Open owlcms-firmata in a browser")
 		urlLink.Show()
