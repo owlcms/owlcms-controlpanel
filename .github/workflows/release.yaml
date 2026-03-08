@@ -199,6 +199,24 @@ jobs:
         mv usr/local/share/pixmaps/owlcms.png usr/share/pixmaps/
         mv usr/local/share/applications/owlcms.desktop usr/share/applications/
         rm -rf usr/local/share/pixmaps usr/local/share/applications
+        # Ensure both owlcms and controlpanel commands exist on PATH.
+        for bindir in usr/local/bin usr/bin; do
+          primary=""
+          for candidate in owlcms-launcher owlcms controlpanel; do
+            if [ -x "$bindir/$candidate" ] && [ ! -L "$bindir/$candidate" ]; then
+              primary="$candidate"
+              break
+            fi
+          done
+          if [ -n "$primary" ]; then
+            if [ "$primary" != "owlcms" ]; then
+              ln -sfn "$primary" "$bindir/owlcms"
+            fi
+            if [ "$primary" != "controlpanel" ]; then
+              ln -sfn "$primary" "$bindir/controlpanel"
+            fi
+          fi
+        done
         # Remove unwanted Makefile if present
         rm -f Makefile
         # Repackage
@@ -222,6 +240,31 @@ jobs:
     - name: Copy Raspberry Pi binary
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
       run: cp fyne-cross/bin/linux-arm64/controlpanel fyne-cross/bin/linux-arm64/owlcms-pi
+
+    - name: Fix Linux arm64 package paths
+      if: ${{ env.BUILD_RASPBERRY == 'true' }}
+      run: |
+        mkdir -p /tmp/fix-arm64
+        cd /tmp/fix-arm64
+        tar -xf $GITHUB_WORKSPACE/fyne-cross/dist/linux-arm64/owlcms.tar.xz
+        for bindir in usr/local/bin usr/bin; do
+          primary=""
+          for candidate in owlcms-launcher owlcms controlpanel; do
+            if [ -x "$bindir/$candidate" ] && [ ! -L "$bindir/$candidate" ]; then
+              primary="$candidate"
+              break
+            fi
+          done
+          if [ -n "$primary" ]; then
+            if [ "$primary" != "owlcms" ]; then
+              ln -sfn "$primary" "$bindir/owlcms"
+            fi
+            if [ "$primary" != "controlpanel" ]; then
+              ln -sfn "$primary" "$bindir/controlpanel"
+            fi
+          fi
+        done
+        tar -cJf $GITHUB_WORKSPACE/fyne-cross/dist/linux-arm64/owlcms.tar.xz .
 
     - name: Create Raspberry Pi DEB package
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
