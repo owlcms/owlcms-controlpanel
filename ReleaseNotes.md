@@ -8,6 +8,16 @@ The control panel is installed once. It will automatically download the correct 
 
 ## Release Log
 
+- 3.2.0: Configuration options for OWLCMS
+  - the Options menu entries now allow selecting a version
+  - a new option to set the port has been added
+
+- 3.2.0: Environment variables processing
+  - For all applications, all versions can now have an env.properties file
+  - This is merged with the parent env.properties and added to the environment when launching
+
+- 3.2.0: Metadata preserved in version name when updating (the "+" suffix is now kept)
+
 - 3.2.0: Additional tabs for replays and cameras
   - Not enabled on macOS (video features require extensive testing and adjustments with the actual platform)
   - A hared copy of ffmpeg installed next to Java and Node.js (same repo for Windows and Linux ARM/AMD)
