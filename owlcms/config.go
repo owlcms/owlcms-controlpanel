@@ -108,8 +108,22 @@ func defaultOwlcmsProperties() (*properties.Properties, string) {
 	return props, rawString
 }
 
+func shouldUpgradeTemurinTo25(version string) bool {
+	trimmed := strings.TrimSpace(version)
+	if trimmed == "" {
+		return true
+	}
+
+	major, err := shared.ExtractMajorVersion(trimmed)
+	if err != nil {
+		return false
+	}
+
+	return major < 25
+}
+
 // EnsureParentEnvDefaults ensures the shared env.properties exists and contains
-// required defaults. TEMURIN_VERSION is forced to jdk-25.
+// required defaults.
 func EnsureParentEnvDefaults() error {
 	envFilePath := filepath.Join(installDir, "env.properties")
 	if err := InitEnv(); err != nil {
@@ -126,7 +140,7 @@ func EnsureParentEnvDefaults() error {
 		}
 	}
 
-	if current, _ := environment.Get("TEMURIN_VERSION"); current != "jdk-25" {
+	if current, _ := environment.Get("TEMURIN_VERSION"); shouldUpgradeTemurinTo25(current) {
 		environment.Set("TEMURIN_VERSION", "jdk-25")
 		updated = true
 	}
@@ -172,9 +186,8 @@ func EnsureParentEnvDefaults() error {
 	return nil
 }
 
-// EnsureReleaseEnvFromParent creates a version-specific env.properties by
-// copying the parent values and filling any missing defaults. TEMURIN_VERSION
-// is forced to jdk-25 for new installations.
+// EnsureReleaseEnvFromParent ensures a version-specific env.properties exists.
+// Existing files are preserved and only missing keys are added.
 func EnsureReleaseEnvFromParent(releaseVersion string) error {
 	if err := EnsureParentEnvDefaults(); err != nil {
 		return err
@@ -185,27 +198,70 @@ func EnsureReleaseEnvFromParent(releaseVersion string) error {
 		return fmt.Errorf("creating release env directory: %w", err)
 	}
 
-	// Start with all parent properties
 	releaseProps := properties.NewProperties()
-	for _, key := range environment.Keys() {
-		value, _ := environment.Get(key)
-		releaseProps.Set(key, value)
-	}
-
-	defaults, defaultComments := defaultOwlcmsProperties()
-	for _, key := range defaults.Keys() {
-		if _, ok := releaseProps.Get(key); !ok {
-			value, _ := defaults.Get(key)
+	releaseExists := false
+	if _, err := os.Stat(releaseEnvPath); err == nil {
+		releaseExists = true
+		content, readErr := os.ReadFile(releaseEnvPath)
+		if readErr != nil {
+			return fmt.Errorf("failed to read release env.properties: %w", readErr)
+		}
+		if loadErr := releaseProps.Load(content, properties.UTF8); loadErr != nil {
+			return fmt.Errorf("failed to load release env.properties: %w", loadErr)
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to check release env.properties: %w", err)
+	} else {
+		// New file: seed with all parent properties.
+		for _, key := range environment.Keys() {
+			value, _ := environment.Get(key)
 			releaseProps.Set(key, value)
 		}
 	}
 
-	// Force Temurin for new installations
-	releaseProps.Set("TEMURIN_VERSION", "jdk-25")
+	defaults, defaultComments := defaultOwlcmsProperties()
+	updated := !releaseExists
+	for _, key := range defaults.Keys() {
+		if _, ok := releaseProps.Get(key); !ok {
+			value, _ := defaults.Get(key)
+			releaseProps.Set(key, value)
+			updated = true
+		}
+	}
+
+	if current, _ := releaseProps.Get("TEMURIN_VERSION"); shouldUpgradeTemurinTo25(current) {
+		releaseProps.Set("TEMURIN_VERSION", "jdk-25")
+		updated = true
+	}
+
+	if !releaseExists {
+		if _, ok := releaseProps.Get("TEMURIN_VERSION"); !ok {
+			releaseProps.Set("TEMURIN_VERSION", "jdk-25")
+		}
+	}
+
+	if !updated {
+		return nil
+	}
 
 	// Use the default comment block for release env.properties (skip first 3 lines)
 	commentBlock := defaultComments
-	if commentBlock != "" {
+	if releaseExists {
+		if content, err := os.ReadFile(releaseEnvPath); err == nil {
+			var comments []string
+			lines := strings.Split(string(content), "\n")
+			for _, line := range lines {
+				trimmed := strings.TrimSpace(line)
+				if strings.HasPrefix(trimmed, "#") {
+					comments = append(comments, line)
+				}
+			}
+			if len(comments) > 0 {
+				commentBlock = strings.Join(comments, "\n")
+			}
+		}
+	}
+	if commentBlock != "" && !releaseExists {
 		lines := strings.Split(commentBlock, "\n")
 		if len(lines) > 3 {
 			commentBlock = strings.Join(lines[3:], "\n")
