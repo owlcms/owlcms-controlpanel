@@ -128,13 +128,15 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 		return err
 	}
 
+	targetPort := GetPortForRelease(version)
+
 	// Check if port is already in use
-	if err := checkPort(); err == nil {
-		statusLabel.SetText(fmt.Sprintf("Another program is running on port %s", GetPort()))
+	if err := checkPort(targetPort); err == nil {
+		statusLabel.SetText(fmt.Sprintf("Another program is running on port %s", targetPort))
 		statusLabel.Refresh()
 		goBackToMainScreen()
-		log.Printf("Another program is running on port %s", GetPort())
-		return fmt.Errorf("another program is running on port %s", GetPort())
+		log.Printf("Another program is running on port %s", targetPort)
+		return fmt.Errorf("another program is running on port %s", targetPort)
 	}
 
 	statusLabel.SetText(fmt.Sprintf("Starting owlcms-tracker %s...", version))
@@ -173,18 +175,19 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 	var cmd *exec.Cmd
 	goos := downloadutils.GetGoos()
 
-	if err := InitEnv(); err != nil {
+	if err := LoadEnvironmentForRelease(version); err != nil {
 		launchButton.Show()
 		goBackToMainScreen()
 		return fmt.Errorf("failed to initialize environment: %w", err)
 	}
+	targetPort = GetPort()
 
 	env := os.Environ()
 	newVar := shared.GetLauncherVersionSemver()
 	env = append(env, fmt.Sprintf("TRACKER_LAUNCHER=%s", newVar))
 	env = append(env, fmt.Sprintf("OWLCMS_CONTROLPANEL=%s", newVar))
 	// Map TRACKER_PORT to PORT for the tracker application
-	env = append(env, fmt.Sprintf("PORT=%s", GetPort()))
+	env = shared.UpsertEnv(env, "PORT", targetPort)
 
 	// Add all properties from environment to the process env
 	if environment != nil {
@@ -386,7 +389,7 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 		done <- cmd.Wait()
 	}()
 
-	monitorChan := monitorProcess(done)
+	monitorChan := monitorProcess(done, targetPort)
 
 	// Wait for monitoring result in background
 	go func() {
@@ -402,9 +405,9 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 			return
 		}
 
-		log.Printf("owlcms-tracker process %d is ready (port %s responding)\n", nodePID, GetPort())
-		statusLabel.SetText(fmt.Sprintf("owlcms-tracker running (PID: %d) on port %s", nodePID, GetPort()))
-		url := fmt.Sprintf("http://localhost:%s", GetPort())
+		log.Printf("owlcms-tracker process %d is ready (port %s responding)\n", nodePID, targetPort)
+		statusLabel.SetText(fmt.Sprintf("owlcms-tracker running (PID: %d) on port %s", nodePID, targetPort))
+		url := fmt.Sprintf("http://localhost:%s", targetPort)
 		urlLink.SetURLFromString(url)
 		urlLink.SetText("Open owlcms-tracker in a browser")
 		urlLink.Show()

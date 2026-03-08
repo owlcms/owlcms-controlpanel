@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"controlpanel/shared"
 	"controlpanel/tracker/downloadutils"
@@ -33,6 +34,27 @@ func GetPort() string {
 		return "8096"
 	}
 	return port
+}
+
+// GetPortForRelease returns the effective TRACKER_PORT for a selected release,
+// falling back to the shared env.properties value.
+func GetPortForRelease(releaseVersion string) string {
+	merged, err := shared.MergeEnvironmentProperties(
+		filepath.Join(installDir, "env.properties"),
+		filepath.Join(installDir, strings.TrimSpace(releaseVersion), "env.properties"),
+	)
+	if err != nil {
+		return GetPort()
+	}
+
+	if port, ok := merged.Get("TRACKER_PORT"); ok {
+		trimmed := strings.TrimSpace(port)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+
+	return GetPort()
 }
 
 // InitEnv initializes the tracker environment from env.properties
@@ -79,6 +101,25 @@ func InitEnv() error {
 		log.Printf("  %s = %s", key, value)
 	}
 
+	return nil
+}
+
+// LoadEnvironmentForRelease loads the shared tracker env.properties and overlays
+// any version-specific env.properties for the selected release.
+func LoadEnvironmentForRelease(releaseVersion string) error {
+	if err := InitEnv(); err != nil {
+		return err
+	}
+
+	merged, err := shared.MergeEnvironmentProperties(
+		filepath.Join(installDir, "env.properties"),
+		filepath.Join(installDir, strings.TrimSpace(releaseVersion), "env.properties"),
+	)
+	if err != nil {
+		return err
+	}
+
+	environment = merged
 	return nil
 }
 
