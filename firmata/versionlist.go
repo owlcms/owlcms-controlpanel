@@ -394,6 +394,13 @@ func adjustUpdateButton(mostRecent string, version string, updateButton *widget.
 func updateVersion(existingVersion string, targetVersion string, w fyne.Window) {
 	// Note the timestamp of the current version's top-level directory
 	currentVersionDir := filepath.Join(installDir, existingVersion)
+	targetBaseVersion, _ := shared.ParseVersionWithBuild(targetVersion)
+	existingBuild := shared.GetCurrentBuildString(existingVersion)
+	targetInstallVersion := targetVersion
+	if existingBuild != "" {
+		resolvedBuild := shared.ResolveCollisionForBuild(installDir, targetBaseVersion, existingBuild)
+		targetInstallVersion = fmt.Sprintf("%s+%s", targetBaseVersion, resolvedBuild)
+	}
 
 	// Download and extract the version given by string
 	var urlPrefix string
@@ -405,7 +412,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	fileName := "owlcms-firmata.jar"
 	jarURL := fmt.Sprintf("%s/%s/%s", urlPrefix, targetVersion, fileName)
 
-	extractDir := filepath.Join(installDir, targetVersion)
+	extractDir := filepath.Join(installDir, targetInstallVersion)
 	if err := shared.EnsureDir0755(extractDir); err != nil {
 		dialog.ShowError(fmt.Errorf("creating install directory: %w", err), w)
 		return
@@ -454,7 +461,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		}
 	}
 
-	dialog.ShowInformation("Update Complete", fmt.Sprintf("Successfully updated to version %s", targetVersion), w)
+	dialog.ShowInformation("Update Complete", fmt.Sprintf("Successfully updated to version %s", targetInstallVersion), w)
 
 	// Recompute the version list
 	recomputeVersionList(w)

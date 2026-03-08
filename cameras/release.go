@@ -405,12 +405,19 @@ func updateExplanation() {
 
 func updateVersion(existingVersion, targetVersion string, w fyne.Window) {
 	existingDir := filepath.Join(installDir, existingVersion)
+	targetBaseVersion, _ := shared.ParseVersionWithBuild(targetVersion)
+	existingBuild := shared.GetCurrentBuildString(existingVersion)
+	targetInstallVersion := targetVersion
+	if existingBuild != "" {
+		resolvedBuild := shared.ResolveCollisionForBuild(installDir, targetBaseVersion, existingBuild)
+		targetInstallVersion = fmt.Sprintf("%s+%s", targetBaseVersion, resolvedBuild)
+	}
 	cancel := make(chan bool)
 	progressDialog, progressBar := customdialog.NewDownloadDialog("Updating Cameras Module", w, cancel)
 	progressDialog.Show()
 
 	camsFile := camerasExeName()
-	newVersionDir := filepath.Join(installDir, targetVersion)
+	newVersionDir := filepath.Join(installDir, targetInstallVersion)
 	if err := shared.EnsureDir0755(newVersionDir); err != nil {
 		progressDialog.Hide()
 		dialog.ShowError(fmt.Errorf("creating version directory: %w", err), w)
@@ -444,7 +451,7 @@ func updateVersion(existingVersion, targetVersion string, w fyne.Window) {
 
 	progressBar.SetValue(1.0)
 	progressDialog.Hide()
-	dialog.ShowInformation("Update Complete", fmt.Sprintf("Successfully updated Cameras module to version %s", targetVersion), w)
+	dialog.ShowInformation("Update Complete", fmt.Sprintf("Successfully updated Cameras module to version %s", targetInstallVersion), w)
 
 	recomputeVersionList(w)
 	checkForNewerVersion()

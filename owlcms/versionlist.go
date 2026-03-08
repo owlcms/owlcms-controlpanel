@@ -453,6 +453,13 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	// Note the timestamp of the current version's top-level directory
 	currentVersionDir := filepath.Join(installDir, existingVersion)
 	existingVersionDir := currentVersionDir
+	targetBaseVersion, _ := shared.ParseVersionWithBuild(targetVersion)
+	existingBuild := shared.GetCurrentBuildString(existingVersion)
+	targetInstallVersion := targetVersion
+	if existingBuild != "" {
+		resolvedBuild := shared.ResolveCollisionForBuild(installDir, targetBaseVersion, existingBuild)
+		targetInstallVersion = fmt.Sprintf("%s+%s", targetBaseVersion, resolvedBuild)
+	}
 
 	// Download and extract the version given by string
 	var urlPrefix string
@@ -464,7 +471,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	fileName := fmt.Sprintf("owlcms_%s.zip", targetVersion)
 	zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, targetVersion, fileName)
 	zipPath := filepath.Join(installDir, fileName)
-	newVersionDir := filepath.Join(installDir, targetVersion)
+	newVersionDir := filepath.Join(installDir, targetInstallVersion)
 
 	// Create a cancel channel
 	cancel := make(chan bool)
@@ -611,7 +618,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 
 	// Create a detailed success message
 	var successMessage string
-	successMessage = fmt.Sprintf("Successfully updated to version %s\n", targetVersion)
+	successMessage = fmt.Sprintf("Successfully updated to version %s\n", targetInstallVersion)
 
 	if databaseCopied && localFilesCopied {
 		successMessage += "\n✓ Database files have been copied\n✓ Local configuration files have been processed"

@@ -373,6 +373,13 @@ func adjustUpdateButton(mostRecent string, version string, updateButton *widget.
 
 func updateVersion(existingVersion string, targetVersion string, w fyne.Window) {
 	currentVersionDir := filepath.Join(installDir, existingVersion)
+	targetBaseVersion, _ := shared.ParseVersionWithBuild(targetVersion)
+	existingBuild := shared.GetCurrentBuildString(existingVersion)
+	targetInstallVersion := targetVersion
+	if existingBuild != "" {
+		resolvedBuild := shared.ResolveCollisionForBuild(installDir, targetBaseVersion, existingBuild)
+		targetInstallVersion = fmt.Sprintf("%s+%s", targetBaseVersion, resolvedBuild)
+	}
 
 	// Try device-independent name first, then old platform-specific names for backward compatibility
 	assetNames := getAssetNames(targetVersion)
@@ -394,7 +401,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		return
 	}
 
-	extractDir := filepath.Join(installDir, targetVersion)
+	extractDir := filepath.Join(installDir, targetInstallVersion)
 	if err := shared.EnsureDir0755(extractDir); err != nil {
 		dialog.ShowError(fmt.Errorf("creating install directory: %w", err), w)
 		return
@@ -449,7 +456,7 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		}
 
 		progressBar.SetValue(1.0)
-		dialog.ShowInformation("Update Complete", fmt.Sprintf("Successfully updated to version %s", targetVersion), w)
+		dialog.ShowInformation("Update Complete", fmt.Sprintf("Successfully updated to version %s", targetInstallVersion), w)
 
 		recomputeVersionList(w)
 
