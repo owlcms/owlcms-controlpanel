@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"controlpanel/owlcms/installutils"
 	"controlpanel/owlcms/javacheck"
@@ -341,42 +343,15 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 	processMenu := shared.CreateMenuButton("Processes", processMenuItems)
 
 	// Create the Options menu button with popup
-	// Set menu item text based on current state
-	var menuItemText string
-	if GetTrackerConnectionEnabled() {
-		menuItemText = "Disable connection to local tracker"
-	} else {
-		menuItemText = "Enable connection to local tracker"
-	}
+	trackerToggleItem := fyne.NewMenuItem("Local Tracker Connection", func() {
+		showTrackerConnectionDialog(w)
+	})
 
-	trackerToggleItem := fyne.NewMenuItem(menuItemText, nil)
-	trackerToggleItem.Action = func() {
-		// Get the tracker port
-		trackerPort := tracker.GetPort()
-		trackerURL := fmt.Sprintf("ws://127.0.0.1:%s/ws", trackerPort)
+	setPortItem := fyne.NewMenuItem("Port Number", func() {
+		showPortNumberDialog(w)
+	})
 
-		// Toggle the connection
-		if GetTrackerConnectionEnabled() {
-			// Disable
-			if err := DeleteProperty("OWLCMS_VIDEODATA"); err != nil {
-				dialog.ShowError(fmt.Errorf("failed to disable tracker connection: %w", err), w)
-				return
-			}
-			dialog.ShowInformation("Tracker Connection", "Tracker connection disabled. Restart OWLCMS for changes to take effect.", w)
-			trackerToggleItem.Label = "Enable connection to local tracker"
-			return
-		}
-
-		// Enable
-		if err := SaveProperty("OWLCMS_VIDEODATA", trackerURL); err != nil {
-			dialog.ShowError(fmt.Errorf("failed to enable tracker connection: %w", err), w)
-			return
-		}
-		dialog.ShowInformation("Tracker Connection", fmt.Sprintf("Tracker connection enabled on port %s. OWLCMS will connect to Tracker once it is started. Restart OWLCMS for changes to take effect.", trackerPort), w)
-		trackerToggleItem.Label = "Disable connection to local tracker"
-	}
-
-	optionsMenuItems := []*fyne.MenuItem{trackerToggleItem}
+	optionsMenuItems := []*fyne.MenuItem{setPortItem, trackerToggleItem}
 
 	optionsMenu := shared.CreateMenuButton("Options", optionsMenuItems)
 
@@ -387,6 +362,159 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 	return container.NewVBox(
 		spacer,
 		container.NewHBox(fileMenu, processMenu, optionsMenu),
+	)
+}
+
+func showTrackerConnectionDialog(w fyne.Window) {
+	installedVersions := getAllInstalledVersions()
+	if len(installedVersions) == 0 {
+		dialog.ShowInformation("No Installed Versions", "Install an OWLCMS version first, then configure tracker connection.", w)
+		return
+	}
+
+	enabledCheck := widget.NewCheck("Enable connection to local tracker", nil)
+	statusLabel := widget.NewLabel("")
+	statusLabel.Wrapping = fyne.TextWrapWord
+
+	updateStatusText := func(selected string, isEnabled bool) {
+		if selected == "" {
+			statusLabel.SetText("")
+			return
+		}
+
+		trackerPort := tracker.GetPort()
+		if isEnabled {
+			statusLabel.SetText(fmt.Sprintf("Version %s will connect to Tracker on port %s.", selected, trackerPort))
+		} else {
+			statusLabel.SetText(fmt.Sprintf("Version %s will not connect to the local Tracker.", selected))
+		}
+	}
+
+	updateState := func(selected string) {
+		if selected == "" {
+			statusLabel.SetText("")
+			return
+		}
+
+		isEnabled := GetTrackerConnectionEnabledForRelease(selected)
+		enabledCheck.SetChecked(isEnabled)
+		updateStatusText(selected, isEnabled)
+	}
+
+	versionSelect := widget.NewSelect(installedVersions, func(selected string) {
+		updateState(selected)
+	})
+	enabledCheck.OnChanged = func(checked bool) {
+		updateStatusText(versionSelect.Selected, checked)
+	}
+	versionSelect.SetSelected(installedVersions[0])
+	updateState(installedVersions[0])
+
+	content := container.NewVBox(
+		widget.NewForm(
+			widget.NewFormItem("Version", versionSelect),
+		),
+		enabledCheck,
+		statusLabel,
+	)
+
+	d := dialog.NewCustomConfirm(
+		"Tracker Connection",
+		"Save",
+		"Cancel",
+		content,
+		func(ok bool) {
+			if !ok {
+				return
+			}
+
+			targetVersion := strings.TrimSpace(versionSelect.Selected)
+			if targetVersion == "" {
+				dialog.ShowError(fmt.Errorf("select an OWLCMS version"), w)
+				return
+			}
+
+			trackerPort := tracker.GetPort()
+			trackerURL := fmt.Sprintf("ws://127.0.0.1:%s/ws", trackerPort)
+
+			if enabledCheck.Checked {
+				if err := SavePropertyForRelease(targetVersion, "OWLCMS_VIDEODATA", trackerURL); err != nil {
+					dialog.ShowError(fmt.Errorf("failed to enable tracker connection: %w", err), w)
+					return
+				}
+				dialog.ShowInformation("Tracker Connection", fmt.Sprintf("Tracker connection enabled for version %s on port %s. Restart OWLCMS for that version to apply the change.", targetVersion, trackerPort), w)
+				return
+			}
+
+			if err := DeletePropertyForRelease(targetVersion, "OWLCMS_VIDEODATA"); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to disable tracker connection: %w", err), w)
+				return
+			}
+			dialog.ShowInformation("Tracker Connection", fmt.Sprintf("Tracker connection disabled for version %s. Restart OWLCMS for that version to apply the change.", targetVersion), w)
+		},
+		w,
+	)
+	d.Show()
+}
+
+func showPortNumberDialog(w fyne.Window) {
+	installedVersions := getAllInstalledVersions()
+	if len(installedVersions) == 0 {
+		dialog.ShowInformation("No Installed Versions", "Install an OWLCMS version first, then set its port number.", w)
+		return
+	}
+
+	portEntry := widget.NewEntry()
+	portEntry.SetPlaceHolder("8080")
+
+	versionSelect := widget.NewSelect(installedVersions, func(selected string) {
+		if selected == "" {
+			return
+		}
+		portEntry.SetText(GetPortForRelease(selected))
+	})
+	versionSelect.SetSelected(installedVersions[0])
+	portEntry.SetText(GetPortForRelease(installedVersions[0]))
+
+	dialog.ShowForm(
+		"OWLCMS Port Number",
+		"Save",
+		"Cancel",
+		[]*widget.FormItem{
+			widget.NewFormItem("Version", versionSelect),
+			widget.NewFormItem("Port Number", portEntry),
+		},
+		func(ok bool) {
+			if !ok {
+				return
+			}
+
+			targetVersion := strings.TrimSpace(versionSelect.Selected)
+			if targetVersion == "" {
+				dialog.ShowError(fmt.Errorf("select an OWLCMS version"), w)
+				return
+			}
+
+			newPort := strings.TrimSpace(portEntry.Text)
+			if newPort == "" {
+				dialog.ShowError(fmt.Errorf("port number is required"), w)
+				return
+			}
+
+			portNumber, err := strconv.Atoi(newPort)
+			if err != nil || portNumber < 1 || portNumber > 65535 {
+				dialog.ShowError(fmt.Errorf("port number must be an integer between 1 and 65535"), w)
+				return
+			}
+
+			if err := SavePropertyForRelease(targetVersion, "OWLCMS_PORT", newPort); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to save OWLCMS port: %w", err), w)
+				return
+			}
+
+			dialog.ShowInformation("Port Updated", fmt.Sprintf("OWLCMS_PORT for version %s set to %s. Restart OWLCMS for that version to apply the new port.", targetVersion, newPort), w)
+		},
+		w,
 	)
 }
 
