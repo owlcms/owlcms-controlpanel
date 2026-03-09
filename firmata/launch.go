@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"controlpanel/firmata/javacheck"
@@ -21,7 +20,6 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/Masterminds/semver/v3"
 	"github.com/gofrs/flock"
-	"github.com/shirou/gopsutil/process"
 )
 
 func configureTailLogLink(version, appDir string) {
@@ -99,23 +97,12 @@ func killLockingProcess() error {
 		return fmt.Errorf("failed to parse PID from PID file: %w", err)
 	}
 
-	proc, err := process.NewProcess(int32(pid))
+	err = shared.GracefullyStopPID(pid)
 	if err != nil {
 		releaseJavaLock()
-		return fmt.Errorf("failed to find process with PID %d: %w", pid, err)
+		return err
 	}
 
-	if shared.GetGoos() == "windows" && !shared.IsWSL() {
-		if err := proc.Terminate(); err != nil {
-			releaseJavaLock()
-			return fmt.Errorf("failed to terminate process with PID %d: %w", pid, err)
-		}
-	} else {
-		if err := proc.SendSignal(syscall.SIGKILL); err != nil {
-			releaseJavaLock()
-			return fmt.Errorf("failed to kill process with PID %d: %w", pid, err)
-		}
-	}
 	releaseJavaLock()
 	log.Printf("Killed process with PID %d\n", pid)
 	return nil
