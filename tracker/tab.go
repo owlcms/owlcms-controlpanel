@@ -45,7 +45,7 @@ var (
 
 // IsRunning returns true if Tracker is currently running
 func IsRunning() bool {
-	return currentProcess != nil
+	return currentProcess != nil || activeRuntime != nil
 }
 
 // OnTabSelected is called when the Tracker tab is selected.
@@ -65,6 +65,12 @@ func StopRunningProcess(w fyne.Window) {
 	if currentProcess != nil && currentProcess.Process != nil {
 		log.Println("Stopping Tracker process")
 		stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+		return
+	}
+
+	if activeRuntime != nil {
+		log.Println("Stopping attached Tracker process")
+		stopProcess(nil, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
 	}
 }
 
@@ -75,12 +81,24 @@ func HandleSignalCleanup() {
 		log.Printf("Forcefully stopping Tracker (PID: %d)...\n", pid)
 		killedByUs = true
 		// Use direct kill for fast cleanup
-		if err := currentProcess.Process.Kill(); err != nil {
+		if err := shared.ForcefullyKillPID(pid); err != nil {
 			log.Printf("Failed to kill Tracker process %d: %v\n", pid, err)
 		} else {
 			log.Printf("Tracker process %d killed\n", pid)
 		}
 		currentProcess = nil
+		clearRuntimeState()
+		releaseTrackerLock()
+		return
+	}
+
+	if activeRuntime != nil {
+		killedByUs = true
+		if err := shared.ForcefullyKillPID(activeRuntime.PID); err != nil {
+			log.Printf("Failed to kill attached Tracker process %d: %v\n", activeRuntime.PID, err)
+		}
+		clearRuntimeState()
+		releaseTrackerLock()
 	}
 }
 
@@ -307,14 +325,65 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 	}
 	processMenu := shared.CreateMenuButton("Processes", processMenuItems)
 
+	// Create the Options menu button with popup (Linux only has daemon toggle)
+	var optionsMenu *widget.Button
+	if shared.GetGoos() == "linux" {
+		optionsMenuItems := []*fyne.MenuItem{
+			fyne.NewMenuItem("Run as daemon", func() {
+				showDaemonModeDialog(w)
+			}),
+		}
+		optionsMenu = shared.CreateMenuButton("Options", optionsMenuItems)
+	}
+
 	// Add small vertical padding
 	spacer := canvas.NewRectangle(color.Transparent)
 	spacer.SetMinSize(fyne.NewSize(1, 5))
 
+	menuRow := container.NewHBox(fileMenu, processMenu)
+	if optionsMenu != nil {
+		menuRow.Add(optionsMenu)
+	}
+
 	return container.NewVBox(
 		spacer,
-		container.NewHBox(fileMenu, processMenu),
+		menuRow,
 	)
+}
+
+func showDaemonModeDialog(w fyne.Window) {
+	enabledCheck := widget.NewCheck("Leave OWLCMS and Tracker running after closing the window or terminal", nil)
+	enabledCheck.SetChecked(GetRunAsDaemon())
+
+	message := widget.NewLabel("When enabled, newly launched OWLCMS and Tracker processes will detach from the Linux session and survive Fyne window closure and terminal closure. Existing running processes keep the mode they were launched with.")
+	message.Wrapping = fyne.TextWrapWord
+
+	content := container.NewVBox(enabledCheck, message)
+	d := dialog.NewCustomConfirm(
+		"Run as daemon",
+		"Save",
+		"Cancel",
+		content,
+		func(ok bool) {
+			if !ok {
+				return
+			}
+
+			if err := SetRunAsDaemon(enabledCheck.Checked); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to save daemon setting: %w", err), w)
+				return
+			}
+
+			state := "disabled"
+			if enabledCheck.Checked {
+				state = "enabled"
+			}
+
+			dialog.ShowInformation("Run as daemon", fmt.Sprintf("Run as daemon %s. Restart OWLCMS and Tracker if you want the new mode to apply to already-running processes.", state), w)
+		},
+		w,
+	)
+	d.Show()
 }
 
 func refreshAvailableVersions(w fyne.Window) {
@@ -346,6 +415,11 @@ func refreshAvailableVersions(w fyne.Window) {
 
 // initializeTab handles the async initialization of the Tracker tab
 func initializeTab(w fyne.Window) {
+	if reconnectTrackerRuntime() {
+		log.Println("Tracker tab reattached to existing runtime")
+		return
+	}
+
 	// Set the appropriate mode based on installed versions
 	if len(getAllInstalledVersions()) == 0 {
 		setTrackerTabModeUninstalled(w)

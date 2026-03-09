@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -28,14 +29,8 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-var owlcmsInstallDir = getInstallDir()
-
 var exitInProgress bool
 var controlPanelLogPath string
-
-func init() {
-	javacheck.InitJavaCheck(owlcmsInstallDir, owlcms.GetTemurinVersion)
-}
 
 type myTheme struct {
 	fyne.Theme
@@ -66,20 +61,18 @@ func (m myTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) colo
 	return m.Theme.Color(name, variant)
 }
 
-func getInstallDir() string {
-	switch shared.GetGoos() {
-	case "windows":
-		return filepath.Join(os.Getenv("APPDATA"), "owlcms")
-	case "darwin":
-		return filepath.Join(os.Getenv("HOME"), "Library", "Application Support", "owlcms")
-	case "linux":
-		return filepath.Join(os.Getenv("HOME"), ".local", "share", "owlcms")
-	default:
-		return "./owlcms"
+func getInstanceIdentity() (string, string) {
+	instance := strings.TrimSpace(os.Getenv("CONTROLPANEL_INSTANCE"))
+	if instance == "" {
+		return "app.owlcms.controlpanel", "OWLCMS Control Panel"
 	}
+
+	return "app.owlcms.controlpanel." + instance, fmt.Sprintf("OWLCMS Control Panel (%s)", instance)
 }
 
 func main() {
+	javacheck.InitJavaCheck(shared.GetOwlcmsInstallDir(), owlcms.GetTemurinVersion)
+
 	// Set up logging to file (and stderr if available)
 	controlPanelDir := shared.GetControlPanelInstallDir()
 	_ = shared.EnsureDir0755(controlPanelDir) // ignore error, can't log yet
@@ -104,9 +97,24 @@ func main() {
 	}
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Llongfile)
 	log.Println("Starting OWLCMS Control Panel")
-	a := app.NewWithID("app.owlcms.controlpanel")
+
+	// Parse --owlcms and --tracker CLI flags for headless daemon launch/stop
+	owlcmsFlag, trackerFlag := parseDaemonFlags(os.Args[1:])
+	if owlcmsFlag != "" || trackerFlag != "" {
+		owlcmsStop := strings.EqualFold(owlcmsFlag, "stop")
+		trackerStop := strings.EqualFold(trackerFlag, "stop")
+		if owlcmsStop || trackerStop {
+			stopHeadlessDaemons(owlcmsStop, trackerStop)
+			return
+		}
+		runHeadlessDaemons(owlcmsFlag, trackerFlag)
+		return
+	}
+
+			appID, windowTitle := getInstanceIdentity()
+			a := app.NewWithID(appID)
 	a.Settings().SetTheme(newMyTheme())
-	w := a.NewWindow("OWLCMS Control Panel")
+			w := a.NewWindow(windowTitle)
 	w.Resize(fyne.NewSize(950, 600))
 
 	// Create tab contents - owlcms.CreateTab handles its own initialization
@@ -186,6 +194,39 @@ func anyProgramRunning() bool {
 	log.Printf("anyProgramRunning: OWLCMS=%v, Tracker=%v, Firmata=%v, Cameras=%v, Replays=%v", owlcmsRunning, trackerRunning, firmataRunning, camerasRunning, replaysRunning)
 
 	return owlcmsRunning || trackerRunning || firmataRunning || camerasRunning || replaysRunning
+}
+
+func anyDaemonRunning() bool {
+	return owlcms.IsRunning() || tracker.IsRunning()
+}
+
+func anyLocalProgramRunning() bool {
+	return firmata.IsRunning() || cameras.IsRunning() || replays.IsRunning()
+}
+
+func daemonModeEnabled() bool {
+	return shared.GetGoos() == "linux" && shared.IsRunAsDaemonEnabled()
+}
+
+func stopLocalRunningProcesses(w fyne.Window) {
+	firmata.StopRunningProcess(w)
+	cameras.StopRunningProcess(w)
+	replays.StopRunningProcess(w)
+}
+
+func stopLocalRunningProcessesForSignal() {
+	if firmata.IsRunning() {
+		log.Println("Signal cleanup: forcefully stopping Firmata process")
+		firmata.HandleSignalCleanup()
+	}
+	if cameras.IsRunning() {
+		log.Println("Signal cleanup: forcefully stopping Cameras process")
+		cameras.HandleSignalCleanup()
+	}
+	if replays.IsRunning() {
+		log.Println("Signal cleanup: forcefully stopping Replays process")
+		replays.HandleSignalCleanup()
+	}
 }
 
 func stopAllRunningProcesses(w fyne.Window) {
@@ -304,11 +345,22 @@ func requestExit(w fyne.Window) {
 		return
 	}
 
-	running := anyProgramRunning()
+	daemonRunning := anyDaemonRunning()
+	localRunning := anyLocalProgramRunning()
+	daemonMode := daemonModeEnabled()
 	message := "Exit the Control Panel?"
 	confirmText := "Exit"
-	if running {
+	if daemonMode && daemonRunning && localRunning {
+		message = "OWLCMS and Tracker will continue running in the background. Local applications will be stopped."
+		confirmText = "Exit"
+	} else if daemonMode && daemonRunning {
+		message = "OWLCMS and Tracker will continue running in the background."
+		confirmText = "Exit"
+	} else if anyProgramRunning() {
 		message = "Running applications will be stopped. Exiting may affect users."
+		confirmText = "Stop and Exit"
+	} else if localRunning {
+		message = "Running local applications will be stopped. Exiting may affect users."
 		confirmText = "Stop and Exit"
 	}
 
@@ -321,7 +373,15 @@ func requestExit(w fyne.Window) {
 			}
 
 			exitInProgress = true
-			if running {
+			if daemonMode {
+				if localRunning {
+					log.Println("Exiting launcher - stopping local running processes")
+					stopLocalRunningProcesses(w)
+				}
+				if daemonRunning {
+					log.Println("Exiting launcher - leaving OWLCMS and Tracker running in background")
+				}
+			} else if anyProgramRunning() {
 				log.Println("Exiting launcher - stopping all running processes")
 				stopAllRunningProcesses(w)
 			}
@@ -418,6 +478,9 @@ func setupCleanupOnExit(w fyne.Window) {
 func setupSignalHandling() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	if shared.GetGoos() == "linux" {
+		signal.Notify(sigChan, syscall.SIGHUP)
+	}
 
 	go func() {
 		sig := <-sigChan
@@ -430,8 +493,15 @@ func setupSignalHandling() {
 			os.Exit(1)
 		}()
 
-		// Check if any programs are running and stop them forcefully
-		if anyProgramRunning() {
+		if daemonModeEnabled() {
+			if anyLocalProgramRunning() {
+				log.Println("Stopping local running processes due to signal while daemon mode is enabled...")
+				stopLocalRunningProcessesForSignal()
+			}
+			if anyDaemonRunning() {
+				log.Println("Daemon mode enabled - leaving OWLCMS and Tracker running after terminal signal")
+			}
+		} else if anyProgramRunning() {
 			log.Println("Stopping all running processes due to signal...")
 			stopAllRunningProcessesForSignal()
 			log.Println("All processes stopped.")
@@ -440,4 +510,148 @@ func setupSignalHandling() {
 		log.Println("Exiting Control Panel...")
 		os.Exit(0)
 	}()
+}
+
+// parseDaemonFlags scans args for --owlcms <version|latest|stop> and --tracker <version|latest|stop>.
+// Returns empty strings when the flags are absent.
+func parseDaemonFlags(args []string) (owlcmsVersion, trackerVersion string) {
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--owlcms":
+			if i+1 < len(args) {
+				i++
+				owlcmsVersion = args[i]
+			}
+		case "--tracker":
+			if i+1 < len(args) {
+				i++
+				trackerVersion = args[i]
+			}
+		}
+	}
+	return
+}
+
+// resolveVersion turns "latest" into the highest semver-installed directory name,
+// or validates that the given version directory exists.  installDir is the module's
+// install root and allVersions is the semver-descending list from GetAllInstalledVersions.
+func resolveVersion(label, requested string, allVersions []string, installDir string) (string, error) {
+	if len(allVersions) == 0 {
+		return "", fmt.Errorf("no installed %s versions found", label)
+	}
+
+	if strings.EqualFold(requested, "latest") {
+		v := allVersions[0] // already sorted by semver descending
+		log.Printf("Resolved %s 'latest' to %s", label, v)
+		return v, nil
+	}
+
+	// Check the requested version exists as a directory
+	dir := filepath.Join(installDir, requested)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return "", fmt.Errorf("%s version %q is not installed (directory %s not found)", label, requested, dir)
+	}
+	return requested, nil
+}
+
+// runHeadlessDaemons launches OWLCMS and/or Tracker in daemon mode without any UI,
+// then exits.  This is intended for boot-time systemd/init usage.
+func runHeadlessDaemons(owlcmsVersion, trackerVersion string) {
+	// Force daemon mode on so the spawned processes are detached.
+	_ = shared.SetRunAsDaemonEnabled(true)
+
+	var failed bool
+
+	if owlcmsVersion != "" {
+		version, err := resolveVersion("owlcms", owlcmsVersion, owlcms.GetAllInstalledVersions(), owlcms.GetInstallDir())
+		if err != nil {
+			log.Printf("ERROR: %v", err)
+			fmt.Fprintf(os.Stderr, "owlcms: %v\n", err)
+			failed = true
+		} else {
+			// Check if already running
+			if meta, running := shared.CheckDaemonRunning(owlcms.RuntimeMetadataPath()); running {
+				log.Printf("OWLCMS %s is already running (PID %d, port %s)", meta.Version, meta.PID, meta.Port)
+				fmt.Printf("owlcms %s already running (PID %d, port %s)\n", meta.Version, meta.PID, meta.Port)
+			} else {
+				if err := owlcms.LaunchDaemon(version); err != nil {
+					log.Printf("ERROR: failed to launch owlcms %s: %v", version, err)
+					fmt.Fprintf(os.Stderr, "owlcms %s: %v\n", version, err)
+					failed = true
+				} else {
+					fmt.Printf("owlcms %s started successfully\n", version)
+				}
+			}
+		}
+	}
+
+	if trackerVersion != "" {
+		version, err := resolveVersion("tracker", trackerVersion, tracker.GetAllInstalledVersions(), tracker.GetInstallDir())
+		if err != nil {
+			log.Printf("ERROR: %v", err)
+			fmt.Fprintf(os.Stderr, "tracker: %v\n", err)
+			failed = true
+		} else {
+			if meta, running := shared.CheckDaemonRunning(tracker.RuntimeMetadataPath()); running {
+				log.Printf("Tracker %s is already running (PID %d, port %s)", meta.Version, meta.PID, meta.Port)
+				fmt.Printf("tracker %s already running (PID %d, port %s)\n", meta.Version, meta.PID, meta.Port)
+			} else {
+				if err := tracker.LaunchDaemon(version); err != nil {
+					log.Printf("ERROR: failed to launch tracker %s: %v", version, err)
+					fmt.Fprintf(os.Stderr, "tracker %s: %v\n", version, err)
+					failed = true
+				} else {
+					fmt.Printf("tracker %s started successfully\n", version)
+				}
+			}
+		}
+	}
+
+	if failed {
+		os.Exit(1)
+	}
+}
+
+// stopHeadlessDaemons stops running OWLCMS and/or Tracker daemons from the command line.
+func stopHeadlessDaemons(stopOwlcms, stopTracker bool) {
+	var failed bool
+
+	if stopOwlcms {
+		failed = stopOneDaemon("owlcms", owlcms.RuntimeMetadataPath()) || failed
+	}
+
+	if stopTracker {
+		failed = stopOneDaemon("tracker", tracker.RuntimeMetadataPath()) || failed
+	}
+
+	if failed {
+		os.Exit(1)
+	}
+}
+
+// stopOneDaemon stops a single daemon identified by its runtime metadata file.
+// Returns true on failure.
+func stopOneDaemon(label, metadataPath string) bool {
+	meta, running := shared.CheckDaemonRunning(metadataPath)
+	if !running {
+		log.Printf("%s is not running", label)
+		fmt.Printf("%s is not running\n", label)
+		// Clean up stale metadata if present
+		_ = shared.ClearRuntimeMetadata(metadataPath)
+		return false
+	}
+
+	log.Printf("Stopping %s %s (PID %d, port %s)...", label, meta.Version, meta.PID, meta.Port)
+	fmt.Printf("Stopping %s %s (PID %d)...\n", label, meta.Version, meta.PID)
+
+	if err := shared.GracefullyStopPID(meta.PID); err != nil {
+		log.Printf("ERROR: failed to stop %s (PID %d): %v", label, meta.PID, err)
+		fmt.Fprintf(os.Stderr, "%s: failed to stop PID %d: %v\n", label, meta.PID, err)
+		return true
+	}
+
+	_ = shared.ClearRuntimeMetadata(metadataPath)
+	log.Printf("%s %s (PID %d) stopped", label, meta.Version, meta.PID)
+	fmt.Printf("%s %s stopped\n", label, meta.Version)
+	return false
 }

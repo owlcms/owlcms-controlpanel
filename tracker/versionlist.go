@@ -67,6 +67,11 @@ func getAllInstalledVersions() []string {
 	return versionStrings
 }
 
+// GetAllInstalledVersions returns all installed versions sorted by semver descending.
+func GetAllInstalledVersions() []string {
+	return getAllInstalledVersions()
+}
+
 func shouldShowOwlcmsVersionWarning() bool {
 	owlcmsDir := shared.GetOwlcmsInstallDir()
 	entries, err := os.ReadDir(owlcmsDir)

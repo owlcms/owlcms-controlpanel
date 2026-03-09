@@ -1,13 +1,13 @@
 package tracker
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"controlpanel/shared"
-	"controlpanel/tracker/downloadutils"
 
 	"github.com/magiconair/properties"
 )
@@ -57,6 +57,69 @@ func GetPortForRelease(releaseVersion string) string {
 	return GetPort()
 }
 
+// GetRunAsDaemon returns true if the control panel should leave OWLCMS and Tracker
+// running after window or terminal closure on Linux.
+func GetRunAsDaemon() bool {
+	if environment == nil {
+		return shared.IsRunAsDaemonEnabled()
+	}
+
+	value, ok := environment.Get(shared.RunAsDaemonEnv)
+	if !ok {
+		return shared.IsRunAsDaemonEnabled()
+	}
+
+	trimmed := strings.TrimSpace(strings.ToLower(value))
+	return trimmed == "1" || trimmed == "true" || trimmed == "yes" || trimmed == "on"
+}
+
+// SetRunAsDaemon persists the daemon setting and updates the current process environment.
+// It also syncs the setting to the owlcms env.properties so both stay consistent.
+func SetRunAsDaemon(enabled bool) error {
+	value := "false"
+	if enabled {
+		value = "true"
+	}
+
+	if err := SaveProperty(shared.RunAsDaemonEnv, value); err != nil {
+		return err
+	}
+
+	// Cross-sync to owlcms env.properties
+	owlcmsEnv := filepath.Join(shared.GetOwlcmsInstallDir(), "env.properties")
+	if err := shared.SavePropertyToFile(owlcmsEnv, shared.RunAsDaemonEnv, value); err != nil {
+		log.Printf("Warning: failed to sync daemon setting to owlcms: %v", err)
+	}
+
+	return shared.SetRunAsDaemonEnabled(enabled)
+}
+
+// SaveProperty saves a key-value pair to env.properties and reloads the environment
+func SaveProperty(key, value string) error {
+	envFilePath := filepath.Join(installDir, "env.properties")
+
+	if environment == nil {
+		if err := InitEnv(); err != nil {
+			return fmt.Errorf("failed to initialize environment: %w", err)
+		}
+	}
+
+	environment.Set(key, value)
+
+	file, err := os.Create(envFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to open env.properties for writing: %w", err)
+	}
+	defer file.Close()
+
+	if _, err := environment.Write(file, properties.UTF8); err != nil {
+		return fmt.Errorf("failed to write env.properties: %w", err)
+	}
+
+	log.Printf("Saved property %s = %s to %s", key, value, envFilePath)
+	return nil
+}
+
 // InitEnv initializes the tracker environment from env.properties
 func InitEnv() error {
 	log.Println("Initializing tracker environment")
@@ -73,6 +136,7 @@ func InitEnv() error {
 		// Create env.properties file with default entry using properties library
 		props := properties.NewProperties()
 		props.Set("TRACKER_PORT", "8096")
+		props.Set(shared.RunAsDaemonEnv, "false")
 
 		file, err := os.Create(envFilePath)
 		if err != nil {
@@ -101,6 +165,11 @@ func InitEnv() error {
 		log.Printf("  %s = %s", key, value)
 	}
 
+	// Sync the daemon setting to the process environment
+	if err := shared.SetRunAsDaemonEnabled(GetRunAsDaemon()); err != nil {
+		log.Printf("Failed to sync daemon setting from tracker env.properties: %v", err)
+	}
+
 	return nil
 }
 
@@ -124,16 +193,7 @@ func LoadEnvironmentForRelease(releaseVersion string) error {
 }
 
 func getInstallDir() string {
-	switch downloadutils.GetGoos() {
-	case "windows":
-		return filepath.Join(os.Getenv("APPDATA"), "owlcms-tracker")
-	case "darwin":
-		return filepath.Join(os.Getenv("HOME"), "Library", "Application Support", "owlcms-tracker")
-	case "linux":
-		return filepath.Join(os.Getenv("HOME"), ".local", "share", "owlcms-tracker")
-	default:
-		return "./owlcms-tracker"
-	}
+	return shared.GetTrackerInstallDir()
 }
 
 // GetInstallDir returns the installation directory used by the tracker package

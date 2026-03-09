@@ -352,6 +352,12 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 	})
 
 	optionsMenuItems := []*fyne.MenuItem{setPortItem, trackerToggleItem}
+	if shared.GetGoos() == "linux" {
+		daemonModeItem := fyne.NewMenuItem("Run as daemon", func() {
+			showDaemonModeDialog(w)
+		})
+		optionsMenuItems = append(optionsMenuItems, daemonModeItem)
+	}
 
 	optionsMenu := shared.CreateMenuButton("Options", optionsMenuItems)
 
@@ -363,6 +369,41 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 		spacer,
 		container.NewHBox(fileMenu, processMenu, optionsMenu),
 	)
+}
+
+func showDaemonModeDialog(w fyne.Window) {
+	enabledCheck := widget.NewCheck("Leave OWLCMS and Tracker running after closing the window or terminal", nil)
+	enabledCheck.SetChecked(GetRunAsDaemon())
+
+	message := widget.NewLabel("When enabled, newly launched OWLCMS and Tracker processes will detach from the Linux session and survive Fyne window closure and terminal closure. Existing running processes keep the mode they were launched with.")
+	message.Wrapping = fyne.TextWrapWord
+
+	content := container.NewVBox(enabledCheck, message)
+	d := dialog.NewCustomConfirm(
+		"Run as daemon",
+		"Save",
+		"Cancel",
+		content,
+		func(ok bool) {
+			if !ok {
+				return
+			}
+
+			if err := SetRunAsDaemon(enabledCheck.Checked); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to save daemon setting: %w", err), w)
+				return
+			}
+
+			state := "disabled"
+			if enabledCheck.Checked {
+				state = "enabled"
+			}
+
+			dialog.ShowInformation("Run as daemon", fmt.Sprintf("Run as daemon %s. Restart OWLCMS and Tracker if you want the new mode to apply to already-running processes.", state), w)
+		},
+		w,
+	)
+	d.Show()
 }
 
 func showTrackerConnectionDialog(w fyne.Window) {
@@ -525,6 +566,11 @@ func refreshAvailableVersions(w fyne.Window) {
 
 // initializeOwlcmsTab handles the async initialization of the OWLCMS tab
 func initializeOwlcmsTab(w fyne.Window) {
+	if reconnectOwlcmsRuntime() {
+		log.Println("OWLCMS tab reattached to existing runtime")
+		return
+	}
+
 	// Set the appropriate mode based on installed versions
 	if len(getAllInstalledVersions()) == 0 {
 		setOwlcmsTabModeUninstalled(w)
@@ -588,6 +634,11 @@ func setOwlcmsTabModeUninstalled(w fyne.Window) {
 // setOwlcmsTabModeInstalled is the ONLY way to show the "≥1 installed versions" UI.
 // It MUST show BOTH the version list and the download section.
 func setOwlcmsTabModeInstalled(w fyne.Window) {
+	if IsRunning() {
+		log.Printf("UI Mode: Running - not switching to installed mode")
+		return
+	}
+
 	showVersionListMode()
 	// Fetch releases first so update buttons can be computed
 	setupReleaseDropdown(w)
@@ -617,6 +668,45 @@ func setOwlcmsTabMode(w fyne.Window) {
 
 func goBackToMainScreen() {
 	setOwlcmsTabMode(mainWindow)
+}
+
+func restoreOwlcmsRunningUI(version, port string, pid int) {
+	currentVersion = version
+	stopButton.SetText(fmt.Sprintf("Stop OWLCMS %s", version))
+	stopButton.Show()
+	statusLabel.SetText(fmt.Sprintf("OWLCMS running (PID: %d) on port %s", pid, port))
+	statusLabel.Show()
+	stopContainer.Show()
+	setOwlcmsTabModeRunning()
+
+	url := fmt.Sprintf("http://localhost:%s", port)
+	urlLink.SetURLFromString(url)
+	urlLink.SetText("Open OWLCMS in a browser")
+	urlLink.Show()
+
+	appDir := filepath.Join(installDir, version)
+	appDirLink.SetText(fmt.Sprintf("Open OWLCMS %s directory", version))
+	appDirLink.SetURL(nil)
+	appDirLink.OnTapped = func() {
+		shared.OpenFileExplorer(appDir)
+	}
+	appDirLink.Show()
+	configureTailLogLink(version, appDir)
+	hideStartupLogArea()
+	stopContainer.Refresh()
+}
+
+func reconnectOwlcmsRuntime() bool {
+	metadata, running := shared.CheckDaemonRunning(runtimeMetadataPath())
+	if !running {
+		clearRuntimeState()
+		releaseJavaLock()
+		return false
+	}
+
+	activeRuntime = metadata
+	restoreOwlcmsRunningUI(metadata.Version, metadata.Port, metadata.PID)
+	return true
 }
 
 // checkJava checks for Java and downloads it if not found
@@ -887,13 +977,23 @@ func HandleSignalCleanup() {
 		killedByUs = true
 
 		// Use forceful termination since we need to exit quickly
-		ForcefullyKillProcess(pid)
+		_ = shared.ForcefullyKillPID(pid)
+		clearRuntimeState()
+		releaseJavaLock()
+		return
+	}
+
+	if activeRuntime != nil {
+		killedByUs = true
+		_ = shared.ForcefullyKillPID(activeRuntime.PID)
+		clearRuntimeState()
+		releaseJavaLock()
 	}
 }
 
 // IsRunning returns true if OWLCMS is currently running
 func IsRunning() bool {
-	return currentProcess != nil
+	return currentProcess != nil || activeRuntime != nil
 }
 
 // StopRunningProcess stops the running OWLCMS process
@@ -901,5 +1001,11 @@ func StopRunningProcess(w fyne.Window) {
 	if currentProcess != nil && currentProcess.Process != nil {
 		log.Println("Stopping OWLCMS process")
 		stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+		return
+	}
+
+	if activeRuntime != nil {
+		log.Println("Stopping attached OWLCMS process")
+		stopProcess(nil, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
 	}
 }

@@ -54,6 +54,43 @@ func GetTemurinVersion() string {
 	return version
 }
 
+// GetRunAsDaemon returns true if the control panel should leave OWLCMS and Tracker
+// running after window or terminal closure on Linux.
+func GetRunAsDaemon() bool {
+	if environment == nil {
+		return shared.IsRunAsDaemonEnabled()
+	}
+
+	value, ok := environment.Get(shared.RunAsDaemonEnv)
+	if !ok {
+		return shared.IsRunAsDaemonEnabled()
+	}
+
+	trimmed := strings.TrimSpace(strings.ToLower(value))
+	return trimmed == "1" || trimmed == "true" || trimmed == "yes" || trimmed == "on"
+}
+
+// SetRunAsDaemon persists the daemon setting and updates the current process environment.
+// It also syncs the setting to the tracker env.properties so both stay consistent.
+func SetRunAsDaemon(enabled bool) error {
+	value := "false"
+	if enabled {
+		value = "true"
+	}
+
+	if err := SaveProperty(shared.RunAsDaemonEnv, value); err != nil {
+		return err
+	}
+
+	// Cross-sync to tracker env.properties
+	trackerEnv := filepath.Join(shared.GetTrackerInstallDir(), "env.properties")
+	if err := shared.SavePropertyToFile(trackerEnv, shared.RunAsDaemonEnv, value); err != nil {
+		log.Printf("Warning: failed to sync daemon setting to tracker: %v", err)
+	}
+
+	return shared.SetRunAsDaemonEnabled(enabled)
+}
+
 // GetPortForRelease returns the shared OWLCMS_PORT.
 // The port is intentionally not overridable per-release so that a single
 // control panel instance always knows which port OWLCMS is using.
@@ -155,6 +192,7 @@ func defaultOwlcmsProperties() (*properties.Properties, string) {
 	props := properties.NewProperties()
 	props.Set("OWLCMS_PORT", "8080")
 	props.Set("TEMURIN_VERSION", "jdk-25")
+	props.Set(shared.RunAsDaemonEnv, "false")
 
 	rawString := `
 # Environment variables defined in this file are copied to the installed versions where they
@@ -380,6 +418,7 @@ func InitEnv() error {
 		props := properties.NewProperties()
 		props.Set("OWLCMS_PORT", "8080")
 		props.Set("TEMURIN_VERSION", "jdk-25")
+		props.Set(shared.RunAsDaemonEnv, "false")
 
 		file, err := os.Create(envFilePath)
 		if err != nil {
@@ -400,7 +439,10 @@ func InitEnv() error {
 #OWLCMS_FEATURESWITCHES=interimScores
 
 # java options can be set with this variable (remove the leading # to uncomment)
-#JAVA_OPTIONS=-Xmx512m -Xmx512m`
+#JAVA_OPTIONS=-Xmx512m -Xmx512m
+
+# set to true on Linux to leave OWLCMS and Tracker running after the control panel exits
+#CONTROLPANEL_RUN_AS_DAEMON=false`
 
 		if _, err := file.WriteString(rawString); err != nil {
 			log.Printf("Failed to write comments to env.properties file: %v, but file is usable", err)
@@ -433,6 +475,10 @@ func loadProperties(envFilePath string) error {
 	for _, key := range environment.Keys() {
 		value, _ := environment.Get(key)
 		log.Printf("  %s = %s", key, value)
+	}
+
+	if err := shared.SetRunAsDaemonEnabled(GetRunAsDaemon()); err != nil {
+		return fmt.Errorf("failed to sync daemon setting to process environment: %w", err)
 	}
 
 	return nil
