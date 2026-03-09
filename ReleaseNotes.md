@@ -8,6 +8,10 @@ The control panel is installed once. It will automatically download the correct 
 
 ## Release Log
 
+- 3.3.0: Command-line options for multiple instances and Linux daemon mode
+  - Run controlpanel --help for details
+  - These options are Linux-oriented, targeted at virtual privatehosting scenarios.
+
 - 3.2.0: Configuration options for OWLCMS
   - the Options menu entries now allow selecting a version
   - a new option to set the port has been added
