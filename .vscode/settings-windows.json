@@ -3,13 +3,13 @@
         "fyne"
     ],
     "go.toolsEnvVars": {
-        "GOOS": "linux",
-        "GOARCH": "arm64"
+        "GOOS": "windows",
+        "GOARCH": "amd64"
     },
     "gopls": {
         "build.env": {
-            "GOOS": "linux",
-            "GOARCH": "arm64"
+            "GOOS": "windows",
+            "GOARCH": "amd64"
         }
     },
     "terminal.integrated.stickyScroll.enabled": false

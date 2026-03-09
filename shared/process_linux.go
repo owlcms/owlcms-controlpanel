@@ -7,6 +7,11 @@ import (
 	"syscall"
 )
 
+// ConfigureNoConsoleWindow is a no-op on Linux.
+func ConfigureNoConsoleWindow(cmd *exec.Cmd) {
+	_ = cmd
+}
+
 // ConfigureDetachedDaemonProcess detaches a process from the controlling terminal
 // so it can survive terminal closure when daemon mode is enabled.
 func ConfigureDetachedDaemonProcess(cmd *exec.Cmd, detach bool) {
