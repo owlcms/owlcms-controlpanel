@@ -53,6 +53,7 @@ var (
 )
 
 func initMain() {
+	installDir = getInstallDirWithLogging()
 	javacheck.InitJavaCheck(installDir, GetTemurinVersion)
 }
 
@@ -80,7 +81,7 @@ func (m myTheme) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) colo
 	}
 }
 
-func getInstallDir() string {
+func resolveInstallDir(logSelection bool) string {
 	dirExists := func(path string) bool {
 		info, err := os.Stat(path)
 		return err == nil && info.IsDir()
@@ -105,17 +106,31 @@ func getInstallDir() string {
 	}
 
 	if dirExists(legacyDir) {
-		log.Printf("Firmata install directory: using legacy path %s", legacyDir)
+		if logSelection {
+			log.Printf("Firmata install directory: using legacy path %s", legacyDir)
+		}
 		return legacyDir
 	}
 	if dirExists(newDir) {
-		log.Printf("Firmata install directory: using existing new path %s", newDir)
+		if logSelection {
+			log.Printf("Firmata install directory: using existing new path %s", newDir)
+		}
 		return newDir
 	}
 
-	log.Printf("Firmata install directory: using new default path %s", newDir)
+	if logSelection {
+		log.Printf("Firmata install directory: using new default path %s", newDir)
+	}
 
 	return newDir
+}
+
+func getInstallDir() string {
+	return resolveInstallDir(false)
+}
+
+func getInstallDirWithLogging() string {
+	return resolveInstallDir(true)
 }
 
 // GetInstallDir returns the installation directory used by the firmata package
