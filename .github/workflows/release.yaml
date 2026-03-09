@@ -247,6 +247,12 @@ jobs:
         mkdir -p /tmp/fix-arm64
         cd /tmp/fix-arm64
         tar -xf $GITHUB_WORKSPACE/fyne-cross/dist/linux-arm64/owlcms.tar.xz
+        # Move icon and desktop file from /usr/local/share to /usr/share (FreeDesktop standard)
+        mkdir -p usr/share/pixmaps usr/share/applications
+        mv usr/local/share/pixmaps/owlcms.png usr/share/pixmaps/
+        mv usr/local/share/applications/owlcms.desktop usr/share/applications/
+        rm -rf usr/local/share/pixmaps usr/local/share/applications
+        # Ensure both owlcms and controlpanel commands exist on PATH.
         for bindir in usr/local/bin usr/bin; do
           primary=""
           for candidate in owlcms-launcher owlcms controlpanel; do
@@ -264,6 +270,9 @@ jobs:
             fi
           fi
         done
+        # Remove unwanted Makefile if present
+        rm -f Makefile
+        # Repackage
         tar -cJf $GITHUB_WORKSPACE/fyne-cross/dist/linux-arm64/owlcms.tar.xz .
 
     - name: Create Raspberry Pi DEB package
