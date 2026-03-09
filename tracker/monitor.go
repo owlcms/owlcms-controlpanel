@@ -3,28 +3,15 @@ package tracker
 import (
 	"fmt"
 	"log"
-	"net/http"
 	"os/exec"
-	"strconv"
-	"syscall"
 	"time"
 
-	"controlpanel/tracker/downloadutils"
+	"controlpanel/shared"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 )
-
-// checkPort tries to connect to localhost:port and returns nil if successful.
-func checkPort(port string) error {
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%s", port))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	return nil
-}
 
 func monitorProcess(done <-chan error, port string) chan error {
 	result := make(chan error, 1)
@@ -47,7 +34,7 @@ func monitorProcess(done <-chan error, port string) chan error {
 				result <- fmt.Errorf("timed out waiting for process to become ready")
 				return
 			case <-ticker.C:
-				if err := checkPort(port); err == nil {
+				if shared.CheckPort(port) == nil {
 					// Port is responding, process is ready
 					result <- nil
 					return
@@ -62,56 +49,33 @@ func stopProcess(proc *exec.Cmd, version string, stopBtn *widget.Button, downloa
 	log.Printf("Stopping owlcms-tracker %s...\n", version)
 	statusLbl.SetText(fmt.Sprintf("Stopping owlcms-tracker %s...", version))
 
-	if proc == nil || proc.Process == nil {
-		return
-	}
-	pid := proc.Process.Pid
-	killedByUs = true
-
-	var err error
-	if downloadutils.GetGoos() == "windows" {
-		// On Windows, use taskkill for graceful termination like OWLCMS does
-		log.Printf("Using taskkill for graceful termination of owlcms-tracker %s (PID: %d)\n", version, pid)
-		cmd := exec.Command("taskkill", "/PID", strconv.Itoa(pid))
-		err = cmd.Run()
-
-		if err != nil {
-			log.Printf("Graceful termination failed for owlcms-tracker %s (PID: %d): %v\n", version, pid, err)
-		} else {
-			// Give it a moment to shut down gracefully
-			time.Sleep(500 * time.Millisecond)
-			log.Printf("owlcms-tracker %s (PID: %d) gracefully terminated\n", version, pid)
-			statusLbl.SetText(fmt.Sprintf("owlcms-tracker %s (PID: %d) gracefully terminated", version, pid))
-			currentProcess = nil
-			killedByUs = true
-			stopBtn.Hide()
-			urlLink.Hide()
-			if appDirLink != nil {
-				appDirLink.Hide()
-			}
-			if tailLogLink != nil {
-				tailLogLink.Hide()
-			}
+	var pid int
+	if proc != nil && proc.Process != nil {
+		pid = proc.Process.Pid
+	} else if activeRuntime != nil {
+		pid = activeRuntime.PID
+		if !shared.PIDMatchesStartTicks(pid, activeRuntime.ProcessStartTicks) {
+			clearRuntimeState()
+			releaseTrackerLock()
+			dialog.ShowError(fmt.Errorf("tracker PID %d no longer matches the saved runtime metadata", pid), w)
 			return
 		}
 	} else {
-		err = proc.Process.Signal(syscall.SIGINT)
+		return
 	}
+	killedByUs = true
 
+	err := shared.GracefullyStopPID(pid)
 	if err != nil {
-		log.Printf("Failed to send interrupt signal to owlcms-tracker %s (PID: %d): %v\n", version, pid, err)
-		log.Printf("Attempting forceful termination of owlcms-tracker %s (PID: %d)\n", version, pid)
-		err = proc.Process.Kill()
-		if err != nil {
-			killedByUs = false
-			dialog.ShowError(fmt.Errorf("failed to stop owlcms-tracker %s (PID: %d): %w", version, pid, err), w)
-			return
-		}
+		killedByUs = false
+		dialog.ShowError(fmt.Errorf("failed to stop owlcms-tracker %s (PID: %d): %w", version, pid, err), w)
+		return
 	}
 
 	log.Printf("owlcms-tracker %s (PID: %d) has been stopped\n", version, pid)
 	statusLbl.SetText(fmt.Sprintf("owlcms-tracker %s (PID: %d) has been stopped", version, pid))
 	currentProcess = nil
+	clearRuntimeState()
 	stopBtn.Hide()
 	urlLink.Hide() // Hide the URL when stopping
 	if appDirLink != nil {

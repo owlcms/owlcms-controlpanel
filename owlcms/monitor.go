@@ -1,9 +1,9 @@
 package owlcms
 
 import (
+	"controlpanel/shared"
 	"fmt"
 	"log"
-	"net/http"
 	"os/exec"
 	"time"
 
@@ -13,16 +13,6 @@ import (
 )
 
 var killedByUs bool
-
-// checkPort tries to connect to localhost:port and returns nil if successful.
-func checkPort(port string) error {
-	resp, err := http.Get(fmt.Sprintf("http://localhost:%s", port))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	return nil
-}
 
 func monitorProcess(done <-chan error, port string) chan error {
 	result := make(chan error, 1)
@@ -44,7 +34,7 @@ func monitorProcess(done <-chan error, port string) chan error {
 				result <- fmt.Errorf("timed out waiting for process to become ready")
 				return
 			case <-ticker.C:
-				if err := checkPort(port); err == nil {
+			if shared.CheckPort(port) == nil {
 					result <- nil
 					return
 				}
@@ -58,13 +48,23 @@ func stopProcess(process *exec.Cmd, version string, stopBtn *widget.Button, down
 	log.Printf("Stopping OWLCMS %s...\n", version)
 	statusLbl.SetText(fmt.Sprintf("Stopping OWLCMS %s...", version))
 
-	if process == nil || process.Process == nil {
+	var pid int
+	if process != nil && process.Process != nil {
+		pid = process.Process.Pid
+	} else if activeRuntime != nil {
+		pid = activeRuntime.PID
+		if !shared.PIDMatchesStartTicks(pid, activeRuntime.ProcessStartTicks) {
+			clearRuntimeState()
+			releaseJavaLock()
+			dialog.ShowError(fmt.Errorf("OWLCMS PID %d no longer matches the saved runtime metadata", pid), w)
+			return
+		}
+	} else {
 		return
 	}
-	pid := process.Process.Pid
 	killedByUs = true
 
-	err := GracefullyStopProcess(pid)
+	err := shared.GracefullyStopPID(pid)
 	if err != nil {
 		killedByUs = false
 		dialog.ShowError(fmt.Errorf("failed to stop OWLCMS %s (PID: %d): %w", version, pid, err), w)
@@ -74,6 +74,7 @@ func stopProcess(process *exec.Cmd, version string, stopBtn *widget.Button, down
 	log.Printf("OWLCMS %s (PID: %d) has been stopped\n", version, pid)
 	statusLbl.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) has been stopped", version, pid))
 	currentProcess = nil
+	clearRuntimeState()
 
 	stopBtn.Hide()
 	stopContainer.Hide()
