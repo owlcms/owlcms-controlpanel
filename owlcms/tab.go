@@ -458,40 +458,19 @@ func showTrackerConnectionDialog(w fyne.Window) {
 }
 
 func showPortNumberDialog(w fyne.Window) {
-	installedVersions := getAllInstalledVersions()
-	if len(installedVersions) == 0 {
-		dialog.ShowInformation("No Installed Versions", "Install an OWLCMS version first, then set its port number.", w)
-		return
-	}
-
 	portEntry := widget.NewEntry()
 	portEntry.SetPlaceHolder("8080")
-
-	versionSelect := widget.NewSelect(installedVersions, func(selected string) {
-		if selected == "" {
-			return
-		}
-		portEntry.SetText(GetPortForRelease(selected))
-	})
-	versionSelect.SetSelected(installedVersions[0])
-	portEntry.SetText(GetPortForRelease(installedVersions[0]))
+	portEntry.SetText(GetPort())
 
 	dialog.ShowForm(
 		"OWLCMS Port Number",
 		"Save",
 		"Cancel",
 		[]*widget.FormItem{
-			widget.NewFormItem("Version", versionSelect),
 			widget.NewFormItem("Port Number", portEntry),
 		},
 		func(ok bool) {
 			if !ok {
-				return
-			}
-
-			targetVersion := strings.TrimSpace(versionSelect.Selected)
-			if targetVersion == "" {
-				dialog.ShowError(fmt.Errorf("select an OWLCMS version"), w)
 				return
 			}
 
@@ -507,12 +486,12 @@ func showPortNumberDialog(w fyne.Window) {
 				return
 			}
 
-			if err := SavePropertyForRelease(targetVersion, "OWLCMS_PORT", newPort); err != nil {
+			if err := SaveProperty("OWLCMS_PORT", newPort); err != nil {
 				dialog.ShowError(fmt.Errorf("failed to save OWLCMS port: %w", err), w)
 				return
 			}
 
-			dialog.ShowInformation("Port Updated", fmt.Sprintf("OWLCMS_PORT for version %s set to %s. Restart OWLCMS for that version to apply the new port.", targetVersion, newPort), w)
+			dialog.ShowInformation("Port Updated", fmt.Sprintf("OWLCMS port set to %s. Restart OWLCMS to apply the new port.", newPort), w)
 		},
 		w,
 	)

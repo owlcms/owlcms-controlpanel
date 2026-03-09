@@ -129,7 +129,7 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 		return err
 	}
 
-	targetPort := GetPortForRelease(version)
+	targetPort := GetPort()
 	if err := checkPort(targetPort); err == nil {
 		statusLabel.SetText(fmt.Sprintf("Another program is running on port %s", targetPort))
 		statusLabel.Refresh()

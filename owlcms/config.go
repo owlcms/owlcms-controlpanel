@@ -54,32 +54,10 @@ func GetTemurinVersion() string {
 	return version
 }
 
-// GetPortForRelease returns OWLCMS_PORT from a version-specific env.properties,
-// falling back to the shared env.properties value.
+// GetPortForRelease returns the shared OWLCMS_PORT.
+// The port is intentionally not overridable per-release so that a single
+// control panel instance always knows which port OWLCMS is using.
 func GetPortForRelease(releaseVersion string) string {
-	releaseVersion = strings.TrimSpace(releaseVersion)
-	if releaseVersion == "" {
-		return GetPort()
-	}
-
-	releaseEnvPath := filepath.Join(installDir, releaseVersion, "env.properties")
-	content, err := os.ReadFile(releaseEnvPath)
-	if err != nil {
-		return GetPort()
-	}
-
-	props := properties.NewProperties()
-	if err := props.Load(content, properties.UTF8); err != nil {
-		return GetPort()
-	}
-
-	if port, ok := props.Get("OWLCMS_PORT"); ok {
-		trimmed := strings.TrimSpace(port)
-		if trimmed != "" {
-			return trimmed
-		}
-	}
-
 	return GetPort()
 }
 
