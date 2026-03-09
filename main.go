@@ -71,6 +71,24 @@ func getInstanceIdentity() (string, string) {
 }
 
 func main() {
+	cliOptions := parseCLIOptions(os.Args[1:])
+	if cliOptions.help {
+		printUsage()
+		return
+	}
+	if err := applyCLIInstanceOptions(cliOptions); err != nil {
+		fmt.Fprintf(os.Stderr, "instance setup: %v\n", err)
+		os.Exit(1)
+	}
+	if cliOptions.init {
+		fmt.Printf("Initialized instance %q\n", cliOptions.instanceArg)
+		fmt.Printf("control panel dir: %s\n", shared.GetControlPanelInstallDir())
+		fmt.Printf("owlcms dir:        %s\n", shared.GetOwlcmsInstallDir())
+		fmt.Printf("tracker dir:       %s\n", shared.GetTrackerInstallDir())
+		fmt.Printf("runtime dir:       %s\n", shared.GetRuntimeDir())
+		return
+	}
+
 	javacheck.InitJavaCheck(shared.GetOwlcmsInstallDir(), owlcms.GetTemurinVersion)
 
 	// Set up logging to file (and stderr if available)
@@ -111,10 +129,10 @@ func main() {
 		return
 	}
 
-			appID, windowTitle := getInstanceIdentity()
-			a := app.NewWithID(appID)
+	appID, windowTitle := getInstanceIdentity()
+	a := app.NewWithID(appID)
 	a.Settings().SetTheme(newMyTheme())
-			w := a.NewWindow(windowTitle)
+	w := a.NewWindow(windowTitle)
 	w.Resize(fyne.NewSize(950, 600))
 
 	// Create tab contents - owlcms.CreateTab handles its own initialization

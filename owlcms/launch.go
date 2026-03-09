@@ -102,7 +102,8 @@ func prepareOwlcmsLaunch(version string) (*owlcmsLaunchParams, error) {
 		return nil, fmt.Errorf("java not found for %s: %w", temurinVersion, err)
 	}
 
-	if err := LoadEnvironmentForRelease(version); err != nil {
+	mergedEnv, err := loadEnvironmentForReleaseProps(version)
+	if err != nil {
 		return nil, fmt.Errorf("failed to load environment: %w", err)
 	}
 
@@ -112,8 +113,8 @@ func prepareOwlcmsLaunch(version string) (*owlcmsLaunchParams, error) {
 	lv := shared.GetLauncherVersionSemver()
 	env = append(env, fmt.Sprintf("OWLCMS_LAUNCHER=%s", lv))
 	env = append(env, fmt.Sprintf("OWLCMS_CONTROLPANEL=%s", lv))
-	for _, key := range environment.Keys() {
-		value, _ := environment.Get(key)
+	for _, key := range mergedEnv.Keys() {
+		value, _ := mergedEnv.Get(key)
 		log.Printf("   %s=%s", key, value)
 		env = append(env, fmt.Sprintf("%s=%s", key, value))
 	}

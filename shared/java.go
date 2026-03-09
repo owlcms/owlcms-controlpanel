@@ -34,6 +34,12 @@ func defaultControlPanelInstallDir() string {
 	}
 }
 
+// DefaultControlPanelInstallDir returns the platform default control panel
+// configuration directory without consulting environment overrides.
+func DefaultControlPanelInstallDir() string {
+	return defaultControlPanelInstallDir()
+}
+
 // GetControlPanelInstallDir returns the control panel configuration directory.
 func GetControlPanelInstallDir() string {
 	if dir := strings.TrimSpace(os.Getenv("CONTROLPANEL_INSTALLDIR")); dir != "" {

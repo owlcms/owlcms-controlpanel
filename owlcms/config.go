@@ -25,6 +25,18 @@ var (
 	installDir  = shared.GetOwlcmsInstallDir()
 )
 
+// SetInstallDir overrides the OWLCMS installation directory for this process.
+func SetInstallDir(dir string) {
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
+		return
+	}
+	installDir = dir
+	environment = nil
+	lockFilePath = filepath.Join(installDir, "java.lock")
+	pidFilePath = filepath.Join(installDir, "java.pid")
+}
+
 // GetLauncherVersion returns the current launcher version
 func GetLauncherVersion() string {
 	return shared.GetLauncherVersion()
@@ -126,17 +138,27 @@ func cloneProperties(src *properties.Properties) *properties.Properties {
 	return clone
 }
 
-// LoadEnvironmentForRelease loads the shared env.properties and overlays any
-// version-specific values from the selected release.
-func LoadEnvironmentForRelease(releaseVersion string) error {
+func enforceSharedOwlcmsKeys(merged, sharedProps *properties.Properties) {
+	if merged == nil || sharedProps == nil {
+		return
+	}
+
+	for _, key := range []string{"OWLCMS_PORT", shared.RunAsDaemonEnv} {
+		if value, ok := sharedProps.Get(key); ok {
+			merged.Set(key, value)
+		}
+	}
+}
+
+func loadEnvironmentForReleaseProps(releaseVersion string) (*properties.Properties, error) {
 	if err := EnsureParentEnvDefaults(); err != nil {
-		return err
+		return nil, err
 	}
 
 	sharedEnvPath := filepath.Join(installDir, "env.properties")
 	sharedProps, err := loadPropertiesFromFile(sharedEnvPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	merged := cloneProperties(sharedProps)
@@ -146,7 +168,7 @@ func LoadEnvironmentForRelease(releaseVersion string) error {
 		if _, statErr := os.Stat(releaseEnvPath); statErr == nil {
 			releaseProps, loadErr := loadPropertiesFromFile(releaseEnvPath)
 			if loadErr != nil {
-				return fmt.Errorf("failed to load release env.properties: %w", loadErr)
+				return nil, fmt.Errorf("failed to load release env.properties: %w", loadErr)
 			}
 
 			for _, key := range releaseProps.Keys() {
@@ -154,8 +176,20 @@ func LoadEnvironmentForRelease(releaseVersion string) error {
 				merged.Set(key, value)
 			}
 		} else if !os.IsNotExist(statErr) {
-			return fmt.Errorf("failed to check release env.properties: %w", statErr)
+			return nil, fmt.Errorf("failed to check release env.properties: %w", statErr)
 		}
+	}
+
+	enforceSharedOwlcmsKeys(merged, sharedProps)
+	return merged, nil
+}
+
+// LoadEnvironmentForRelease loads the shared env.properties and overlays any
+// version-specific values from the selected release.
+func LoadEnvironmentForRelease(releaseVersion string) error {
+	merged, err := loadEnvironmentForReleaseProps(releaseVersion)
+	if err != nil {
+		return err
 	}
 
 	environment = merged
@@ -630,16 +664,21 @@ func GetTrackerConnectionEnabled() bool {
 		return false
 	}
 	// Check if it's a local tracker URL (ws://127.0.0.1:*/ws)
-	return value != "" && (value[:len("ws://127.0.0.1:")] == "ws://127.0.0.1:" && value[len(value)-3:] == "/ws")
+	return strings.HasPrefix(value, "ws://127.0.0.1:") && strings.HasSuffix(value, "/ws")
 }
 
 // GetTrackerConnectionEnabledForRelease returns true if the version-specific
 // effective environment points OWLCMS_VIDEODATA to a local tracker websocket.
 func GetTrackerConnectionEnabledForRelease(releaseVersion string) bool {
-	if err := LoadEnvironmentForRelease(releaseVersion); err != nil {
+	merged, err := loadEnvironmentForReleaseProps(releaseVersion)
+	if err != nil || merged == nil {
 		return false
 	}
-	return GetTrackerConnectionEnabled()
+	value, ok := merged.Get("OWLCMS_VIDEODATA")
+	if !ok {
+		return false
+	}
+	return strings.HasPrefix(value, "ws://127.0.0.1:") && strings.HasSuffix(value, "/ws")
 }
 
 // CheckForUpdates checks for updates to the control panel itself

@@ -18,6 +18,18 @@ var (
 	environment     *properties.Properties
 )
 
+// SetInstallDir overrides the tracker installation directory for this process.
+func SetInstallDir(dir string) {
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
+		return
+	}
+	installDir = dir
+	environment = nil
+	lockFilePath = filepath.Join(installDir, "tracker.lock")
+	pidFilePath = filepath.Join(installDir, "tracker.pid")
+}
+
 func initConfig() {
 	if buildVersion != ("_" + "TAG" + "_") {
 		launcherVersion = buildVersion
@@ -39,21 +51,6 @@ func GetPort() string {
 // GetPortForRelease returns the effective TRACKER_PORT for a selected release,
 // falling back to the shared env.properties value.
 func GetPortForRelease(releaseVersion string) string {
-	merged, err := shared.MergeEnvironmentProperties(
-		filepath.Join(installDir, "env.properties"),
-		filepath.Join(installDir, strings.TrimSpace(releaseVersion), "env.properties"),
-	)
-	if err != nil {
-		return GetPort()
-	}
-
-	if port, ok := merged.Get("TRACKER_PORT"); ok {
-		trimmed := strings.TrimSpace(port)
-		if trimmed != "" {
-			return trimmed
-		}
-	}
-
 	return GetPort()
 }
 
