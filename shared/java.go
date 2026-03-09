@@ -11,8 +11,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 )
 
-// GetControlPanelInstallDir returns the shared control panel installation directory
-func GetControlPanelInstallDir() string {
+func defaultControlPanelInstallDir() string {
 	goos := os.Getenv("GOOS")
 	if goos == "" {
 		goos = "linux"
@@ -35,10 +34,29 @@ func GetControlPanelInstallDir() string {
 	}
 }
 
+// GetControlPanelInstallDir returns the control panel configuration directory.
+func GetControlPanelInstallDir() string {
+	if dir := strings.TrimSpace(os.Getenv("CONTROLPANEL_INSTALLDIR")); dir != "" {
+		return dir
+	}
+
+	return defaultControlPanelInstallDir()
+}
+
+// GetRuntimeDir returns the shared runtime directory for Java, Node.js, and FFmpeg.
+// When unset, it falls back to the control panel configuration directory.
+func GetRuntimeDir() string {
+	if dir := strings.TrimSpace(os.Getenv("RUNTIME_DIR")); dir != "" {
+		return dir
+	}
+
+	return GetControlPanelInstallDir()
+}
+
 // GetSharedJavaDir returns the shared Java installation directory for a specific version
 // The version string should be in format like "jdk-17.0.15+6"
 func GetSharedJavaDir(temurinVersion string) string {
-	controlPanelDir := GetControlPanelInstallDir()
+	controlPanelDir := GetRuntimeDir()
 	// Store Java installations in a version-specific subdirectory
 	// This allows multiple versions to coexist if needed
 	return filepath.Join(controlPanelDir, "java", temurinVersion)
@@ -255,14 +273,14 @@ func scanEnvPropertiesForJavaVersions(owlcmsInstallDir, firmataInstallDir string
 // finds the highest required Java version, ensures it's installed,
 // removes older control panel Java versions, and removes legacy bundled Java
 func CleanupObsoleteJavaVersions(owlcmsInstallDir, firmataInstallDir string, statusLabel *widget.Label, w fyne.Window) ([]string, error) {
-	controlPanelDir := GetControlPanelInstallDir()
-	javaBaseDir := filepath.Join(controlPanelDir, "java")
+	runtimeDir := GetRuntimeDir()
+	javaBaseDir := filepath.Join(runtimeDir, "java")
 
 	var removed []string
 
 	// Step 1: Find all required Java versions from env.properties files in control panel structure
-	controlPanelOwlcmsDir := filepath.Join(controlPanelDir, "owlcms")
-	controlPanelFirmataDir := filepath.Join(controlPanelDir, "firmata")
+	controlPanelOwlcmsDir := owlcmsInstallDir
+	controlPanelFirmataDir := firmataInstallDir
 	requiredVersions, err := scanEnvPropertiesForJavaVersions(controlPanelOwlcmsDir, controlPanelFirmataDir)
 	if err != nil {
 		return nil, fmt.Errorf("scanning env.properties files: %w", err)

@@ -75,3 +75,34 @@ func ApplyPropertiesToEnv(env []string, props *properties.Properties, skipKeys m
 
 	return env
 }
+
+// SavePropertyToFile upserts a single key=value into an env.properties file.
+// If the file does not exist the write is silently skipped.
+func SavePropertyToFile(envFilePath, key, value string) error {
+	content, err := os.ReadFile(envFilePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // nothing to update
+		}
+		return fmt.Errorf("reading %s: %w", envFilePath, err)
+	}
+
+	props := properties.NewProperties()
+	if err := props.Load(content, properties.UTF8); err != nil {
+		return fmt.Errorf("loading %s: %w", envFilePath, err)
+	}
+
+	props.Set(key, value)
+
+	file, err := os.Create(envFilePath)
+	if err != nil {
+		return fmt.Errorf("opening %s for writing: %w", envFilePath, err)
+	}
+	defer file.Close()
+
+	if _, err := props.Write(file, properties.UTF8); err != nil {
+		return fmt.Errorf("writing %s: %w", envFilePath, err)
+	}
+
+	return nil
+}

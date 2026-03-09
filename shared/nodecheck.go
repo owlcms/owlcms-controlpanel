@@ -128,8 +128,8 @@ func FindLocalNodeForVersion(version string, goosFunc func() string) (string, er
 		}
 	}
 
-	controlPanelDir := GetControlPanelInstallDir()
-	nodeBaseDir := filepath.Join(controlPanelDir, "node")
+	runtimeDir := GetRuntimeDir()
+	nodeBaseDir := filepath.Join(runtimeDir, "node")
 
 	if _, err := os.Stat(nodeBaseDir); err != nil {
 		log.Printf("*** Node base directory not found: %v\n", err)
@@ -390,8 +390,8 @@ func DownloadAndInstallNode(version string, progressCallback func(downloaded, to
 	log.Printf("Downloading Node.js from: %s\n", downloadURL)
 
 	// Prepare directories
-	controlPanelDir := GetControlPanelInstallDir()
-	nodeBaseDir := filepath.Join(controlPanelDir, "node", version)
+	runtimeDir := GetRuntimeDir()
+	nodeBaseDir := filepath.Join(runtimeDir, "node", version)
 
 	if err := os.MkdirAll(nodeBaseDir, 0755); err != nil {
 		return "", fmt.Errorf("failed to create node directory: %w", err)
@@ -449,8 +449,7 @@ func CleanupObsoleteNodeVersions(statusLabel *widget.Label, w fyne.Window) ([]st
 	var removed []string
 
 	// Step 1: Find all required Node versions from env.properties files in control panel structure
-	controlPanelDir := GetControlPanelInstallDir()
-	controlPanelTrackerDir := filepath.Join(controlPanelDir, "tracker")
+	controlPanelTrackerDir := GetTrackerInstallDir()
 	requiredVersions, err := scanEnvPropertiesForNodeVersions(controlPanelTrackerDir)
 	if err != nil {
 		return nil, fmt.Errorf("scanning env.properties files: %w", err)
@@ -473,7 +472,7 @@ func CleanupObsoleteNodeVersions(statusLabel *widget.Label, w fyne.Window) ([]st
 	}
 
 	// Step 3: Check if we have a Node version that meets requirements in control panel
-	nodeBaseDir := filepath.Join(controlPanelDir, "node")
+	nodeBaseDir := filepath.Join(GetRuntimeDir(), "node")
 	hasRequiredNode := false
 	if _, err := os.Stat(nodeBaseDir); err == nil {
 		if entries, err := os.ReadDir(nodeBaseDir); err == nil {
@@ -558,7 +557,7 @@ func CleanupObsoleteNodeVersions(statusLabel *widget.Label, w fyne.Window) ([]st
 	}
 
 	// Second, remove bundled node.exe/node files from tracker release directories
-	trackerBaseDir := filepath.Join(controlPanelDir, "tracker")
+	trackerBaseDir := GetTrackerInstallDir()
 	if _, err := os.Stat(trackerBaseDir); err == nil {
 		trackerVersions, err := os.ReadDir(trackerBaseDir)
 		if err == nil {

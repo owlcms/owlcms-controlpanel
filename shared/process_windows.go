@@ -21,3 +21,9 @@ func ConfigureNoConsoleWindow(cmd *exec.Cmd) {
 	cmd.SysProcAttr.HideWindow = true
 	cmd.SysProcAttr.CreationFlags |= windows.CREATE_NO_WINDOW
 }
+
+// ConfigureDetachedDaemonProcess is a no-op on Windows.
+func ConfigureDetachedDaemonProcess(cmd *exec.Cmd, detach bool) {
+	_ = cmd
+	_ = detach
+}

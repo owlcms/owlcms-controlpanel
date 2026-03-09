@@ -25,7 +25,7 @@ const (
 // GetSharedFFmpegDir returns the shared FFmpeg installation directory
 // under the control panel root, at the same level as java/ and node/.
 func GetSharedFFmpegDir() string {
-	return filepath.Join(GetControlPanelInstallDir(), "ffmpeg")
+	return filepath.Join(GetRuntimeDir(), "ffmpeg")
 }
 
 // FindLocalFFmpeg searches for an FFmpeg executable in the shared control panel

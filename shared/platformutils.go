@@ -197,6 +197,10 @@ func TailLogFile(logPath string) error {
 // This is used by other packages (like tracker) that need to check OWLCMS versions
 // without creating an import cycle.
 func GetOwlcmsInstallDir() string {
+	if dir := strings.TrimSpace(os.Getenv("OWLCMS_INSTALLDIR")); dir != "" {
+		return dir
+	}
+
 	switch GetGoos() {
 	case "windows":
 		return os.Getenv("APPDATA") + string(os.PathSeparator) + "owlcms"
@@ -206,5 +210,23 @@ func GetOwlcmsInstallDir() string {
 		return os.Getenv("HOME") + "/.local/share/owlcms"
 	default:
 		return "./owlcms"
+	}
+}
+
+// GetTrackerInstallDir returns the tracker installation directory for the current platform.
+func GetTrackerInstallDir() string {
+	if dir := strings.TrimSpace(os.Getenv("TRACKER_INSTALLDIR")); dir != "" {
+		return dir
+	}
+
+	switch GetGoos() {
+	case "windows":
+		return filepath.Join(os.Getenv("APPDATA"), "owlcms-tracker")
+	case "darwin":
+		return filepath.Join(os.Getenv("HOME"), "Library", "Application Support", "owlcms-tracker")
+	case "linux":
+		return filepath.Join(os.Getenv("HOME"), ".local", "share", "owlcms-tracker")
+	default:
+		return "./owlcms-tracker"
 	}
 }

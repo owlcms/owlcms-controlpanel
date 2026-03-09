@@ -78,9 +78,9 @@ func FindLocalJavaForVersion(temurinVersion string, goosFunc func() string) (str
 		requiredMajor = 0 // Use any version if we can't parse
 	}
 
-	// Scan all Java installations in the control panel
-	controlPanelDir := GetControlPanelInstallDir()
-	javaBaseDir := filepath.Join(controlPanelDir, "java")
+	// Scan all Java installations in the shared runtime directory
+	runtimeDir := GetRuntimeDir()
+	javaBaseDir := filepath.Join(runtimeDir, "java")
 
 	if _, err := os.Stat(javaBaseDir); err != nil {
 		log.Printf("*** Java base directory not found: %v\n", err)
