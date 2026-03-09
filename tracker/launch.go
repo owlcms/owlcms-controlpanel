@@ -9,11 +9,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
+	"time"
 
 	"controlpanel/shared"
 	customdialog "controlpanel/tracker/dialog"
-	"controlpanel/tracker/downloadutils"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
@@ -47,7 +46,232 @@ var (
 	pidFilePath  = filepath.Join(getInstallDir(), "tracker.pid")
 	nodePID      int          // Store the Node process PID
 	lock         *flock.Flock // Store the lock
+	activeRuntime *shared.RuntimeMetadata
 )
+
+func runtimeMetadataPath() string {
+	return filepath.Join(installDir, "tracker-run.json")
+}
+
+// RuntimeMetadataPath returns the path to the Tracker runtime metadata file.
+func RuntimeMetadataPath() string {
+	return runtimeMetadataPath()
+}
+
+func clearRuntimeState() {
+	activeRuntime = nil
+	if err := shared.ClearRuntimeMetadata(runtimeMetadataPath()); err != nil {
+		log.Printf("Failed to clear tracker runtime metadata: %v", err)
+	}
+}
+
+type trackerLaunchParams struct {
+	VersionDir      string
+	ScriptToRun     string
+	RequiredNodeVer string
+	TargetPort      string
+	Env             []string
+}
+
+// prepareTrackerLaunch resolves paths, verifies the startup script, loads the
+// release environment, builds the process env slice, and handles shebang stripping.
+// Callers must ensure InitEnv() has been called.
+func prepareTrackerLaunch(version string) (*trackerLaunchParams, error) {
+	if _, err := os.Stat(installDir); os.IsNotExist(err) {
+		if err := shared.EnsureDir0755(installDir); err != nil {
+			return nil, fmt.Errorf("creating tracker directory: %w", err)
+		}
+	}
+
+	versionDir := filepath.Join(installDir, version)
+	if _, err := os.Stat(versionDir); os.IsNotExist(err) {
+		return nil, fmt.Errorf("version directory not found: %s", versionDir)
+	}
+
+	mainScript := filepath.Join(versionDir, "start-with-ws.js")
+	if _, err := os.Stat(mainScript); os.IsNotExist(err) {
+		return nil, fmt.Errorf("start-with-ws.js not found in %s", versionDir)
+	}
+
+	if err := LoadEnvironmentForRelease(version); err != nil {
+		return nil, fmt.Errorf("failed to initialize environment: %w", err)
+	}
+
+	targetPort := GetPort()
+
+	// Handle shebang stripping on Windows
+	scriptToRun := mainScript
+	if shared.GetGoos() == "windows" {
+		content, err := os.ReadFile(mainScript)
+		if err == nil && len(content) > 2 && content[0] == '#' && content[1] == '!' {
+			lines := strings.Split(string(content), "\n")
+			if len(lines) > 1 && strings.HasPrefix(lines[0], "#!") {
+				tempScript := filepath.Join(versionDir, "start-with-ws-temp.js")
+				cleanContent := strings.Join(lines[1:], "\n")
+				if err := os.WriteFile(tempScript, []byte(cleanContent), 0644); err == nil {
+					scriptToRun = tempScript
+					log.Printf("Created temp script without shebang: %s\n", tempScript)
+				}
+			}
+		}
+	}
+
+	// Build environment
+	env := os.Environ()
+	lv := shared.GetLauncherVersionSemver()
+	env = append(env, fmt.Sprintf("TRACKER_LAUNCHER=%s", lv))
+	env = append(env, fmt.Sprintf("OWLCMS_CONTROLPANEL=%s", lv))
+	env = shared.UpsertEnv(env, "PORT", targetPort)
+	if environment != nil {
+		for _, key := range environment.Keys() {
+			value, _ := environment.Get(key)
+			log.Printf("   %s=%s", key, value)
+			if key == "TRACKER_PORT" {
+				continue
+			}
+			env = append(env, fmt.Sprintf("%s=%s", key, value))
+		}
+	}
+
+	var requiredNodeVersion string
+	if environment != nil {
+		if v, exists := environment.Get("NODE_VERSION"); exists {
+			requiredNodeVersion = v
+			log.Printf("Found NODE_VERSION requirement: %s\n", requiredNodeVersion)
+		}
+	}
+
+	return &trackerLaunchParams{
+		VersionDir:      versionDir,
+		ScriptToRun:     scriptToRun,
+		RequiredNodeVer: requiredNodeVersion,
+		TargetPort:      targetPort,
+		Env:             env,
+	}, nil
+}
+
+// recordTrackerStart writes the PID file and runtime metadata after a successful cmd.Start().
+func recordTrackerStart(pid int, version, port string) *shared.RuntimeMetadata {
+	if err := os.WriteFile(pidFilePath, []byte(fmt.Sprintf("%d\n", pid)), 0644); err != nil {
+		log.Printf("Failed to write PID to PID file: %v\n", err)
+	} else {
+		log.Printf("Wrote PID %d to PID file %s\n", pid, pidFilePath)
+	}
+
+	metadata, err := shared.WriteRuntimeMetadata(runtimeMetadataPath(), pid, version, port)
+	if err != nil {
+		log.Printf("Failed to write tracker runtime metadata: %v", err)
+		return nil
+	}
+	return metadata
+}
+
+// LaunchDaemon starts the tracker headlessly (no UI) in daemon mode.
+// It assumes Node.js is already installed locally.
+func LaunchDaemon(version string) error {
+	log.Printf("LaunchDaemon: starting tracker %s headlessly", version)
+
+	initConfig()
+	if err := InitEnv(); err != nil {
+		return fmt.Errorf("failed to initialize environment: %w", err)
+	}
+
+	params, err := prepareTrackerLaunch(version)
+	if err != nil {
+		return err
+	}
+
+	if shared.CheckPort(params.TargetPort) == nil {
+		return fmt.Errorf("port %s is already in use", params.TargetPort)
+	}
+
+	nodePath, err := shared.FindLocalNodeForVersion(params.RequiredNodeVer, shared.GetGoos)
+	if err != nil {
+		return fmt.Errorf("node.js not found locally: %w", err)
+	}
+
+	if shared.GetGoos() != "windows" {
+		os.Chmod(nodePath, 0755)
+	}
+
+	cmd := exec.Command(nodePath, params.ScriptToRun)
+	shared.ConfigureNoConsoleWindow(cmd)
+	shared.ConfigureDetachedDaemonProcess(cmd, true)
+	cmd.Env = params.Env
+	cmd.Dir = params.VersionDir
+
+	appDir := filepath.Join(installDir, version)
+	logPath := filepath.Join(appDir, "logs", "tracker.log")
+	_ = os.Remove(logPath)
+	_ = shared.EnsureDir0755(filepath.Dir(logPath))
+	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		log.Printf("Warning: could not open tracker log: %v", err)
+	} else {
+		cmd.Stdout = io.MultiWriter(logFile)
+		cmd.Stderr = io.MultiWriter(logFile)
+	}
+
+	log.Printf("LaunchDaemon: command %v in %s", cmd.Args, params.VersionDir)
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start tracker %s: %w", version, err)
+	}
+
+	pid := cmd.Process.Pid
+	activeRuntime = recordTrackerStart(pid, version, params.TargetPort)
+
+	log.Printf("LaunchDaemon: tracker %s (PID %d), waiting for port %s...", version, pid, params.TargetPort)
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		if shared.CheckPort(params.TargetPort) == nil {
+			log.Printf("LaunchDaemon: tracker %s ready on port %s (PID %d)", version, params.TargetPort, pid)
+			return nil
+		}
+		if !shared.IsProcessRunning(pid) {
+			return fmt.Errorf("tracker %s (PID %d) exited before becoming ready", version, pid)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return fmt.Errorf("timed out waiting for tracker %s on port %s", version, params.TargetPort)
+}
+
+func restoreTrackerRunningUI(version, port string, pid int) {
+	currentVersion = version
+	stopButton.SetText(fmt.Sprintf("Stop owlcms-tracker %s", version))
+	stopButton.Show()
+	statusLabel.SetText(fmt.Sprintf("owlcms-tracker running (PID: %d) on port %s", pid, port))
+	statusLabel.Show()
+	stopContainer.Show()
+	setTrackerTabModeRunning()
+
+	url := fmt.Sprintf("http://localhost:%s", port)
+	urlLink.SetURLFromString(url)
+	urlLink.SetText("Open owlcms-tracker in a browser")
+	urlLink.Show()
+
+	appDir := filepath.Join(installDir, version)
+	appDirLink.SetText(fmt.Sprintf("Open tracker %s directory", version))
+	appDirLink.SetURL(nil)
+	appDirLink.OnTapped = func() {
+		shared.OpenFileExplorer(appDir)
+	}
+	appDirLink.Show()
+	configureTailLogLink(version, appDir)
+	stopContainer.Refresh()
+}
+
+func reconnectTrackerRuntime() bool {
+	metadata, running := shared.CheckDaemonRunning(runtimeMetadataPath())
+	if !running {
+		clearRuntimeState()
+		releaseTrackerLock()
+		return false
+	}
+
+	activeRuntime = metadata
+	restoreTrackerRunningUI(metadata.Version, metadata.Port, metadata.PID)
+	return true
+}
 
 func acquireTrackerLock() (*flock.Flock, error) {
 	data, err := os.ReadFile(pidFilePath)
@@ -95,23 +319,12 @@ func killLockingProcess() error {
 		return fmt.Errorf("failed to parse PID from PID file: %w", err)
 	}
 
-	proc, err := process.NewProcess(int32(pid))
+	err = shared.GracefullyStopPID(pid)
 	if err != nil {
 		releaseTrackerLock()
-		return fmt.Errorf("failed to find process with PID %d: %w", pid, err)
+		return err
 	}
 
-	if downloadutils.GetGoos() == "windows" && !downloadutils.IsWSL() {
-		if err := proc.Terminate(); err != nil {
-			releaseTrackerLock()
-			return fmt.Errorf("failed to terminate process with PID %d: %w", pid, err)
-		}
-	} else {
-		if err := proc.SendSignal(syscall.SIGKILL); err != nil {
-			releaseTrackerLock()
-			return fmt.Errorf("failed to kill process with PID %d: %w", pid, err)
-		}
-	}
 	releaseTrackerLock()
 	log.Printf("Killed process with PID %d\n", pid)
 	return nil
@@ -131,7 +344,7 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 	targetPort := GetPortForRelease(version)
 
 	// Check if port is already in use
-	if err := checkPort(targetPort); err == nil {
+	if shared.CheckPort(targetPort) == nil {
 		statusLabel.SetText(fmt.Sprintf("Another program is running on port %s", targetPort))
 		statusLabel.Refresh()
 		goBackToMainScreen()
@@ -149,78 +362,30 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 		return fmt.Errorf("getting current directory: %w", err)
 	}
 
-	// Ensure the tracker directory exists
-	trackerDir := installDir
-	if _, err := os.Stat(trackerDir); os.IsNotExist(err) {
-		if err := shared.EnsureDir0755(trackerDir); err != nil {
-			return fmt.Errorf("creating tracker directory: %w", err)
-		}
-	}
-
-	// Get the version directory path
-	versionDir := filepath.Join(trackerDir, version)
-	if _, err := os.Stat(versionDir); os.IsNotExist(err) {
+	params, err := prepareTrackerLaunch(version)
+	if err != nil {
+		statusLabel.SetText(err.Error())
 		launchButton.Show()
-		return fmt.Errorf("version directory not found: %s", versionDir)
+		goBackToMainScreen()
+		return err
 	}
+	targetPort = params.TargetPort
 
-	// Change to version directory
-	if err := os.Chdir(versionDir); err != nil {
+	if err := os.Chdir(params.VersionDir); err != nil {
 		launchButton.Show()
 		return fmt.Errorf("changing to version directory: %w", err)
 	}
 	defer os.Chdir(originalDir)
 
-	// Determine the startup script based on platform
-	var cmd *exec.Cmd
-	goos := downloadutils.GetGoos()
-
-	if err := LoadEnvironmentForRelease(version); err != nil {
-		launchButton.Show()
-		goBackToMainScreen()
-		return fmt.Errorf("failed to initialize environment: %w", err)
-	}
-	targetPort = GetPort()
-
-	env := os.Environ()
-	newVar := shared.GetLauncherVersionSemver()
-	env = append(env, fmt.Sprintf("TRACKER_LAUNCHER=%s", newVar))
-	env = append(env, fmt.Sprintf("OWLCMS_CONTROLPANEL=%s", newVar))
-	// Map TRACKER_PORT to PORT for the tracker application
-	env = shared.UpsertEnv(env, "PORT", targetPort)
-
-	// Add all properties from environment to the process env
-	if environment != nil {
-		for _, key := range environment.Keys() {
-			value, _ := environment.Get(key)
-			log.Printf("   %s=%s", key, value)
-			// Skip TRACKER_PORT since we already set PORT above
-			if key == "TRACKER_PORT" {
-				continue
-			}
-			env = append(env, fmt.Sprintf("%s=%s", key, value))
-		}
-	}
-
-	// Check if Node.js is available locally, download if needed
+	// Find Node.js locally, download if needed
 	var nodeExe string
-
-	// Check for NODE_VERSION requirement in env.properties
-	var requiredNodeVersion string
-	if environment != nil {
-		if version, exists := environment.Get("NODE_VERSION"); exists {
-			requiredNodeVersion = version
-			log.Printf("Found NODE_VERSION requirement: %s\n", requiredNodeVersion)
-		}
-	}
-
-	nodePath, err := shared.FindLocalNodeForVersion(requiredNodeVersion, shared.GetGoos)
+	nodePath, err := shared.FindLocalNodeForVersion(params.RequiredNodeVer, shared.GetGoos)
 	if err != nil {
 		// No suitable Node.js found, download appropriate version
 		var targetVersion string
-		if requiredNodeVersion != "" {
-			log.Printf("No Node.js found meeting requirement %s, downloading...\n", requiredNodeVersion)
-			targetVersion = requiredNodeVersion
+		if params.RequiredNodeVer != "" {
+			log.Printf("No Node.js found meeting requirement %s, downloading...\n", params.RequiredNodeVer)
+			targetVersion = params.RequiredNodeVer
 		} else {
 			log.Printf("No Node.js found locally, downloading latest LTS version...")
 			var err error
@@ -290,41 +455,16 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 	}
 
 	// Make sure node is executable on Unix systems
-	if goos != "windows" {
+	if shared.GetGoos() != "windows" {
 		os.Chmod(nodeExe, 0755)
 	}
 
-	// The main script is start-with-ws.js
-	mainScript := filepath.Join(versionDir, "start-with-ws.js")
-	if _, err := os.Stat(mainScript); os.IsNotExist(err) {
-		launchButton.Show()
-		goBackToMainScreen()
-		return fmt.Errorf("start-with-ws.js not found in %s", versionDir)
-	}
-
-	// On Windows, strip shebang from the JS file if present (causes syntax error in Node.js)
-	scriptToRun := mainScript
-	if downloadutils.GetGoos() == "windows" {
-		content, err := os.ReadFile(mainScript)
-		if err == nil && len(content) > 2 && content[0] == '#' && content[1] == '!' {
-			// Found shebang - create temp file without it
-			lines := strings.Split(string(content), "\n")
-			if len(lines) > 1 && strings.HasPrefix(lines[0], "#!") {
-				tempScript := filepath.Join(versionDir, "start-with-ws-temp.js")
-				cleanContent := strings.Join(lines[1:], "\n")
-				if err := os.WriteFile(tempScript, []byte(cleanContent), 0644); err == nil {
-					scriptToRun = tempScript
-					log.Printf("Created temp script without shebang: %s\n", tempScript)
-				}
-			}
-		}
-	}
-
-	cmd = exec.Command(nodeExe, scriptToRun)
+	cmd := exec.Command(nodeExe, params.ScriptToRun)
 	shared.ConfigureNoConsoleWindow(cmd)
+	shared.ConfigureDetachedDaemonProcess(cmd, shared.GetGoos() == "linux" && shared.IsRunAsDaemonEnabled())
 
-	cmd.Env = env
-	cmd.Dir = versionDir
+	cmd.Env = params.Env
+	cmd.Dir = params.VersionDir
 
 	// Capture stdout/stderr to logs/tracker.log (remove previous file first)
 	appDir := filepath.Join(installDir, version)
@@ -344,7 +484,7 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 
 	log.Printf("Starting owlcms-tracker %s\n", version)
 	log.Printf("  Working directory: %s\n", cmd.Dir)
-	log.Printf("  Command: %s %s\n", nodeExe, mainScript)
+	log.Printf("  Command: %s %s\n", nodeExe, params.ScriptToRun)
 	log.Printf("  Full command: %v\n", cmd.Args)
 
 	if err := cmd.Start(); err != nil {
@@ -361,14 +501,10 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 
 	// Store the PID in the PID file and globally (after Start() succeeds)
 	nodePID = cmd.Process.Pid
-	if err := os.WriteFile(pidFilePath, []byte(fmt.Sprintf("%d\n", nodePID)), 0644); err != nil {
-		log.Printf("Failed to write PID to PID file: %v\n", err)
-	} else {
-		log.Printf("Wrote PID %d to PID file %s\n", nodePID, pidFilePath)
-	}
+	activeRuntime = recordTrackerStart(nodePID, version, targetPort)
 
-	log.Printf("Launching owlcms-tracker %s (PID: %d), waiting for port %s...\n", version, nodePID, GetPort())
-	statusLabel.SetText(fmt.Sprintf("Starting owlcms-tracker %s (PID: %d), waiting for port %s.\nFull startup can take up to 15 seconds.", version, nodePID, GetPort()))
+	log.Printf("Launching owlcms-tracker %s (PID: %d), waiting for port %s...\n", version, nodePID, targetPort)
+	statusLabel.SetText(fmt.Sprintf("Starting owlcms-tracker %s (PID: %d), waiting for port %s.\nFull startup can take up to 15 seconds.", version, nodePID, targetPort))
 	currentProcess = cmd
 	stopBtn.SetText(fmt.Sprintf("Stop owlcms-tracker %s", version))
 	stopBtn.Show()
@@ -400,6 +536,7 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 			stopContainer.Hide()
 			launchButton.Show()
 			currentProcess = nil
+			clearRuntimeState()
 			setTrackerTabMode(mainWindow)
 			releaseTrackerLock()
 			return
@@ -448,6 +585,7 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 
 		currentProcess = nil
 		killedByUs = false // Reset flag
+		clearRuntimeState()
 		stopBtn.Hide()
 		stopContainer.Hide()
 		launchButton.Show()

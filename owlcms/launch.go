@@ -50,7 +50,144 @@ var (
 	lock           *flock.Flock
 	currentProcess *exec.Cmd
 	currentVersion string
+	activeRuntime  *shared.RuntimeMetadata
 )
+
+func runtimeMetadataPath() string {
+	return filepath.Join(installDir, "owlcms-run.json")
+}
+
+// RuntimeMetadataPath returns the path to the OWLCMS runtime metadata file.
+func RuntimeMetadataPath() string {
+	return runtimeMetadataPath()
+}
+
+func clearRuntimeState() {
+	activeRuntime = nil
+	if err := shared.ClearRuntimeMetadata(runtimeMetadataPath()); err != nil {
+		log.Printf("Failed to clear OWLCMS runtime metadata: %v", err)
+	}
+}
+
+type owlcmsLaunchParams struct {
+	VersionDir string
+	JavaPath   string
+	TargetPort string
+	Env        []string
+}
+
+// prepareOwlcmsLaunch resolves paths, verifies the jar exists, finds Java,
+// loads the release environment, and builds the process env slice.
+// Callers must ensure InitEnv() has been called before this.
+func prepareOwlcmsLaunch(version string) (*owlcmsLaunchParams, error) {
+	if _, err := os.Stat(installDir); os.IsNotExist(err) {
+		if err := shared.EnsureDir0755(installDir); err != nil {
+			return nil, fmt.Errorf("creating owlcms directory: %w", err)
+		}
+	}
+
+	versionDir := filepath.Join(installDir, version)
+	jarPath := filepath.Join(versionDir, "owlcms.jar")
+	if _, err := os.Stat(jarPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("owlcms.jar not found in %s", versionDir)
+	}
+
+	if err := EnsureReleaseEnvFromParent(version); err != nil {
+		return nil, fmt.Errorf("failed to initialize env.properties: %w", err)
+	}
+
+	temurinVersion := GetTemurinVersionForRelease(version)
+	localJava, err := javacheck.FindLocalJavaForVersion(temurinVersion)
+	if err != nil {
+		return nil, fmt.Errorf("java not found for %s: %w", temurinVersion, err)
+	}
+
+	if err := LoadEnvironmentForRelease(version); err != nil {
+		return nil, fmt.Errorf("failed to load environment: %w", err)
+	}
+
+	targetPort := GetPort()
+
+	env := os.Environ()
+	lv := shared.GetLauncherVersionSemver()
+	env = append(env, fmt.Sprintf("OWLCMS_LAUNCHER=%s", lv))
+	env = append(env, fmt.Sprintf("OWLCMS_CONTROLPANEL=%s", lv))
+	for _, key := range environment.Keys() {
+		value, _ := environment.Get(key)
+		log.Printf("   %s=%s", key, value)
+		env = append(env, fmt.Sprintf("%s=%s", key, value))
+	}
+
+	return &owlcmsLaunchParams{
+		VersionDir: versionDir,
+		JavaPath:   localJava,
+		TargetPort: targetPort,
+		Env:        env,
+	}, nil
+}
+
+// recordOwlcmsStart writes the PID file and runtime metadata after a successful cmd.Start().
+func recordOwlcmsStart(pid int, version, port string) *shared.RuntimeMetadata {
+	if err := os.WriteFile(pidFilePath, []byte(fmt.Sprintf("%d\n", pid)), 0644); err != nil {
+		log.Printf("Failed to write PID to PID file: %v\n", err)
+	} else {
+		log.Printf("Wrote PID %d to PID file %s\n", pid, pidFilePath)
+	}
+
+	metadata, err := shared.WriteRuntimeMetadata(runtimeMetadataPath(), pid, version, port)
+	if err != nil {
+		log.Printf("Failed to write OWLCMS runtime metadata: %v", err)
+		return nil
+	}
+	return metadata
+}
+
+// LaunchDaemon starts OWLCMS headlessly (no UI) in daemon mode.
+// It forces daemon/detach, writes runtime metadata, waits for the port to respond, then returns.
+func LaunchDaemon(version string) error {
+	log.Printf("LaunchDaemon: starting OWLCMS %s headlessly", version)
+
+	if err := InitEnv(); err != nil {
+		return fmt.Errorf("failed to initialize environment: %w", err)
+	}
+
+	targetPort := GetPort()
+	if shared.CheckPort(targetPort) == nil {
+		return fmt.Errorf("port %s is already in use", targetPort)
+	}
+
+	params, err := prepareOwlcmsLaunch(version)
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.Command(params.JavaPath, "-jar", "owlcms.jar")
+	shared.ConfigureDetachedDaemonProcess(cmd, true)
+	cmd.Env = params.Env
+	cmd.Dir = params.VersionDir
+
+	log.Printf("LaunchDaemon: command %v in %s", cmd.Args, params.VersionDir)
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start OWLCMS %s: %w", version, err)
+	}
+
+	pid := cmd.Process.Pid
+	activeRuntime = recordOwlcmsStart(pid, version, params.TargetPort)
+
+	log.Printf("LaunchDaemon: OWLCMS %s (PID %d), waiting for port %s...", version, pid, params.TargetPort)
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		if shared.CheckPort(params.TargetPort) == nil {
+			log.Printf("LaunchDaemon: OWLCMS %s ready on port %s (PID %d)", version, params.TargetPort, pid)
+			return nil
+		}
+		if !shared.IsProcessRunning(pid) {
+			return fmt.Errorf("OWLCMS %s (PID %d) exited before becoming ready", version, pid)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return fmt.Errorf("timed out waiting for OWLCMS %s on port %s", version, params.TargetPort)
+}
 
 var (
 	startupLogMu       sync.Mutex
@@ -65,7 +202,7 @@ func acquireJavaLock() (*flock.Flock, error) {
 	if err == nil && len(data) > 0 {
 		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
 		if err == nil && pid != 0 {
-			if IsProcessRunning(pid) {
+			if shared.IsProcessRunning(pid) {
 				log.Printf("Another instance of OWLCMS is already running with PID %d", pid)
 				return nil, fmt.Errorf("another instance of OWLCMS is already running with PID %d", pid)
 			} else {
@@ -106,7 +243,7 @@ func killLockingProcess() error {
 		return fmt.Errorf("failed to parse PID from PID file: %w", err)
 	}
 
-	err = GracefullyStopProcess(pid)
+	err = shared.GracefullyStopPID(pid)
 	if err != nil {
 		releaseJavaLock()
 		return err
@@ -130,7 +267,7 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 	}
 
 	targetPort := GetPort()
-	if err := checkPort(targetPort); err == nil {
+	if shared.CheckPort(targetPort) == nil {
 		statusLabel.SetText(fmt.Sprintf("Another program is running on port %s", targetPort))
 		statusLabel.Refresh()
 		goBackToMainScreen()
@@ -147,74 +284,33 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 		return fmt.Errorf("getting current directory: %w", err)
 	}
 
-	owlcmsDir := installDir
-	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
-		if err := shared.EnsureDir0755(owlcmsDir); err != nil {
-			return fmt.Errorf("creating owlcms directory: %w", err)
-		}
-	}
-
-	versionDir := filepath.Join(owlcmsDir, version)
-	jarPath := filepath.Join(versionDir, "owlcms.jar")
-	if _, err := os.Stat(jarPath); os.IsNotExist(err) {
+	params, err := prepareOwlcmsLaunch(version)
+	if err != nil {
+		statusLabel.SetText(err.Error())
 		launchButton.Show()
-		return fmt.Errorf("owlcms.jar not found in %s directory", jarPath)
+		goBackToMainScreen()
+		releaseJavaLock()
+		return err
 	}
+	targetPort = params.TargetPort
 
-	if err := os.Chdir(versionDir); err != nil {
+	if err := os.Chdir(params.VersionDir); err != nil {
 		launchButton.Show()
 		return fmt.Errorf("changing to version directory: %w", err)
 	}
 	defer os.Chdir(originalDir)
 
-	if err := EnsureReleaseEnvFromParent(version); err != nil {
-		statusLabel.SetText(fmt.Sprintf("Failed to initialize env.properties: %v", err))
-		launchButton.Show()
-		goBackToMainScreen()
-		releaseJavaLock()
-		return fmt.Errorf("failed to initialize env.properties: %w", err)
-	}
-
-	// Get version-specific Temurin version
-	temurinVersion := GetTemurinVersionForRelease(version)
-	localJava, err := javacheck.FindLocalJavaForVersion(temurinVersion)
-	if err != nil {
-		statusLabel.SetText(fmt.Sprintf("Failed to find local Java: %v", err))
-		launchButton.Show()
-		goBackToMainScreen()
-		return fmt.Errorf("failed to find local Java: %w", err)
-	}
-
-	if err := LoadEnvironmentForRelease(version); err != nil {
-		statusLabel.SetText(fmt.Sprintf("Failed to initialize environment: %v", err))
-		launchButton.Show()
-		goBackToMainScreen()
-		releaseJavaLock()
-		return fmt.Errorf("failed to initialize environment: %w", err)
-	}
-	targetPort = GetPort()
-
-	env := os.Environ()
-	newVar := shared.GetLauncherVersionSemver()
-	env = append(env, fmt.Sprintf("OWLCMS_LAUNCHER=%s", newVar))
-	env = append(env, fmt.Sprintf("OWLCMS_CONTROLPANEL=%s", newVar))
-
-	for _, key := range environment.Keys() {
-		value, _ := environment.Get(key)
-		log.Printf("   %s=%s", key, value)
-		env = append(env, fmt.Sprintf("%s=%s", key, value))
-	}
-
 	var launchAttempt func(retryCount int)
 	launchAttempt = func(retryCount int) {
-		cmd := exec.Command(localJava, "-jar", "owlcms.jar")
-		cmd.Env = env
-		cmd.Dir = versionDir
+		cmd := exec.Command(params.JavaPath, "-jar", "owlcms.jar")
+		shared.ConfigureDetachedDaemonProcess(cmd, shared.GetGoos() == "linux" && shared.IsRunAsDaemonEnabled())
+		cmd.Env = params.Env
+		cmd.Dir = params.VersionDir
 
 		// Remove startup.log if it exists to ensure fresh log output
 		// (Only versions >= 64.0.0-rc08 generate this file.)
 		if owlcmsSupportsStartupLog(version) {
-			startupLogPath := filepath.Join(versionDir, "logs", "startup.log")
+			startupLogPath := filepath.Join(params.VersionDir, "logs", "startup.log")
 			if err := os.Remove(startupLogPath); err != nil && !os.IsNotExist(err) {
 				log.Printf("Warning: Failed to remove old startup.log: %v", err)
 			}
@@ -231,11 +327,7 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 		}
 
 		javaPID = cmd.Process.Pid
-		if err := os.WriteFile(pidFilePath, []byte(fmt.Sprintf("%d\n", javaPID)), 0644); err != nil {
-			log.Printf("Failed to write PID to PID file: %v\n", err)
-		} else {
-			log.Printf("Wrote PID %d to PID file %s\n", javaPID, pidFilePath)
-		}
+		activeRuntime = recordOwlcmsStart(javaPID, version, targetPort)
 
 		log.Printf("Launching OWLCMS %s (PID: %d), waiting for port %s...\n", version, javaPID, targetPort)
 		statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s (PID: %d), waiting for port %s.\nFull startup can take up to 30 seconds.", version, javaPID, targetPort))
@@ -274,6 +366,7 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 				stopContainer.Hide()
 				launchButton.Show()
 				currentProcess = nil
+				clearRuntimeState()
 				setOwlcmsTabMode(mainWindow)
 
 				releaseJavaLock()
@@ -337,6 +430,7 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 
 			currentProcess = nil
 			killedByUs = false
+			clearRuntimeState()
 			stopBtn.Hide()
 			stopContainer.Hide()
 			launchButton.Show()
