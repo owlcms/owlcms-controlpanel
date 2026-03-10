@@ -31,10 +31,10 @@ if ! command -v curl &>/dev/null; then
     sudo apt-get update -q && sudo apt-get install -y curl
 fi
 
-# Resolve the release tag
+# Resolve the release tag (includes pre-releases: /releases/latest skips them)
 if [[ -z "$VERSION" ]]; then
     echo "Fetching latest release tag from GitHub..."
-    RELEASE_JSON=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest")
+    RELEASE_JSON=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases")
     VERSION=$(echo "$RELEASE_JSON" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
     if [[ -z "$VERSION" ]]; then
         echo "Error: could not determine latest release version."
