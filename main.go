@@ -72,6 +72,7 @@ func getInstanceIdentity() (string, string) {
 
 func main() {
 	cliOptions := parseCLIOptions(os.Args[1:])
+	owlcmsFlag, trackerFlag := parseDaemonFlags(os.Args[1:])
 	if cliOptions.help {
 		printUsage()
 		return
@@ -79,6 +80,14 @@ func main() {
 	if err := applyCLIInstanceOptions(cliOptions); err != nil {
 		fmt.Fprintf(os.Stderr, "instance setup: %v\n", err)
 		os.Exit(1)
+	}
+	if owlcmsFlag != "" || trackerFlag != "" {
+		var err error
+		owlcmsFlag, trackerFlag, err = maybeApplyImplicitInstanceForHeadless(cliOptions, owlcmsFlag, trackerFlag)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "instance setup: %v\n", err)
+			os.Exit(1)
+		}
 	}
 	if cliOptions.init {
 		fmt.Printf("Initialized instance %q\n", cliOptions.instanceArg)
@@ -116,8 +125,6 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Llongfile)
 	log.Println("Starting OWLCMS Control Panel")
 
-	// Parse --owlcms and --tracker CLI flags for headless daemon launch/stop
-	owlcmsFlag, trackerFlag := parseDaemonFlags(os.Args[1:])
 	if owlcmsFlag != "" || trackerFlag != "" {
 		owlcmsStop := strings.EqualFold(owlcmsFlag, "stop")
 		trackerStop := strings.EqualFold(trackerFlag, "stop")

@@ -29,6 +29,8 @@ type instancePaths struct {
 	TrackerDir      string
 }
 
+const mainInstanceName = "owlcms"
+
 func parseCLIOptions(args []string) cliOptions {
 	var opts cliOptions
 
@@ -76,6 +78,9 @@ func printUsage() {
 	fmt.Println("  --init                          Initialize the instance directories and exit")
 	fmt.Println("  --owlcms <value>                Start/stop OWLCMS headlessly for a version, latest, or stop")
 	fmt.Println("  --tracker <value>               Start/stop Tracker headlessly for a version, latest, or stop")
+	fmt.Println("                                  If no --instance-dir is given and <value> matches an")
+	fmt.Println("                                  initialized instance name, that instance is selected and")
+	fmt.Println("                                  latest is used for that module")
 	fmt.Println("  --help, -h                      Show this help and exit")
 	fmt.Println("")
 	fmt.Println("Examples:")
@@ -99,6 +104,76 @@ func printUsage() {
 	fmt.Println("")
 	fmt.Println("  Stop both daemons for dev2:")
 	fmt.Println("    controlpanel --instance-dir dev2 --owlcms stop --tracker stop")
+	fmt.Println("")
+	fmt.Println("  Compatibility shorthand for an initialized instance named records:")
+	fmt.Println("    controlpanel --owlcms records")
+}
+
+func maybeApplyImplicitInstanceForHeadless(opts cliOptions, owlcmsVersion, trackerVersion string) (string, string, error) {
+	if strings.TrimSpace(opts.instanceArg) != "" {
+		return owlcmsVersion, trackerVersion, nil
+	}
+	if strings.TrimSpace(os.Getenv("CONTROLPANEL_INSTANCE")) != "" {
+		return owlcmsVersion, trackerVersion, nil
+	}
+
+	candidate, err := inferImplicitInstanceName(owlcmsVersion, trackerVersion)
+	if err != nil || candidate == "" {
+		return owlcmsVersion, trackerVersion, err
+	}
+
+	if err := applyCLIInstanceOptions(cliOptions{instanceArg: candidate}); err != nil {
+		return owlcmsVersion, trackerVersion, err
+	}
+
+	if strings.EqualFold(strings.TrimSpace(owlcmsVersion), candidate) {
+		owlcmsVersion = "latest"
+	}
+	if strings.EqualFold(strings.TrimSpace(trackerVersion), candidate) {
+		trackerVersion = "latest"
+	}
+
+	return owlcmsVersion, trackerVersion, nil
+}
+
+func inferImplicitInstanceName(owlcmsVersion, trackerVersion string) (string, error) {
+	owlcmsCandidate := implicitInstanceCandidate(owlcmsVersion, shared.GetOwlcmsInstallDir())
+	trackerCandidate := implicitInstanceCandidate(trackerVersion, shared.GetTrackerInstallDir())
+
+	switch {
+	case owlcmsCandidate == "" && trackerCandidate == "":
+		return "", nil
+	case owlcmsCandidate == "":
+		return trackerCandidate, nil
+	case trackerCandidate == "":
+		return owlcmsCandidate, nil
+	case strings.EqualFold(owlcmsCandidate, trackerCandidate):
+		return owlcmsCandidate, nil
+	default:
+		return "", fmt.Errorf("headless launch is ambiguous: %q looks like instance %q and %q; specify --instance-dir explicitly", strings.TrimSpace(owlcmsVersion)+"/"+strings.TrimSpace(trackerVersion), owlcmsCandidate, trackerCandidate)
+	}
+}
+
+func implicitInstanceCandidate(requested, installDir string) string {
+	requested = strings.TrimSpace(requested)
+	if requested == "" || strings.EqualFold(requested, "latest") || strings.EqualFold(requested, "stop") {
+		return ""
+	}
+
+	if _, err := os.Stat(filepath.Join(installDir, requested)); err == nil {
+		return ""
+	}
+
+	paths, err := resolveInstancePaths(requested)
+	if err != nil {
+		return ""
+	}
+
+	if _, err := os.Stat(controlPanelEnvPath(paths.ControlPanelDir)); err == nil {
+		return requested
+	}
+
+	return ""
 }
 
 func applyCLIInstanceOptions(opts cliOptions) error {
@@ -145,12 +220,27 @@ func applyCLIInstanceOptions(opts cliOptions) error {
 		return nil
 	}
 
+	return initializeInstanceLayout(paths, runtimeDir)
+}
+
+func initializeInstanceLayout(paths *instancePaths, runtimeDir string) error {
 	if err := shared.EnsureDir0755(runtimeDir); err != nil {
 		return fmt.Errorf("create runtime dir %s: %w", runtimeDir, err)
 	}
-	if err := shared.EnsureDir0755(paths.ControlPanelDir); err != nil {
-		return fmt.Errorf("create control panel dir %s: %w", paths.ControlPanelDir, err)
+
+	for _, dir := range []struct {
+		label string
+		path  string
+	}{
+		{label: "control panel", path: paths.ControlPanelDir},
+		{label: "owlcms", path: paths.OwlcmsDir},
+		{label: "tracker", path: paths.TrackerDir},
+	} {
+		if err := shared.EnsureDir0755(dir.path); err != nil {
+			return fmt.Errorf("create %s dir %s: %w", dir.label, dir.path, err)
+		}
 	}
+
 	if err := writeControlPanelEnv(paths.ControlPanelDir, runtimeDir, paths.InstanceName); err != nil {
 		return err
 	}
@@ -183,8 +273,8 @@ func resolveInstancePaths(spec string) (*instancePaths, error) {
 		return &instancePaths{
 			InstanceName:    instanceName,
 			ControlPanelDir: controlPanelDir,
-			OwlcmsDir:       filepath.Join(parent, "owlcms-"+instanceName),
-			TrackerDir:      filepath.Join(parent, "owlcms-tracker-"+instanceName),
+			OwlcmsDir:       resolveOwlcmsDir(parent, instanceName),
+			TrackerDir:      filepath.Join(parent, trackerDirName(instanceName)),
 		}, nil
 	}
 
@@ -195,23 +285,74 @@ func resolveInstancePaths(spec string) (*instancePaths, error) {
 	instanceName := spec
 	return &instancePaths{
 		InstanceName:    instanceName,
-		ControlPanelDir: filepath.Join(baseDir, "owlcms-controlpanel-"+instanceName),
-		OwlcmsDir:       filepath.Join(baseDir, "owlcms-"+instanceName),
-		TrackerDir:      filepath.Join(baseDir, "owlcms-tracker-"+instanceName),
+		ControlPanelDir: filepath.Join(baseDir, controlPanelDirName(instanceName)),
+		OwlcmsDir:       resolveOwlcmsDir(baseDir, instanceName),
+		TrackerDir:      filepath.Join(baseDir, trackerDirName(instanceName)),
 	}, nil
 }
 
 func deriveInstanceName(base string) string {
 	base = strings.TrimSpace(base)
-	for _, prefix := range []string{"owlcms-controlpanel-", "owlcms-controlpanel_", "owlcms-", "owlcms-tracker-"} {
-		if strings.HasPrefix(base, prefix) {
-			trimmed := strings.TrimSpace(strings.TrimPrefix(base, prefix))
+	if base == "" {
+		return ""
+	}
+
+	for _, suffix := range []string{"-controlpanel", "-owlcms", "-tracker"} {
+		if strings.HasSuffix(base, suffix) {
+			trimmed := strings.TrimSpace(strings.TrimSuffix(base, suffix))
 			if trimmed != "" {
 				return trimmed
 			}
 		}
 	}
+
+	for _, baseName := range []string{"owlcms-controlpanel", "owlcms", "owlcms-owlcms", "owlcms-tracker"} {
+		if strings.EqualFold(base, baseName) {
+			return mainInstanceName
+		}
+	}
 	return base
+}
+
+func controlPanelDirName(instanceName string) string {
+	if isMainInstance(instanceName) {
+		return "owlcms-controlpanel"
+	}
+	return instanceName + "-controlpanel"
+}
+
+func trackerDirName(instanceName string) string {
+	if isMainInstance(instanceName) {
+		return "owlcms-tracker"
+	}
+	return instanceName + "-tracker"
+}
+
+func resolveOwlcmsDir(parentDir, instanceName string) string {
+	defaultName := owlcmsDirName(instanceName)
+	if !isMainInstance(instanceName) {
+		return filepath.Join(parentDir, defaultName)
+	}
+
+	for _, name := range []string{"owlcms", "owlcms-owlcms"} {
+		candidate := filepath.Join(parentDir, name)
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate
+		}
+	}
+
+	return filepath.Join(parentDir, defaultName)
+}
+
+func owlcmsDirName(instanceName string) string {
+	if isMainInstance(instanceName) {
+		return "owlcms"
+	}
+	return instanceName + "-owlcms"
+}
+
+func isMainInstance(instanceName string) bool {
+	return strings.EqualFold(strings.TrimSpace(instanceName), mainInstanceName)
 }
 
 func resolveRequestedRuntimeDir(controlPanelDir, runtimeArg string, init bool) (string, error) {
