@@ -8,9 +8,6 @@ on:
         required: true
         type: string
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 jobs:
   build_mac:
     runs-on: macos-15-intel
@@ -26,11 +23,11 @@ jobs:
     steps:
     - name: Checkout code
       if: ${{ env.BUILD_MAC == 'true' }}
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Set up Go
       if: ${{ env.BUILD_MAC == 'true' }}
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version: '1.25.5'
 
@@ -119,7 +116,7 @@ jobs:
 
     - name: Upload macOS amd64 DMG
       if: ${{ env.BUILD_MAC == 'true' }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: build_mac_artifacts
         path: artifacts/*
@@ -134,7 +131,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Install GitHub CLI
       run: |
@@ -142,7 +139,7 @@ jobs:
         sudo dpkg -i gh_2.32.0_linux_amd64.deb
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version: '1.25.5'
 
@@ -290,7 +287,7 @@ jobs:
 
     # Save artifacts for later steps
     - name: Upload build_crosscompile_artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: build_crosscompile_artifacts
         path: artifacts/*
@@ -307,7 +304,7 @@ jobs:
     steps:
     - name: Checkout code
       if: ${{ env.BUILD_WINDOWS == 'true' }}
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Extract tag
       id: extract_tag
@@ -325,7 +322,7 @@ jobs:
 
     - name: Download build_crosscompile_artifacts
       if: ${{ env.BUILD_WINDOWS == 'true' }}
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v7
       with:
         name: build_crosscompile_artifacts
         path: ./dist
@@ -420,7 +417,7 @@ jobs:
 
     - name: Save package_windows_artifacts
       if: ${{ env.BUILD_WINDOWS == 'true' }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: package_windows_artifacts
         path: artifacts/*
@@ -436,7 +433,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
 
     - name: Extract tag
       id: extract_tag
@@ -457,21 +454,21 @@ jobs:
     # one single download for each of the job needs, in the same order
     - name: Download build_mac_artifacts
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v7
       with:
         name: build_mac_artifacts
         path: ./dist
 
     - name: Download build_crosscompile_artifacts
       if: ${{ env.BUILD_LINUX == 'true' }}
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v7
       with:
         name: build_crosscompile_artifacts
         path: ./dist
 
     - name: Download package_windows_artifacts
       if: ${{ env.BUILD_WINDOWS == 'true' }}
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v7
       with:
         name: package_windows_artifacts
         path: ./dist
