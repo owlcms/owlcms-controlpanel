@@ -13,6 +13,10 @@ The control panel is installed once. It will automatically download the correct 
   - These options are Linux-oriented, targeted at virtual privatehosting scenarios.
   - The daemons can be restarted on reboot using systemd
 
+- 3.3.0: Default instance command-line compatibility fixes
+  - controlpanel --init now initializes the main owlcms instance instead of reporting an empty instance name
+  - controlpanel owlcms now keeps working for legacy default installs without requiring stored runtime metadata first
+
 - 3.2.0: Configuration options for OWLCMS
   - the Options menu entries now allow selecting a version
   - a new option to set the port has been added
