@@ -537,18 +537,21 @@ func setupSignalHandling() {
 	}()
 }
 
-// parseDaemonFlags scans args for --owlcms <version|latest|stop> and --tracker <version|latest|stop>.
+// parseDaemonFlags scans args for --owlcms [version|latest|stop] and --tracker [version|latest|stop].
+// When a switch is present without a value, it defaults to "latest".
 // Returns empty strings when the flags are absent.
 func parseDaemonFlags(args []string) (owlcmsVersion, trackerVersion string) {
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--owlcms":
-			if i+1 < len(args) {
+			owlcmsVersion = "latest"
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				i++
 				owlcmsVersion = args[i]
 			}
 		case "--tracker":
-			if i+1 < len(args) {
+			trackerVersion = "latest"
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				i++
 				trackerVersion = args[i]
 			}

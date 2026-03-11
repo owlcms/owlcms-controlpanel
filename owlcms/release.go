@@ -40,10 +40,7 @@ var (
 	releaseNotesLink     *widget.Hyperlink
 	availableVersion     string
 	availableVersionURL  string
-)
-
-func fetchReleases() ([]string, error) {
-	fetchFromURL := func(url string) ([]Release, error) {
+	fetchReleasesFromURL = func(url string) ([]Release, error) {
 		client := &http.Client{Timeout: 5 * time.Second}
 		resp, err := client.Get(url)
 		if err != nil {
@@ -62,27 +59,45 @@ func fetchReleases() ([]string, error) {
 		}
 		return releases, nil
 	}
+)
 
-	// Always fetch stable releases. Fetch prereleases when the checkbox is selected
-	// OR when a prerelease is already installed (so update checks keep working).
-	needPrereleases := showPrereleases
-	for _, v := range getAllInstalledVersions() {
+func fetchReleases() ([]string, error) {
+	return fetchReleasesForCatalog(catalogNeedsPrereleases(showPrereleases, getAllInstalledVersions()))
+}
+
+func catalogNeedsPrereleases(explicitRequest bool, installedVersions []string) bool {
+	if explicitRequest {
+		return true
+	}
+	for _, v := range installedVersions {
 		if containsPreReleaseTag(v) {
-			needPrereleases = true
-			break
+			return true
 		}
 	}
+	return false
+}
+
+func releaseCatalogHasPrerelease(releases []string) bool {
+	for _, release := range releases {
+		if containsPreReleaseTag(release) {
+			return true
+		}
+	}
+	return false
+}
+
+func fetchReleasesForCatalog(includePrereleases bool) ([]string, error) {
 
 	stableURL := "https://api.github.com/repos/owlcms/owlcms4/releases"
 	preURL := "https://api.github.com/repos/owlcms/owlcms4-prerelease/releases"
 
-	stable, err := fetchFromURL(stableURL)
+	stable, err := fetchReleasesFromURL(stableURL)
 	if err != nil {
 		return nil, err
 	}
 	all := append([]Release{}, stable...)
-	if needPrereleases {
-		pre, err := fetchFromURL(preURL)
+	if includePrereleases {
+		pre, err := fetchReleasesFromURL(preURL)
 		if err != nil {
 			return nil, err
 		}
@@ -376,9 +391,11 @@ func InstallDefault(w fyne.Window, usePrerelease bool) {
 		return
 	}
 
-	// Fetch releases on-demand if not already loaded
-	if len(allReleases) == 0 {
-		if r, err := fetchReleases(); err == nil {
+	// Fetch releases on-demand. A prerelease install request must fetch the
+	// prerelease catalog even on first install, before any prerelease is installed.
+	needPrereleaseCatalog := catalogNeedsPrereleases(usePrerelease || showPrereleases, getAllInstalledVersions())
+	if len(allReleases) == 0 || (needPrereleaseCatalog && !releaseCatalogHasPrerelease(allReleases)) {
+		if r, err := fetchReleasesForCatalog(needPrereleaseCatalog); err == nil {
 			allReleases = r
 		} else {
 			log.Printf("OWLCMS InstallDefault: background fetchReleases failed: %v", err)

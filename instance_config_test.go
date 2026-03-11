@@ -234,3 +234,71 @@ func TestImplicitHeadlessInstanceDoesNotOverrideInstalledVersion(t *testing.T) {
 		t.Fatalf("expected CONTROLPANEL_INSTANCE to remain empty, got %q", got)
 	}
 }
+
+func TestParseCLIOptionsUsesBareArgumentAsInstanceName(t *testing.T) {
+	opts := parseCLIOptions([]string{"records", "--owlcms", "latest"})
+
+	if opts.instanceArg != "records" {
+		t.Fatalf("expected instanceArg=records, got %q", opts.instanceArg)
+	}
+}
+
+func TestParseCLIOptionsDoesNotTreatDaemonValueAsInstanceName(t *testing.T) {
+	opts := parseCLIOptions([]string{"--owlcms", "latest"})
+
+	if opts.instanceArg != "" {
+		t.Fatalf("expected empty instanceArg, got %q", opts.instanceArg)
+	}
+}
+
+func TestParseCLIOptionsAllowsPositionalInstanceAfterOtherSwitches(t *testing.T) {
+	opts := parseCLIOptions([]string{"--runtime-dir", "/tmp/runtime", "records", "--tracker", "latest"})
+
+	if opts.runtimeArg != "/tmp/runtime" {
+		t.Fatalf("expected runtimeArg=/tmp/runtime, got %q", opts.runtimeArg)
+	}
+	if opts.instanceArg != "records" {
+		t.Fatalf("expected instanceArg=records, got %q", opts.instanceArg)
+	}
+}
+
+func TestParseCLIOptionsDoesNotTreatPositionalInstanceAsOwlcmsValueWhenValueOmitted(t *testing.T) {
+	opts := parseCLIOptions([]string{"records", "--owlcms"})
+
+	if opts.instanceArg != "records" {
+		t.Fatalf("expected instanceArg=records, got %q", opts.instanceArg)
+	}
+}
+
+func TestParseDaemonFlagsDefaultsMissingValuesToLatest(t *testing.T) {
+	owlcmsValue, trackerValue := parseDaemonFlags([]string{"--owlcms", "--tracker"})
+
+	if owlcmsValue != "latest" {
+		t.Fatalf("expected owlcms value latest, got %q", owlcmsValue)
+	}
+	if trackerValue != "latest" {
+		t.Fatalf("expected tracker value latest, got %q", trackerValue)
+	}
+}
+
+func TestParseDaemonFlagsKeepsExplicitValues(t *testing.T) {
+	owlcmsValue, trackerValue := parseDaemonFlags([]string{"--owlcms", "3.3.0", "--tracker", "stop"})
+
+	if owlcmsValue != "3.3.0" {
+		t.Fatalf("expected owlcms value 3.3.0, got %q", owlcmsValue)
+	}
+	if trackerValue != "stop" {
+		t.Fatalf("expected tracker value stop, got %q", trackerValue)
+	}
+}
+
+func TestParseDaemonFlagsDoesNotConsumePositionalInstance(t *testing.T) {
+	owlcmsValue, trackerValue := parseDaemonFlags([]string{"records", "--owlcms", "--tracker"})
+
+	if owlcmsValue != "latest" {
+		t.Fatalf("expected owlcms value latest, got %q", owlcmsValue)
+	}
+	if trackerValue != "latest" {
+		t.Fatalf("expected tracker value latest, got %q", trackerValue)
+	}
+}

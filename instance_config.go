@@ -46,10 +46,18 @@ func parseCLIOptions(args []string) cliOptions {
 				i++
 				opts.runtimeArg = strings.TrimSpace(args[i])
 			}
+		case "--owlcms", "--tracker":
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
+				i++
+			}
 		case "--init":
 			opts.init = true
 		case "--help", "-h":
 			opts.help = true
+		default:
+			if opts.instanceArg == "" && !strings.HasPrefix(args[i], "-") {
+				opts.instanceArg = strings.TrimSpace(args[i])
+			}
 		}
 	}
 
@@ -61,14 +69,17 @@ func printUsage() {
 	fmt.Println("")
 	fmt.Println("Interactive mode:")
 	fmt.Println("  controlpanel")
+	fmt.Println("  controlpanel <instance-name>")
 	fmt.Println("  controlpanel --instance-dir <name-or-path>")
 	fmt.Println("")
 	fmt.Println("Instance setup:")
 	fmt.Println("  controlpanel --instance-dir <name-or-path> [--runtime-dir <name-or-path>] --init")
 	fmt.Println("")
 	fmt.Println("Headless daemon launch:")
-	fmt.Println("  controlpanel [--instance-dir <name-or-path>] --owlcms <version|latest|stop>")
-	fmt.Println("  controlpanel [--instance-dir <name-or-path>] --tracker <version|latest|stop>")
+	fmt.Println("  controlpanel <instance-name> --owlcms [version|latest|stop]")
+	fmt.Println("  controlpanel <instance-name> --tracker [version|latest|stop]")
+	fmt.Println("  controlpanel [--instance-dir <name-or-path>] --owlcms [version|latest|stop]")
+	fmt.Println("  controlpanel [--instance-dir <name-or-path>] --tracker [version|latest|stop]")
 	fmt.Println("")
 	fmt.Println("Options:")
 	fmt.Println("  --instance-dir, --instance_dir  Instance name or absolute control panel directory")
@@ -76,37 +87,51 @@ func printUsage() {
 	fmt.Println("  --runtime-dir,  --runtime_dir   Shared runtime directory for Java/Node/FFmpeg")
 	fmt.Println("                                  Default: the runtime directory under the default main instance")
 	fmt.Println("  --init                          Initialize the instance directories and exit")
-	fmt.Println("  --owlcms <value>                Start/stop OWLCMS headlessly for a version, latest, or stop")
-	fmt.Println("  --tracker <value>               Start/stop Tracker headlessly for a version, latest, or stop")
+	fmt.Println("  --owlcms [value]                Start/stop OWLCMS headlessly for a version, latest, or stop")
+	fmt.Println("                                  If omitted, value defaults to latest")
+	fmt.Println("  --tracker [value]               Start/stop Tracker headlessly for a version, latest, or stop")
+	fmt.Println("                                  If omitted, value defaults to latest")
 	fmt.Println("                                  If no --instance-dir is given and <value> matches an")
 	fmt.Println("                                  initialized instance name, that instance is selected and")
 	fmt.Println("                                  latest is used for that module")
 	fmt.Println("  --help, -h                      Show this help and exit")
 	fmt.Println("")
 	fmt.Println("Examples:")
-	fmt.Println("  Initialize a new sibling instance named dev2:")
-	fmt.Println("    controlpanel --instance-dir dev2 --init")
+	fmt.Println("  Start OWLCMS interactively for the main instance")
+	fmt.Println("    controlpanel")
+	fmt.Println("    controlpanel owlcms")
 	fmt.Println("")
-	fmt.Println("  Open the dev2 instance in normal interactive mode:")
-	fmt.Println("    controlpanel --instance-dir dev2")
+	fmt.Println("  Start OWLCMS headlessly for the main instance using the latest installed version or a specific version:")
+	fmt.Println("    controlpanel --owlcms")
+	fmt.Println("    controlpanel --owlcms latest")
+	fmt.Println("    controlpanel --owlcms 65.0.0-beta05")
 	fmt.Println("")
-	fmt.Println("  Start OWLCMS and Tracker headlessly for dev2 using the latest installed versions:")
-	fmt.Println("    controlpanel --instance-dir dev2 --owlcms latest --tracker latest")
+	fmt.Println("  Start OWLCMS and Tracker headlessly for the main instance using the latest installed version or a specific version:")
+	fmt.Println("    controlpanel --owlcms --tracker")
+	fmt.Println("    controlpanel --owlcms latest --tracker latest")
+	fmt.Println("    controlpanel --owlcms 65.0.0-beta05 --tracker 2.3.0")
 	fmt.Println("")
-	fmt.Println("  Start specific installed versions for dev2:")
-	fmt.Println("    controlpanel --instance-dir dev2 --owlcms 64.2.0+records --tracker 2.3.0")
+	fmt.Println("  Stop the running OWLCMS daemon for the main instance:")
+	fmt.Println("    controlpanel --owlcms stop")
+	fmt.Println("  Stop both daemons for the main instance:")
+	fmt.Println("    controlpanel --owlcms stop --tracker stop")
 	fmt.Println("")
-	fmt.Println("  Stop the running OWLCMS daemon for dev2:")
-	fmt.Println("    controlpanel --instance-dir dev2 --owlcms stop")
+	fmt.Println("  Initialize a new sibling instance named records:")
+	fmt.Println("    controlpanel records --init")
 	fmt.Println("")
-	fmt.Println("  Stop the running Tracker daemon for dev2:")
-	fmt.Println("    controlpanel --instance-dir dev2 --tracker stop")
+	fmt.Println("  To control a specific control panel instance, specify the instance name")
+	fmt.Println("  Open the records instance in normal interactive mode:")
+	fmt.Println("    controlpanel records")
 	fmt.Println("")
-	fmt.Println("  Stop both daemons for dev2:")
-	fmt.Println("    controlpanel --instance-dir dev2 --owlcms stop --tracker stop")
+	fmt.Println("  Start OWLCMS headlessly for records using the latest installed version:")
+	fmt.Println("    controlpanel records --owlcms")
 	fmt.Println("")
-	fmt.Println("  Compatibility shorthand for an initialized instance named records:")
-	fmt.Println("    controlpanel --owlcms records")
+	fmt.Println("  Start specific installed versions for records:")
+	fmt.Println("    controlpanel records --owlcms 64.2.0+records --tracker 2.3.0")
+	fmt.Println("")
+	fmt.Println("  Stop both daemons for records:")
+	fmt.Println("    controlpanel records --owlcms stop --tracker stop")
+	fmt.Println("")
 }
 
 func maybeApplyImplicitInstanceForHeadless(opts cliOptions, owlcmsVersion, trackerVersion string) (string, string, error) {
