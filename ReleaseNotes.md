@@ -11,6 +11,7 @@ The control panel is installed once. It will automatically download the correct 
 - 3.3.0: Command-line options for multiple instances and Linux daemon mode
   - Run controlpanel --help for details
   - These options are Linux-oriented, targeted at virtual privatehosting scenarios.
+  - The daemons can be restarted on reboot using systemd
 
 - 3.2.0: Configuration options for OWLCMS
   - the Options menu entries now allow selecting a version

@@ -71,10 +71,13 @@ func clearRuntimeState() {
 
 type owlcmsLaunchParams struct {
 	VersionDir string
+	JarPath    string
 	JavaPath   string
 	TargetPort string
 	Env        []string
 }
+
+const daemonMainClass = "app.owlcms.MainWrapper"
 
 // prepareOwlcmsLaunch resolves paths, verifies the jar exists, finds Java,
 // loads the release environment, and builds the process env slice.
@@ -121,10 +124,18 @@ func prepareOwlcmsLaunch(version string) (*owlcmsLaunchParams, error) {
 
 	return &owlcmsLaunchParams{
 		VersionDir: versionDir,
+		JarPath:    jarPath,
 		JavaPath:   localJava,
 		TargetPort: targetPort,
 		Env:        env,
 	}, nil
+}
+
+func buildOwlcmsCommand(params *owlcmsLaunchParams, useDaemonWrapper bool) *exec.Cmd {
+	if useDaemonWrapper {
+		return exec.Command(params.JavaPath, "-cp", params.JarPath, daemonMainClass)
+	}
+	return exec.Command(params.JavaPath, "-jar", filepath.Base(params.JarPath))
 }
 
 // recordOwlcmsStart writes the PID file and runtime metadata after a successful cmd.Start().
@@ -162,7 +173,7 @@ func LaunchDaemon(version string) error {
 		return err
 	}
 
-	cmd := exec.Command(params.JavaPath, "-jar", "owlcms.jar")
+	cmd := buildOwlcmsCommand(params, true)
 	shared.ConfigureDetachedDaemonProcess(cmd, true)
 	cmd.Env = params.Env
 	cmd.Dir = params.VersionDir
@@ -303,8 +314,9 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 
 	var launchAttempt func(retryCount int)
 	launchAttempt = func(retryCount int) {
-		cmd := exec.Command(params.JavaPath, "-jar", "owlcms.jar")
-		shared.ConfigureDetachedDaemonProcess(cmd, shared.GetGoos() == "linux" && shared.IsRunAsDaemonEnabled())
+		useDaemonWrapper := shared.GetGoos() == "linux" && shared.IsRunAsDaemonEnabled()
+		cmd := buildOwlcmsCommand(params, useDaemonWrapper)
+		shared.ConfigureDetachedDaemonProcess(cmd, useDaemonWrapper)
 		cmd.Env = params.Env
 		cmd.Dir = params.VersionDir
 
