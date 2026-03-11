@@ -47,6 +47,49 @@ func TestInitCreatesFullInstanceLayout(t *testing.T) {
 	}
 }
 
+func TestInitWithoutInstanceUsesMainInstance(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("GOOS", "linux")
+	t.Setenv("APPDATA", "")
+	t.Setenv("CONTROLPANEL_INSTALLDIR", "")
+	t.Setenv("OWLCMS_INSTALLDIR", "")
+	t.Setenv("TRACKER_INSTALLDIR", "")
+	t.Setenv("RUNTIME_DIR", "")
+	t.Setenv("CONTROLPANEL_INSTANCE", "")
+	resetInstallDirsForTest()
+
+	if err := applyCLIInstanceOptions(cliOptions{init: true}); err != nil {
+		t.Fatalf("initialize default instance: %v", err)
+	}
+
+	base := filepath.Join(home, ".local", "share")
+	checks := []string{
+		filepath.Join(base, "owlcms-controlpanel"),
+		filepath.Join(base, "owlcms-controlpanel", controlPanelEnvFileName),
+		filepath.Join(base, "owlcms"),
+		filepath.Join(base, "owlcms", "env.properties"),
+		filepath.Join(base, "owlcms-tracker"),
+		filepath.Join(base, "owlcms-tracker", "env.properties"),
+	}
+
+	for _, path := range checks {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected %s to exist: %v", path, err)
+		}
+	}
+
+	if got := os.Getenv("CONTROLPANEL_INSTANCE"); got != mainInstanceName {
+		t.Fatalf("expected CONTROLPANEL_INSTANCE=%s, got %q", mainInstanceName, got)
+	}
+	if got := os.Getenv("RUNTIME_DIR"); got != filepath.Join(base, "owlcms-controlpanel") {
+		t.Fatalf("expected RUNTIME_DIR to default to main control panel dir, got %q", got)
+	}
+	if got := shared.GetControlPanelInstallDir(); got != filepath.Join(base, "owlcms-controlpanel") {
+		t.Fatalf("expected control panel dir %q, got %q", filepath.Join(base, "owlcms-controlpanel"), got)
+	}
+}
+
 func TestImplicitHeadlessInstanceUsesInitializedInstance(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -88,6 +131,50 @@ func TestImplicitHeadlessInstanceUsesInitializedInstance(t *testing.T) {
 	wantOwlcmsDir = filepath.Join(home, ".local", "share", "records-owlcms")
 	if got := owlcms.GetInstallDir(); got != wantOwlcmsDir {
 		t.Fatalf("expected owlcms install dir %q, got %q", wantOwlcmsDir, got)
+	}
+}
+
+func TestMainInstanceDoesNotRequireStoredRuntimeDir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("GOOS", "linux")
+	t.Setenv("APPDATA", "")
+	t.Setenv("CONTROLPANEL_INSTALLDIR", "")
+	t.Setenv("OWLCMS_INSTALLDIR", "")
+	t.Setenv("TRACKER_INSTALLDIR", "")
+	t.Setenv("RUNTIME_DIR", "")
+	t.Setenv("CONTROLPANEL_INSTANCE", "")
+	resetInstallDirsForTest()
+
+	base := filepath.Join(home, ".local", "share")
+	for _, dir := range []string{
+		filepath.Join(base, "owlcms-controlpanel"),
+		filepath.Join(base, "owlcms"),
+		filepath.Join(base, "owlcms-tracker"),
+	} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatalf("create %s: %v", dir, err)
+		}
+	}
+
+	if err := applyCLIInstanceOptions(cliOptions{instanceArg: mainInstanceName}); err != nil {
+		t.Fatalf("use main instance without init metadata: %v", err)
+	}
+
+	if got := os.Getenv("RUNTIME_DIR"); got != filepath.Join(base, "owlcms-controlpanel") {
+		t.Fatalf("expected default main runtime dir, got %q", got)
+	}
+	if got := os.Getenv("CONTROLPANEL_INSTANCE"); got != mainInstanceName {
+		t.Fatalf("expected CONTROLPANEL_INSTANCE=%s, got %q", mainInstanceName, got)
+	}
+	if got := shared.GetControlPanelInstallDir(); got != filepath.Join(base, "owlcms-controlpanel") {
+		t.Fatalf("expected control panel dir %q, got %q", filepath.Join(base, "owlcms-controlpanel"), got)
+	}
+	if got := owlcms.GetInstallDir(); got != filepath.Join(base, "owlcms") {
+		t.Fatalf("expected owlcms dir %q, got %q", filepath.Join(base, "owlcms"), got)
+	}
+	if got := tracker.GetInstallDir(); got != filepath.Join(base, "owlcms-tracker") {
+		t.Fatalf("expected tracker dir %q, got %q", filepath.Join(base, "owlcms-tracker"), got)
 	}
 }
 

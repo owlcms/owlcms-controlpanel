@@ -202,16 +202,21 @@ func implicitInstanceCandidate(requested, installDir string) string {
 }
 
 func applyCLIInstanceOptions(opts cliOptions) error {
-	if strings.TrimSpace(opts.instanceArg) == "" {
+	instanceArg := strings.TrimSpace(opts.instanceArg)
+	if instanceArg == "" && opts.init {
+		instanceArg = mainInstanceName
+	}
+
+	if instanceArg == "" {
 		return nil
 	}
 
-	paths, err := resolveInstancePaths(opts.instanceArg)
+	paths, err := resolveInstancePaths(instanceArg)
 	if err != nil {
 		return err
 	}
 
-	runtimeDir, err := resolveRequestedRuntimeDir(paths.ControlPanelDir, opts.runtimeArg, opts.init)
+	runtimeDir, err := resolveRequestedRuntimeDir(paths.ControlPanelDir, paths.InstanceName, opts.runtimeArg, opts.init)
 	if err != nil {
 		return err
 	}
@@ -238,6 +243,9 @@ func applyCLIInstanceOptions(opts cliOptions) error {
 	if !opts.init {
 		if _, err := os.Stat(controlPanelEnvPath(paths.ControlPanelDir)); err != nil {
 			if os.IsNotExist(err) {
+				if isMainInstance(paths.InstanceName) {
+					return nil
+				}
 				return fmt.Errorf("instance %q is not initialized; run with --instance-dir %s --init first", paths.InstanceName, paths.InstanceName)
 			}
 			return err
@@ -380,7 +388,7 @@ func isMainInstance(instanceName string) bool {
 	return strings.EqualFold(strings.TrimSpace(instanceName), mainInstanceName)
 }
 
-func resolveRequestedRuntimeDir(controlPanelDir, runtimeArg string, init bool) (string, error) {
+func resolveRequestedRuntimeDir(controlPanelDir, instanceName, runtimeArg string, init bool) (string, error) {
 	runtimeArg = strings.TrimSpace(runtimeArg)
 	if runtimeArg != "" {
 		return resolveRuntimeDir(runtimeArg), nil
@@ -394,11 +402,15 @@ func resolveRequestedRuntimeDir(controlPanelDir, runtimeArg string, init bool) (
 		return stored, nil
 	}
 
+	if isMainInstance(instanceName) {
+		return shared.DefaultControlPanelInstallDir(), nil
+	}
+
 	if init {
 		return shared.DefaultControlPanelInstallDir(), nil
 	}
 
-	return "", fmt.Errorf("instance %q has no stored runtime dir; run with --init first", filepath.Base(controlPanelDir))
+	return "", fmt.Errorf("instance %q has no stored runtime dir; run with --init first", instanceName)
 }
 
 func resolveRuntimeDir(spec string) string {

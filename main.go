@@ -90,7 +90,11 @@ func main() {
 		}
 	}
 	if cliOptions.init {
-		fmt.Printf("Initialized instance %q\n", cliOptions.instanceArg)
+		initializedInstance := strings.TrimSpace(os.Getenv("CONTROLPANEL_INSTANCE"))
+		if initializedInstance == "" {
+			initializedInstance = strings.TrimSpace(cliOptions.instanceArg)
+		}
+		fmt.Printf("Initialized instance %q\n", initializedInstance)
 		fmt.Printf("control panel dir: %s\n", shared.GetControlPanelInstallDir())
 		fmt.Printf("owlcms dir:        %s\n", shared.GetOwlcmsInstallDir())
 		fmt.Printf("tracker dir:       %s\n", shared.GetTrackerInstallDir())
