@@ -522,7 +522,13 @@ func setupSignalHandling() {
 			os.Exit(1)
 		}()
 
-		if daemonModeEnabled() {
+		if shared.IsRunningUnderSystemd() {
+			// Under systemd the Go process owns the child — stop everything
+			// so systemctl stop actually terminates OWLCMS/Tracker.
+			log.Println("Running under systemd — stopping all processes due to signal...")
+			stopAllRunningProcessesForSignal()
+			log.Println("All processes stopped.")
+		} else if daemonModeEnabled() {
 			if anyLocalProgramRunning() {
 				log.Println("Stopping local running processes due to signal while daemon mode is enabled...")
 				stopLocalRunningProcessesForSignal()

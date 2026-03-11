@@ -28,6 +28,12 @@ type RuntimeMetadata struct {
 
 const RunAsDaemonEnv = "CONTROLPANEL_RUN_AS_DAEMON"
 
+// IsRunningUnderSystemd returns true when the current process was started by systemd.
+// systemd sets INVOCATION_ID for service processes, which makes this check cheap and reliable.
+func IsRunningUnderSystemd() bool {
+	return strings.TrimSpace(os.Getenv("INVOCATION_ID")) != ""
+}
+
 // IsRunAsDaemonEnabled returns true when daemon mode is enabled for this control panel process.
 func IsRunAsDaemonEnabled() bool {
 	value := strings.TrimSpace(strings.ToLower(os.Getenv(RunAsDaemonEnv)))

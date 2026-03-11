@@ -79,6 +79,10 @@ type owlcmsLaunchParams struct {
 
 const daemonMainClass = "app.owlcms.MainWrapper"
 
+func shouldUseOwlcmsDaemonWrapper() bool {
+	return shared.GetGoos() == "linux" && shared.IsRunAsDaemonEnabled() && !shared.IsRunningUnderSystemd()
+}
+
 // prepareOwlcmsLaunch resolves paths, verifies the jar exists, finds Java,
 // loads the release environment, and builds the process env slice.
 // Callers must ensure InitEnv() has been called before this.
@@ -155,7 +159,9 @@ func recordOwlcmsStart(pid int, version, port string) *shared.RuntimeMetadata {
 }
 
 // LaunchDaemon starts OWLCMS headlessly (no UI) in daemon mode.
-// It forces daemon/detach, writes runtime metadata, waits for the port to respond, then returns.
+// Under systemd it stays in the foreground, waits on the process, and restarts
+// on non-zero exit (same supervision as the interactive launcher).
+// Otherwise it detaches the child and returns once the port is ready.
 func LaunchDaemon(version string) error {
 	log.Printf("LaunchDaemon: starting OWLCMS %s headlessly", version)
 
@@ -173,8 +179,98 @@ func LaunchDaemon(version string) error {
 		return err
 	}
 
-	cmd := buildOwlcmsCommand(params, true)
-	shared.ConfigureDetachedDaemonProcess(cmd, true)
+	if shared.IsRunningUnderSystemd() {
+		return launchDaemonForeground(version, params)
+	}
+	return launchDaemonDetached(version, params)
+}
+
+// launchDaemonForeground is the headless equivalent of launchOwlcms (the
+// interactive GUI launcher).  Both share the same supervision contract:
+//
+//  1. Start OWLCMS using Main (the normal jar entry point).
+//  2. Wait for the port to come up.
+//  3. Block on cmd.Wait().
+//  4. If the process exits with a non-zero code, restart it (up to
+//     maxRestartRetries times with restartDelay between attempts).
+//  5. If it exits cleanly (code 0), stop.
+//
+// The interactive version (launchOwlcms) adds UI updates, startup-log
+// monitoring, and runs the wait/restart loop inside goroutines so the
+// Fyne event loop stays responsive.  This version is purely synchronous
+// because under systemd the Go process must stay alive for the service
+// manager to see it as running.
+//
+// NOTE: if the retry constants or restart logic change in launchOwlcms,
+// the same change should be applied here.
+func launchDaemonForeground(version string, params *owlcmsLaunchParams) error {
+	const maxRestartRetries = 3          // same as launchOwlcms
+	const restartDelay = 1 * time.Second // same as launchOwlcms
+
+	for attempt := 0; ; attempt++ {
+		cmd := buildOwlcmsCommand(params, false)
+		cmd.Env = params.Env
+		cmd.Dir = params.VersionDir
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		log.Printf("LaunchDaemon(systemd): command %v in %s (attempt %d)", cmd.Args, params.VersionDir, attempt)
+		if err := cmd.Start(); err != nil {
+			return fmt.Errorf("failed to start OWLCMS %s: %w", version, err)
+		}
+
+		pid := cmd.Process.Pid
+		activeRuntime = recordOwlcmsStart(pid, version, params.TargetPort)
+		log.Printf("LaunchDaemon(systemd): OWLCMS %s (PID %d), waiting for port %s...", version, pid, params.TargetPort)
+
+		// Wait for the port to come up before declaring success.
+		deadline := time.Now().Add(60 * time.Second)
+		ready := false
+		for time.Now().Before(deadline) {
+			if shared.CheckPort(params.TargetPort) == nil {
+				ready = true
+				break
+			}
+			if !shared.IsProcessRunning(pid) {
+				break
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+
+		if ready {
+			log.Printf("LaunchDaemon(systemd): OWLCMS %s ready on port %s (PID %d)", version, params.TargetPort, pid)
+			fmt.Printf("owlcms %s started successfully\n", version)
+		}
+
+		// Block until the process exits.
+		waitErr := cmd.Wait()
+		clearRuntimeState()
+
+		if waitErr == nil {
+			log.Printf("LaunchDaemon(systemd): OWLCMS %s exited normally", version)
+			return nil
+		}
+
+		var exitErr *exec.ExitError
+		if errors.As(waitErr, &exitErr) && exitErr.ExitCode() != 0 && attempt < maxRestartRetries {
+			log.Printf("LaunchDaemon(systemd): OWLCMS %s (PID %d) exited with code %d; restarting in %s (attempt %d/%d)",
+				version, pid, exitErr.ExitCode(), restartDelay, attempt+1, maxRestartRetries)
+			time.Sleep(restartDelay)
+			continue
+		}
+
+		return fmt.Errorf("OWLCMS %s exited: %w", version, waitErr)
+	}
+}
+
+// launchDaemonDetached starts OWLCMS detached using MainWrapper and setsid.
+// This is the original fire-and-forget behavior for interactive daemon mode
+// ("Run as daemon" checkbox) where the Go process exits and the Java child
+// survives.  Not used under systemd.
+func launchDaemonDetached(version string, params *owlcmsLaunchParams) error {
+	useDaemonWrapper := shouldUseOwlcmsDaemonWrapper()
+	cmd := buildOwlcmsCommand(params, useDaemonWrapper)
+	shared.ConfigureDetachedDaemonProcess(cmd, useDaemonWrapper)
 	cmd.Env = params.Env
 	cmd.Dir = params.VersionDir
 
@@ -266,10 +362,15 @@ func killLockingProcess() error {
 	return nil
 }
 
+// launchOwlcms is the interactive (GUI) launcher.  It shares the same
+// supervision contract as launchDaemonForeground — start, wait, restart
+// on non-zero exit — but the wait/restart loop runs inside goroutines so
+// the Fyne UI thread stays responsive.  See launchDaemonForeground for
+// the synchronous headless equivalent used under systemd.
 func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 	currentVersion = version
-	const maxRestartRetries = 3
-	const restartDelay = 1 * time.Second
+	const maxRestartRetries = 3          // same as launchDaemonForeground
+	const restartDelay = 1 * time.Second // same as launchDaemonForeground
 
 	var err error
 	lock, err = acquireJavaLock()
@@ -314,7 +415,7 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 
 	var launchAttempt func(retryCount int)
 	launchAttempt = func(retryCount int) {
-		useDaemonWrapper := shared.GetGoos() == "linux" && shared.IsRunAsDaemonEnabled()
+		useDaemonWrapper := shouldUseOwlcmsDaemonWrapper()
 		cmd := buildOwlcmsCommand(params, useDaemonWrapper)
 		shared.ConfigureDetachedDaemonProcess(cmd, useDaemonWrapper)
 		cmd.Env = params.Env

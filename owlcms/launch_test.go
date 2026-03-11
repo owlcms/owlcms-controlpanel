@@ -2,6 +2,24 @@ package owlcms
 
 import "testing"
 
+func TestShouldUseOwlcmsDaemonWrapperForDetachedDaemonMode(t *testing.T) {
+	t.Setenv("CONTROLPANEL_RUN_AS_DAEMON", "true")
+	t.Setenv("INVOCATION_ID", "")
+
+	if !shouldUseOwlcmsDaemonWrapper() {
+		t.Fatalf("expected detached daemon launches to use MainWrapper")
+	}
+}
+
+func TestShouldUseOwlcmsDaemonWrapperDisabledUnderSystemd(t *testing.T) {
+	t.Setenv("CONTROLPANEL_RUN_AS_DAEMON", "true")
+	t.Setenv("INVOCATION_ID", "systemd-123")
+
+	if shouldUseOwlcmsDaemonWrapper() {
+		t.Fatalf("expected systemd launches to skip MainWrapper")
+	}
+}
+
 func TestBuildOwlcmsCommandUsesMainWrapperForDaemonMode(t *testing.T) {
 	params := &owlcmsLaunchParams{
 		JavaPath: "/tmp/java",

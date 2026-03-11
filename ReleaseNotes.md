@@ -11,7 +11,9 @@ The control panel is installed once. It will automatically download the correct 
 - 3.3.0: Command-line options for multiple instances and Linux daemon mode
   - Run controlpanel --help for details
   - These options are Linux-oriented, targeted at virtual privatehosting scenarios.
-  - The daemons can be restarted on reboot using systemd
+  - A daemon mode is provided
+    - Under systemd, the Go process stays alive and supervises OWLCMS (restart on non-zero exit).
+    - From a terminal, the Go process exits after launch and a Java helper (MainWrapper) babysits OWLCMS in the background, surviving logout.
 
 - 3.3.0: Default instance command-line compatibility fixes
   - controlpanel --init now initializes the main owlcms instance instead of reporting an empty instance name
