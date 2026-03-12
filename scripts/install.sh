@@ -6,8 +6,6 @@
 
 set -e
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-
 REPO="owlcms/owlcms-controlpanel"
 
 # Pick the right .deb for this architecture
@@ -79,8 +77,6 @@ curl -fsSL -o "$TMP_DEB" "$DOWNLOAD_URL"
 
 echo "Installing package..."
 sudo apt-get install -y "$TMP_DEB"
-
-"${SCRIPT_DIR}/restart.sh"
 
 echo ""
 echo "Done. owlcms Control Panel ${VERSION} is installed."
