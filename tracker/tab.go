@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 
 	"controlpanel/shared"
 
@@ -325,25 +327,23 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 	}
 	processMenu := shared.CreateMenuButton("Processes", processMenuItems)
 
-	// Create the Options menu button with popup (Linux only has daemon toggle)
-	var optionsMenu *widget.Button
+	// Create the Options menu button with popup
+	setPortItem := fyne.NewMenuItem("Port Number", func() {
+		showPortNumberDialog(w)
+	})
+	optionsMenuItems := []*fyne.MenuItem{setPortItem}
 	if shared.GetGoos() == "linux" {
-		optionsMenuItems := []*fyne.MenuItem{
-			fyne.NewMenuItem("Run as daemon", func() {
-				showDaemonModeDialog(w)
-			}),
-		}
-		optionsMenu = shared.CreateMenuButton("Options", optionsMenuItems)
+		optionsMenuItems = append(optionsMenuItems, fyne.NewMenuItem("Run as daemon", func() {
+			showDaemonModeDialog(w)
+		}))
 	}
+	optionsMenu := shared.CreateMenuButton("Options", optionsMenuItems)
 
 	// Add small vertical padding
 	spacer := canvas.NewRectangle(color.Transparent)
 	spacer.SetMinSize(fyne.NewSize(1, 5))
 
-	menuRow := container.NewHBox(fileMenu, processMenu)
-	if optionsMenu != nil {
-		menuRow.Add(optionsMenu)
-	}
+	menuRow := container.NewHBox(fileMenu, processMenu, optionsMenu)
 
 	return container.NewVBox(
 		spacer,
@@ -384,6 +384,46 @@ func showDaemonModeDialog(w fyne.Window) {
 		w,
 	)
 	d.Show()
+}
+
+func showPortNumberDialog(w fyne.Window) {
+	portEntry := widget.NewEntry()
+	portEntry.SetPlaceHolder("8096")
+	portEntry.SetText(GetPort())
+
+	dialog.ShowForm(
+		"Tracker Port Number",
+		"Save",
+		"Cancel",
+		[]*widget.FormItem{
+			widget.NewFormItem("Port Number", portEntry),
+		},
+		func(ok bool) {
+			if !ok {
+				return
+			}
+
+			newPort := strings.TrimSpace(portEntry.Text)
+			if newPort == "" {
+				dialog.ShowError(fmt.Errorf("port number is required"), w)
+				return
+			}
+
+			portNumber, err := strconv.Atoi(newPort)
+			if err != nil || portNumber < 1 || portNumber > 65535 {
+				dialog.ShowError(fmt.Errorf("port number must be an integer between 1 and 65535"), w)
+				return
+			}
+
+			if err := SaveProperty("TRACKER_PORT", newPort); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to save tracker port: %w", err), w)
+				return
+			}
+
+			dialog.ShowInformation("Port Updated", fmt.Sprintf("Tracker port set to %s. Restart the tracker to apply the new port.", newPort), w)
+		},
+		w,
+	)
 }
 
 func refreshAvailableVersions(w fyne.Window) {

@@ -407,28 +407,32 @@ func showDaemonModeDialog(w fyne.Window) {
 }
 
 func showTrackerConnectionDialog(w fyne.Window) {
+	trackerInstalled := len(tracker.GetAllInstalledVersions()) > 0
+	if !trackerInstalled {
+		dialog.ShowInformation("No Tracker Installed", "Install a Tracker version first (on the Tracker tab), then configure the connection.", w)
+		return
+	}
+
 	installedVersions := getAllInstalledVersions()
 	if len(installedVersions) == 0 {
 		dialog.ShowInformation("No Installed Versions", "Install an OWLCMS version first, then configure tracker connection.", w)
 		return
 	}
 
-	enabledCheck := widget.NewCheck("Enable connection to local tracker", nil)
+	trackerPort := tracker.GetPort()
+
+	enabledCheck := widget.NewCheck(fmt.Sprintf("Enable connection to local tracker (port %s)", trackerPort), nil)
 	statusLabel := widget.NewLabel("")
 	statusLabel.Wrapping = fyne.TextWrapWord
 
-	updateStatusText := func(selected string, isEnabled bool, configuredPort string) {
+	updateStatusText := func(selected string, isEnabled bool) {
 		if selected == "" {
 			statusLabel.SetText("")
 			return
 		}
 
-		trackerPort := strings.TrimSpace(configuredPort)
-		if trackerPort == "" {
-			trackerPort = tracker.GetPort()
-		}
 		if isEnabled {
-			statusLabel.SetText(fmt.Sprintf("Version %s will connect to Tracker on port %s.", selected, trackerPort))
+			statusLabel.SetText(fmt.Sprintf("Version %s will connect to Tracker on port %s.\nChange the tracker port on the Tracker tab.", selected, trackerPort))
 		} else {
 			statusLabel.SetText(fmt.Sprintf("Version %s will not connect to the local Tracker.", selected))
 		}
@@ -443,14 +447,14 @@ func showTrackerConnectionDialog(w fyne.Window) {
 		configuredPort := GetTrackerConnectionPortForRelease(selected)
 		isEnabled := configuredPort != ""
 		enabledCheck.SetChecked(isEnabled)
-		updateStatusText(selected, isEnabled, configuredPort)
+		updateStatusText(selected, isEnabled)
 	}
 
 	versionSelect := widget.NewSelect(installedVersions, func(selected string) {
 		updateState(selected)
 	})
 	enabledCheck.OnChanged = func(checked bool) {
-		updateStatusText(versionSelect.Selected, checked, GetTrackerConnectionPortForRelease(versionSelect.Selected))
+		updateStatusText(versionSelect.Selected, checked)
 	}
 	versionSelect.SetSelected(installedVersions[0])
 	updateState(installedVersions[0])
@@ -478,8 +482,6 @@ func showTrackerConnectionDialog(w fyne.Window) {
 				dialog.ShowError(fmt.Errorf("select an OWLCMS version"), w)
 				return
 			}
-
-			trackerPort := tracker.GetPort()
 
 			if enabledCheck.Checked {
 				if err := ConfigureTrackerConnectionForRelease(targetVersion, trackerPort); err != nil {
