@@ -48,10 +48,33 @@ func GetPort() string {
 	return port
 }
 
+func loadEnvironmentForReleaseProps(releaseVersion string) (*properties.Properties, error) {
+	if err := InitEnv(); err != nil {
+		return nil, err
+	}
+
+	return shared.MergeEnvironmentProperties(
+		filepath.Join(installDir, "env.properties"),
+		filepath.Join(installDir, strings.TrimSpace(releaseVersion), "env.properties"),
+	)
+}
+
 // GetPortForRelease returns the effective TRACKER_PORT for a selected release,
 // falling back to the shared env.properties value.
 func GetPortForRelease(releaseVersion string) string {
-	return GetPort()
+	merged, err := loadEnvironmentForReleaseProps(releaseVersion)
+	if err != nil || merged == nil {
+		if err != nil {
+			log.Printf("Falling back to shared tracker port for %s: %v", strings.TrimSpace(releaseVersion), err)
+		}
+		return GetPort()
+	}
+
+	port, ok := merged.Get("TRACKER_PORT")
+	if !ok || strings.TrimSpace(port) == "" {
+		return "8096"
+	}
+	return strings.TrimSpace(port)
 }
 
 // GetRunAsDaemon returns true if the control panel should leave OWLCMS and Tracker
@@ -173,14 +196,7 @@ func InitEnv() error {
 // LoadEnvironmentForRelease loads the shared tracker env.properties and overlays
 // any version-specific env.properties for the selected release.
 func LoadEnvironmentForRelease(releaseVersion string) error {
-	if err := InitEnv(); err != nil {
-		return err
-	}
-
-	merged, err := shared.MergeEnvironmentProperties(
-		filepath.Join(installDir, "env.properties"),
-		filepath.Join(installDir, strings.TrimSpace(releaseVersion), "env.properties"),
-	)
+	merged, err := loadEnvironmentForReleaseProps(releaseVersion)
 	if err != nil {
 		return err
 	}

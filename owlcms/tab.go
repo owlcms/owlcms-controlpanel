@@ -417,13 +417,16 @@ func showTrackerConnectionDialog(w fyne.Window) {
 	statusLabel := widget.NewLabel("")
 	statusLabel.Wrapping = fyne.TextWrapWord
 
-	updateStatusText := func(selected string, isEnabled bool) {
+	updateStatusText := func(selected string, isEnabled bool, configuredPort string) {
 		if selected == "" {
 			statusLabel.SetText("")
 			return
 		}
 
-		trackerPort := tracker.GetPort()
+		trackerPort := strings.TrimSpace(configuredPort)
+		if trackerPort == "" {
+			trackerPort = tracker.GetPort()
+		}
 		if isEnabled {
 			statusLabel.SetText(fmt.Sprintf("Version %s will connect to Tracker on port %s.", selected, trackerPort))
 		} else {
@@ -437,16 +440,17 @@ func showTrackerConnectionDialog(w fyne.Window) {
 			return
 		}
 
-		isEnabled := GetTrackerConnectionEnabledForRelease(selected)
+		configuredPort := GetTrackerConnectionPortForRelease(selected)
+		isEnabled := configuredPort != ""
 		enabledCheck.SetChecked(isEnabled)
-		updateStatusText(selected, isEnabled)
+		updateStatusText(selected, isEnabled, configuredPort)
 	}
 
 	versionSelect := widget.NewSelect(installedVersions, func(selected string) {
 		updateState(selected)
 	})
 	enabledCheck.OnChanged = func(checked bool) {
-		updateStatusText(versionSelect.Selected, checked)
+		updateStatusText(versionSelect.Selected, checked, GetTrackerConnectionPortForRelease(versionSelect.Selected))
 	}
 	versionSelect.SetSelected(installedVersions[0])
 	updateState(installedVersions[0])
@@ -476,10 +480,9 @@ func showTrackerConnectionDialog(w fyne.Window) {
 			}
 
 			trackerPort := tracker.GetPort()
-			trackerURL := fmt.Sprintf("ws://127.0.0.1:%s/ws", trackerPort)
 
 			if enabledCheck.Checked {
-				if err := SavePropertyForRelease(targetVersion, "OWLCMS_VIDEODATA", trackerURL); err != nil {
+				if err := ConfigureTrackerConnectionForRelease(targetVersion, trackerPort); err != nil {
 					dialog.ShowError(fmt.Errorf("failed to enable tracker connection: %w", err), w)
 					return
 				}
@@ -487,7 +490,7 @@ func showTrackerConnectionDialog(w fyne.Window) {
 				return
 			}
 
-			if err := DeletePropertyForRelease(targetVersion, "OWLCMS_VIDEODATA"); err != nil {
+			if err := DeletePropertyForRelease(targetVersion, trackerConnectionEnv); err != nil {
 				dialog.ShowError(fmt.Errorf("failed to disable tracker connection: %w", err), w)
 				return
 			}

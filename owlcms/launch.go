@@ -78,15 +78,27 @@ type owlcmsLaunchParams struct {
 }
 
 const daemonMainClass = "app.owlcms.MainWrapper"
+const embeddedMQTTEnv = "OWLCMS_ENABLEEMBEDDEDMQTT"
 
 func shouldUseOwlcmsDaemonWrapper() bool {
 	return shared.GetGoos() == "linux" && shared.IsRunAsDaemonEnabled() && !shared.IsRunningUnderSystemd()
 }
 
+func setEnvValue(env []string, key, value string) []string {
+	prefix := key + "="
+	filtered := env[:0]
+	for _, entry := range env {
+		if !strings.HasPrefix(entry, prefix) {
+			filtered = append(filtered, entry)
+		}
+	}
+	return append(filtered, prefix+value)
+}
+
 // prepareOwlcmsLaunch resolves paths, verifies the jar exists, finds Java,
 // loads the release environment, and builds the process env slice.
 // Callers must ensure InitEnv() has been called before this.
-func prepareOwlcmsLaunch(version string) (*owlcmsLaunchParams, error) {
+func prepareOwlcmsLaunch(version string, embeddedMQTTOverride *bool) (*owlcmsLaunchParams, error) {
 	if _, err := os.Stat(installDir); os.IsNotExist(err) {
 		if err := shared.EnsureDir0755(installDir); err != nil {
 			return nil, fmt.Errorf("creating owlcms directory: %w", err)
@@ -125,6 +137,14 @@ func prepareOwlcmsLaunch(version string) (*owlcmsLaunchParams, error) {
 		log.Printf("   %s=%s", key, value)
 		env = append(env, fmt.Sprintf("%s=%s", key, value))
 	}
+	if embeddedMQTTOverride != nil {
+		value := "false"
+		if *embeddedMQTTOverride {
+			value = "true"
+		}
+		log.Printf("   %s=%s (command-line override)", embeddedMQTTEnv, value)
+		env = setEnvValue(env, embeddedMQTTEnv, value)
+	}
 
 	return &owlcmsLaunchParams{
 		VersionDir: versionDir,
@@ -162,7 +182,7 @@ func recordOwlcmsStart(pid int, version, port string) *shared.RuntimeMetadata {
 // Under systemd it stays in the foreground, waits on the process, and restarts
 // on non-zero exit (same supervision as the interactive launcher).
 // Otherwise it detaches the child and returns once the port is ready.
-func LaunchDaemon(version string) error {
+func LaunchDaemon(version string, enableEmbeddedMQTT bool) error {
 	log.Printf("LaunchDaemon: starting OWLCMS %s headlessly (systemd=%v, INVOCATION_ID=%q)",
 		version, shared.IsRunningUnderSystemd(), os.Getenv("INVOCATION_ID"))
 
@@ -175,7 +195,7 @@ func LaunchDaemon(version string) error {
 		return fmt.Errorf("port %s is already in use", targetPort)
 	}
 
-	params, err := prepareOwlcmsLaunch(version)
+	params, err := prepareOwlcmsLaunch(version, &enableEmbeddedMQTT)
 	if err != nil {
 		return err
 	}
@@ -398,7 +418,7 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 		return fmt.Errorf("getting current directory: %w", err)
 	}
 
-	params, err := prepareOwlcmsLaunch(version)
+	params, err := prepareOwlcmsLaunch(version, nil)
 	if err != nil {
 		statusLabel.SetText(err.Error())
 		launchButton.Show()

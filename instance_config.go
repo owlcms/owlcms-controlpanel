@@ -19,6 +19,7 @@ type cliOptions struct {
 	instanceArg string
 	runtimeArg  string
 	init        bool
+	mqtt        bool
 	help        bool
 }
 
@@ -52,6 +53,8 @@ func parseCLIOptions(args []string) cliOptions {
 			}
 		case "--init":
 			opts.init = true
+		case "--mqtt":
+			opts.mqtt = true
 		case "--help", "-h":
 			opts.help = true
 		default:
@@ -76,10 +79,10 @@ func printUsage() {
 	fmt.Println("  controlpanel --instance-dir <name-or-path> [--runtime-dir <name-or-path>] --init")
 	fmt.Println("")
 	fmt.Println("Headless daemon launch:")
-	fmt.Println("  controlpanel <instance-name> --owlcms [version|latest|stop]")
-	fmt.Println("  controlpanel <instance-name> --tracker [version|latest|stop]")
-	fmt.Println("  controlpanel [--instance-dir <name-or-path>] --owlcms [version|latest|stop]")
-	fmt.Println("  controlpanel [--instance-dir <name-or-path>] --tracker [version|latest|stop]")
+	fmt.Println("  controlpanel <instance-name> --owlcms [version|latest|stop|list]")
+	fmt.Println("  controlpanel <instance-name> --tracker [version|latest|stop|list]")
+	fmt.Println("  controlpanel [--instance-dir <name-or-path>] --owlcms [version|latest|stop|list]")
+	fmt.Println("  controlpanel [--instance-dir <name-or-path>] --tracker [version|latest|stop|list]")
 	fmt.Println("")
 	fmt.Println("Options:")
 	fmt.Println("  --instance-dir, --instance_dir  Instance name or absolute control panel directory")
@@ -87,13 +90,15 @@ func printUsage() {
 	fmt.Println("  --runtime-dir,  --runtime_dir   Shared runtime directory for Java/Node/FFmpeg")
 	fmt.Println("                                  Default: the runtime directory under the default main instance")
 	fmt.Println("  --init                          Initialize the instance directories and exit")
-	fmt.Println("  --owlcms [value]                Start/stop OWLCMS headlessly for a version, latest, or stop")
+	fmt.Println("  --owlcms [value]                Start/stop/list OWLCMS headlessly for a version, latest, stop, or list")
 	fmt.Println("                                  If omitted, value defaults to latest")
-	fmt.Println("  --tracker [value]               Start/stop Tracker headlessly for a version, latest, or stop")
+	fmt.Println("  --tracker [value]               Start/stop/list Tracker headlessly for a version, latest, stop, or list")
 	fmt.Println("                                  If omitted, value defaults to latest")
 	fmt.Println("                                  If no --instance-dir is given and <value> matches an")
 	fmt.Println("                                  initialized instance name, that instance is selected and")
 	fmt.Println("                                  latest is used for that module")
+	fmt.Println("  --mqtt                          Enable embedded MQTT when starting OWLCMS from the command line")
+	fmt.Println("                                  Default for command-line OWLCMS launches: disabled")
 	fmt.Println("  --help, -h                      Show this help and exit")
 	fmt.Println("")
 	fmt.Println("Examples:")
@@ -115,6 +120,9 @@ func printUsage() {
 	fmt.Println("    controlpanel --owlcms stop")
 	fmt.Println("  Stop both daemons for the main instance:")
 	fmt.Println("    controlpanel --owlcms stop --tracker stop")
+	fmt.Println("  List installed versions for the main instance:")
+	fmt.Println("    controlpanel --owlcms list")
+	fmt.Println("    controlpanel --tracker list")
 	fmt.Println("")
 	fmt.Println("  Initialize a new sibling instance named records:")
 	fmt.Println("    controlpanel records --init")
@@ -181,7 +189,7 @@ func inferImplicitInstanceName(owlcmsVersion, trackerVersion string) (string, er
 
 func implicitInstanceCandidate(requested, installDir string) string {
 	requested = strings.TrimSpace(requested)
-	if requested == "" || strings.EqualFold(requested, "latest") || strings.EqualFold(requested, "stop") {
+	if requested == "" || strings.EqualFold(requested, "latest") || strings.EqualFold(requested, "stop") || strings.EqualFold(requested, "list") {
 		return ""
 	}
 

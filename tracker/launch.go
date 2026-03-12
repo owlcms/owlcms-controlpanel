@@ -2,7 +2,6 @@ package tracker
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -42,10 +41,10 @@ func configureTailLogLink(version, appDir string) {
 }
 
 var (
-	lockFilePath = filepath.Join(getInstallDir(), "tracker.lock")
-	pidFilePath  = filepath.Join(getInstallDir(), "tracker.pid")
-	nodePID      int          // Store the Node process PID
-	lock         *flock.Flock // Store the lock
+	lockFilePath  = filepath.Join(getInstallDir(), "tracker.lock")
+	pidFilePath   = filepath.Join(getInstallDir(), "tracker.pid")
+	nodePID       int          // Store the Node process PID
+	lock          *flock.Flock // Store the lock
 	activeRuntime *shared.RuntimeMetadata
 )
 
@@ -208,8 +207,11 @@ func LaunchDaemon(version string) error {
 	if err != nil {
 		log.Printf("Warning: could not open tracker log: %v", err)
 	} else {
-		cmd.Stdout = io.MultiWriter(logFile)
-		cmd.Stderr = io.MultiWriter(logFile)
+		// Use the *os.File directly so Go passes the fd to the child
+		// instead of creating a pipe.  A pipe would break (SIGPIPE) when
+		// the control-panel parent exits in headless mode.
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
 	}
 
 	log.Printf("LaunchDaemon: command %v in %s", cmd.Args, params.VersionDir)
@@ -478,8 +480,8 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 		log.Printf("Failed to open tracker log file %s: %v", logPath, err)
 		logFile = nil
 	} else {
-		cmd.Stdout = io.MultiWriter(logFile)
-		cmd.Stderr = io.MultiWriter(logFile)
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
 	}
 
 	log.Printf("Starting owlcms-tracker %s\n", version)

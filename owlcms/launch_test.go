@@ -57,3 +57,30 @@ func TestBuildOwlcmsCommandUsesJarEntrypointForNormalMode(t *testing.T) {
 		}
 	}
 }
+
+func TestSetEnvValueAppendsWhenMissing(t *testing.T) {
+	env := []string{"A=1", "B=2"}
+	env = setEnvValue(env, embeddedMQTTEnv, "false")
+
+	if got := env[len(env)-1]; got != embeddedMQTTEnv+"=false" {
+		t.Fatalf("expected appended mqtt env, got %q", got)
+	}
+}
+
+func TestSetEnvValueReplacesExistingValue(t *testing.T) {
+	env := []string{"A=1", embeddedMQTTEnv + "=true", "B=2"}
+	env = setEnvValue(env, embeddedMQTTEnv, "false")
+
+	var matches int
+	for _, entry := range env {
+		if entry == embeddedMQTTEnv+"=false" {
+			matches++
+		}
+		if entry == embeddedMQTTEnv+"=true" {
+			t.Fatalf("expected existing mqtt env to be replaced, env=%v", env)
+		}
+	}
+	if matches != 1 {
+		t.Fatalf("expected exactly one mqtt env entry, got %d in %v", matches, env)
+	}
+}

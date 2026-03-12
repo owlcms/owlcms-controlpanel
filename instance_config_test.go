@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"controlpanel/owlcms"
@@ -357,6 +359,28 @@ func TestParseCLIOptionsDoesNotTreatPositionalInstanceAsOwlcmsValueWhenValueOmit
 	}
 }
 
+func TestParseCLIOptionsEnablesMQTTFlag(t *testing.T) {
+	opts := parseCLIOptions([]string{"records", "--owlcms", "--mqtt"})
+
+	if !opts.mqtt {
+		t.Fatal("expected mqtt option to be enabled")
+	}
+	if opts.instanceArg != "records" {
+		t.Fatalf("expected instanceArg=records, got %q", opts.instanceArg)
+	}
+}
+
+func TestParseCLIOptionsHelpTakesPrecedenceOverOtherControlVerbs(t *testing.T) {
+	opts := parseCLIOptions([]string{"records", "--owlcms", "list", "--tracker", "stop", "--help"})
+
+	if !opts.help {
+		t.Fatal("expected help option to be enabled")
+	}
+	if opts.instanceArg != "records" {
+		t.Fatalf("expected instanceArg=records, got %q", opts.instanceArg)
+	}
+}
+
 func TestParseDaemonFlagsDefaultsMissingValuesToLatest(t *testing.T) {
 	owlcmsValue, trackerValue := parseDaemonFlags([]string{"--owlcms", "--tracker"})
 
@@ -379,6 +403,17 @@ func TestParseDaemonFlagsKeepsExplicitValues(t *testing.T) {
 	}
 }
 
+func TestParseDaemonFlagsKeepsListValue(t *testing.T) {
+	owlcmsValue, trackerValue := parseDaemonFlags([]string{"--owlcms", "list", "--tracker", "latest"})
+
+	if owlcmsValue != "list" {
+		t.Fatalf("expected owlcms value list, got %q", owlcmsValue)
+	}
+	if trackerValue != "latest" {
+		t.Fatalf("expected tracker value latest, got %q", trackerValue)
+	}
+}
+
 func TestParseDaemonFlagsDoesNotConsumePositionalInstance(t *testing.T) {
 	owlcmsValue, trackerValue := parseDaemonFlags([]string{"records", "--owlcms", "--tracker"})
 
@@ -387,5 +422,129 @@ func TestParseDaemonFlagsDoesNotConsumePositionalInstance(t *testing.T) {
 	}
 	if trackerValue != "latest" {
 		t.Fatalf("expected tracker value latest, got %q", trackerValue)
+	}
+}
+
+func TestParseDaemonFlagsIgnoresMQTTFlag(t *testing.T) {
+	owlcmsValue, trackerValue := parseDaemonFlags([]string{"records", "--owlcms", "--mqtt", "--tracker"})
+
+	if owlcmsValue != "latest" {
+		t.Fatalf("expected owlcms value latest, got %q", owlcmsValue)
+	}
+	if trackerValue != "latest" {
+		t.Fatalf("expected tracker value latest, got %q", trackerValue)
+	}
+}
+
+func TestConfigureTrackerConnectionForHeadlessTandemUsesSelectedTrackerReleasePort(t *testing.T) {
+	base := t.TempDir()
+	owlcmsDir := filepath.Join(base, "owlcms")
+	trackerDir := filepath.Join(base, "tracker")
+	t.Cleanup(resetInstallDirsForTest)
+	owlcms.SetInstallDir(owlcmsDir)
+	tracker.SetInstallDir(trackerDir)
+
+	for _, dir := range []string{
+		filepath.Join(owlcmsDir, "65.0.0"),
+		filepath.Join(trackerDir, "2.3.0"),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatalf("mkdir %s: %v", dir, err)
+		}
+	}
+
+	if err := os.WriteFile(filepath.Join(owlcmsDir, "env.properties"), []byte("OWLCMS_PORT=8080\nTEMURIN_VERSION=jdk-25\n"), 0o644); err != nil {
+		t.Fatalf("write owlcms env: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(owlcmsDir, "65.0.0", "env.properties"), []byte(""), 0o644); err != nil {
+		t.Fatalf("write owlcms release env: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(trackerDir, "env.properties"), []byte("TRACKER_PORT=8096\n"), 0o644); err != nil {
+		t.Fatalf("write tracker env: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(trackerDir, "2.3.0", "env.properties"), []byte("TRACKER_PORT=18123\n"), 0o644); err != nil {
+		t.Fatalf("write tracker release env: %v", err)
+	}
+
+	if err := configureTrackerConnectionForHeadlessTandem("65.0.0", "2.3.0"); err != nil {
+		t.Fatalf("configure tandem: %v", err)
+	}
+
+	if got := owlcms.GetTrackerConnectionPortForRelease("65.0.0"); got != "18123" {
+		t.Fatalf("expected stored tracker port 18123, got %q", got)
+	}
+
+	content, err := os.ReadFile(filepath.Join(owlcmsDir, "65.0.0", "env.properties"))
+	if err != nil {
+		t.Fatalf("read owlcms release env: %v", err)
+	}
+	if !strings.Contains(string(content), "OWLCMS_VIDEODATA = ws://127.0.0.1:18123/ws") {
+		t.Fatalf("expected OWLCMS_VIDEODATA to reference tracker release port, got %q", string(content))
+	}
+}
+
+func TestHandleHeadlessListRequestsListsRequestedModuleOnly(t *testing.T) {
+	var out bytes.Buffer
+	owlcmsRequest, trackerRequest, listed := handleHeadlessListRequests(&out, "list", "latest")
+
+	if !listed {
+		t.Fatal("expected list request to be handled")
+	}
+	if owlcmsRequest != "" {
+		t.Fatalf("expected owlcms request to be cleared after listing, got %q", owlcmsRequest)
+	}
+	if trackerRequest != "latest" {
+		t.Fatalf("expected tracker request to remain latest, got %q", trackerRequest)
+	}
+	if !strings.Contains(out.String(), "owlcms available versions:") {
+		t.Fatalf("expected owlcms list output, got %q", out.String())
+	}
+	if strings.Contains(out.String(), "tracker available versions:") {
+		t.Fatalf("did not expect tracker list output, got %q", out.String())
+	}
+}
+
+func TestImplicitInstanceCandidateIgnoresListVerb(t *testing.T) {
+	if got := implicitInstanceCandidate("list", "/tmp/install"); got != "" {
+		t.Fatalf("expected list verb to be ignored for implicit instance inference, got %q", got)
+	}
+}
+
+func TestHandleHeadlessListRequestsListsBothModules(t *testing.T) {
+	var out bytes.Buffer
+	owlcmsRequest, trackerRequest, listed := handleHeadlessListRequests(&out, "list", "list")
+
+	if !listed {
+		t.Fatal("expected list requests to be handled")
+	}
+	if owlcmsRequest != "" || trackerRequest != "" {
+		t.Fatalf("expected both requests to be cleared, got owlcms=%q tracker=%q", owlcmsRequest, trackerRequest)
+	}
+	if !strings.Contains(out.String(), "owlcms available versions:") {
+		t.Fatalf("expected owlcms list output, got %q", out.String())
+	}
+	if !strings.Contains(out.String(), "tracker available versions:") {
+		t.Fatalf("expected tracker list output, got %q", out.String())
+	}
+}
+
+func TestHandleHeadlessListRequestsLeavesOtherControlVerbsUnchanged(t *testing.T) {
+	var out bytes.Buffer
+	owlcmsRequest, trackerRequest, listed := handleHeadlessListRequests(&out, "list", "stop")
+
+	if !listed {
+		t.Fatal("expected list request to be handled")
+	}
+	if owlcmsRequest != "" {
+		t.Fatalf("expected owlcms request to be cleared after listing, got %q", owlcmsRequest)
+	}
+	if trackerRequest != "stop" {
+		t.Fatalf("expected tracker stop request to remain unchanged, got %q", trackerRequest)
+	}
+	if !strings.Contains(out.String(), "owlcms available versions:") {
+		t.Fatalf("expected owlcms list output, got %q", out.String())
+	}
+	if strings.Contains(out.String(), "tracker available versions:") {
+		t.Fatalf("did not expect tracker list output, got %q", out.String())
 	}
 }

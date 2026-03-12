@@ -102,6 +102,20 @@ func main() {
 		return
 	}
 
+	if owlcmsFlag != "" || trackerFlag != "" {
+		var listed bool
+		owlcmsFlag, trackerFlag, listed = handleHeadlessListRequests(os.Stdout, owlcmsFlag, trackerFlag)
+		if listed {
+			return
+		}
+		owlcmsStop := strings.EqualFold(owlcmsFlag, "stop")
+		trackerStop := strings.EqualFold(trackerFlag, "stop")
+		if owlcmsStop || trackerStop {
+			stopHeadlessDaemons(owlcmsStop, trackerStop)
+			return
+		}
+	}
+
 	javacheck.InitJavaCheck(shared.GetOwlcmsInstallDir(), owlcms.GetTemurinVersion)
 
 	// Set up logging to file (and stderr if available)
@@ -130,13 +144,7 @@ func main() {
 	log.Printf("Starting OWLCMS Control Panel %s", shared.GetLauncherVersion())
 
 	if owlcmsFlag != "" || trackerFlag != "" {
-		owlcmsStop := strings.EqualFold(owlcmsFlag, "stop")
-		trackerStop := strings.EqualFold(trackerFlag, "stop")
-		if owlcmsStop || trackerStop {
-			stopHeadlessDaemons(owlcmsStop, trackerStop)
-			return
-		}
-		runHeadlessDaemons(owlcmsFlag, trackerFlag)
+		runHeadlessDaemons(owlcmsFlag, trackerFlag, cliOptions.mqtt)
 		return
 	}
 
@@ -547,7 +555,7 @@ func setupSignalHandling() {
 	}()
 }
 
-// parseDaemonFlags scans args for --owlcms [version|latest|stop] and --tracker [version|latest|stop].
+// parseDaemonFlags scans args for --owlcms [version|latest|stop|list] and --tracker [version|latest|stop|list].
 // When a switch is present without a value, it defaults to "latest".
 // Returns empty strings when the flags are absent.
 func parseDaemonFlags(args []string) (owlcmsVersion, trackerVersion string) {
@@ -570,6 +578,38 @@ func parseDaemonFlags(args []string) (owlcmsVersion, trackerVersion string) {
 	return
 }
 
+func isListVerb(value string) bool {
+	return strings.EqualFold(strings.TrimSpace(value), "list")
+}
+
+func writeAvailableVersions(out io.Writer, label string, versions []string) {
+	fmt.Fprintf(out, "%s available versions:\n", label)
+	if len(versions) == 0 {
+		fmt.Fprintln(out, "  (none installed)")
+		return
+	}
+	for _, version := range versions {
+		fmt.Fprintf(out, "  %s\n", version)
+	}
+}
+
+func handleHeadlessListRequests(out io.Writer, owlcmsRequest, trackerRequest string) (string, string, bool) {
+	var listed bool
+
+	if isListVerb(owlcmsRequest) {
+		writeAvailableVersions(out, "owlcms", owlcms.GetAllInstalledVersions())
+		owlcmsRequest = ""
+		listed = true
+	}
+	if isListVerb(trackerRequest) {
+		writeAvailableVersions(out, "tracker", tracker.GetAllInstalledVersions())
+		trackerRequest = ""
+		listed = true
+	}
+
+	return owlcmsRequest, trackerRequest, listed
+}
+
 // resolveVersion turns "latest" into the highest semver-installed directory name,
 // or validates that the given version directory exists.  installDir is the module's
 // install root and allVersions is the semver-descending list from GetAllInstalledVersions.
@@ -577,7 +617,6 @@ func resolveVersion(label, requested string, allVersions []string, installDir st
 	if len(allVersions) == 0 {
 		return "", fmt.Errorf("no installed %s versions found", label)
 	}
-
 	if strings.EqualFold(requested, "latest") {
 		v := allVersions[0] // already sorted by semver descending
 		log.Printf("Resolved %s 'latest' to %s", label, v)
@@ -592,13 +631,30 @@ func resolveVersion(label, requested string, allVersions []string, installDir st
 	return requested, nil
 }
 
+func configureTrackerConnectionForHeadlessTandem(owlcmsVersion, trackerVersion string) error {
+	trackerPort := strings.TrimSpace(tracker.GetPortForRelease(trackerVersion))
+	if trackerPort == "" {
+		return fmt.Errorf("selected tracker version %q has no configured port", trackerVersion)
+	}
+	if err := owlcms.ConfigureTrackerConnectionForRelease(owlcmsVersion, trackerPort); err != nil {
+		return err
+	}
+	trackerHost := "127.0.0.1"
+	trackerURL := fmt.Sprintf("ws://%s:%s/ws", trackerHost, trackerPort)
+	log.Printf("Configured OWLCMS %s to connect to Tracker %s using host=%s port=%s url=%s; updated %s",
+		owlcmsVersion, trackerVersion, trackerHost, trackerPort, trackerURL, owlcms.GetReleaseEnvPath(owlcmsVersion))
+	return nil
+}
+
 // runHeadlessDaemons launches OWLCMS and/or Tracker in daemon mode without any UI,
 // then exits.  This is intended for boot-time systemd/init usage.
-func runHeadlessDaemons(owlcmsVersion, trackerVersion string) {
+func runHeadlessDaemons(owlcmsVersion, trackerVersion string, enableEmbeddedMQTT bool) {
 	// Force daemon mode on so the spawned processes are detached.
 	_ = shared.SetRunAsDaemonEnabled(true)
 
 	var failed bool
+	var resolvedOwlcmsVersion string
+	var resolvedTrackerVersion string
 
 	if owlcmsVersion != "" {
 		version, err := resolveVersion("owlcms", owlcmsVersion, owlcms.GetAllInstalledVersions(), owlcms.GetInstallDir())
@@ -607,19 +663,7 @@ func runHeadlessDaemons(owlcmsVersion, trackerVersion string) {
 			fmt.Fprintf(os.Stderr, "owlcms: %v\n", err)
 			failed = true
 		} else {
-			// Check if already running
-			if meta, running := shared.CheckDaemonRunning(owlcms.RuntimeMetadataPath()); running {
-				log.Printf("OWLCMS %s is already running (PID %d, port %s)", meta.Version, meta.PID, meta.Port)
-				fmt.Printf("owlcms %s already running (PID %d, port %s)\n", meta.Version, meta.PID, meta.Port)
-			} else {
-				if err := owlcms.LaunchDaemon(version); err != nil {
-					log.Printf("ERROR: failed to launch owlcms %s: %v", version, err)
-					fmt.Fprintf(os.Stderr, "owlcms %s: %v\n", version, err)
-					failed = true
-				} else {
-					fmt.Printf("owlcms %s started successfully\n", version)
-				}
-			}
+			resolvedOwlcmsVersion = version
 		}
 	}
 
@@ -630,17 +674,48 @@ func runHeadlessDaemons(owlcmsVersion, trackerVersion string) {
 			fmt.Fprintf(os.Stderr, "tracker: %v\n", err)
 			failed = true
 		} else {
-			if meta, running := shared.CheckDaemonRunning(tracker.RuntimeMetadataPath()); running {
-				log.Printf("Tracker %s is already running (PID %d, port %s)", meta.Version, meta.PID, meta.Port)
-				fmt.Printf("tracker %s already running (PID %d, port %s)\n", meta.Version, meta.PID, meta.Port)
+			resolvedTrackerVersion = version
+		}
+	}
+
+	if resolvedOwlcmsVersion != "" && resolvedTrackerVersion != "" {
+		if err := configureTrackerConnectionForHeadlessTandem(resolvedOwlcmsVersion, resolvedTrackerVersion); err != nil {
+			log.Printf("ERROR: failed to configure OWLCMS tracker connection: %v", err)
+			fmt.Fprintf(os.Stderr, "owlcms/tracker tandem: %v\n", err)
+			failed = true
+		}
+	}
+
+	if failed {
+		os.Exit(1)
+	}
+
+	if resolvedOwlcmsVersion != "" {
+		if meta, running := shared.CheckDaemonRunning(owlcms.RuntimeMetadataPath()); running {
+			log.Printf("OWLCMS %s is already running (PID %d, port %s)", meta.Version, meta.PID, meta.Port)
+			fmt.Printf("owlcms %s already running (PID %d, port %s)\n", meta.Version, meta.PID, meta.Port)
+		} else {
+			if err := owlcms.LaunchDaemon(resolvedOwlcmsVersion, enableEmbeddedMQTT); err != nil {
+				log.Printf("ERROR: failed to launch owlcms %s: %v", resolvedOwlcmsVersion, err)
+				fmt.Fprintf(os.Stderr, "owlcms %s: %v\n", resolvedOwlcmsVersion, err)
+				failed = true
 			} else {
-				if err := tracker.LaunchDaemon(version); err != nil {
-					log.Printf("ERROR: failed to launch tracker %s: %v", version, err)
-					fmt.Fprintf(os.Stderr, "tracker %s: %v\n", version, err)
-					failed = true
-				} else {
-					fmt.Printf("tracker %s started successfully\n", version)
-				}
+				fmt.Printf("owlcms %s started successfully\n", resolvedOwlcmsVersion)
+			}
+		}
+	}
+
+	if resolvedTrackerVersion != "" {
+		if meta, running := shared.CheckDaemonRunning(tracker.RuntimeMetadataPath()); running {
+			log.Printf("Tracker %s is already running (PID %d, port %s)", meta.Version, meta.PID, meta.Port)
+			fmt.Printf("tracker %s already running (PID %d, port %s)\n", meta.Version, meta.PID, meta.Port)
+		} else {
+			if err := tracker.LaunchDaemon(resolvedTrackerVersion); err != nil {
+				log.Printf("ERROR: failed to launch tracker %s: %v", resolvedTrackerVersion, err)
+				fmt.Fprintf(os.Stderr, "tracker %s: %v\n", resolvedTrackerVersion, err)
+				failed = true
+			} else {
+				fmt.Printf("tracker %s started successfully\n", resolvedTrackerVersion)
 			}
 		}
 	}

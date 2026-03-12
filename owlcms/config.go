@@ -25,6 +25,8 @@ var (
 	installDir  = shared.GetOwlcmsInstallDir()
 )
 
+const trackerConnectionEnv = "OWLCMS_VIDEODATA"
+
 // SetInstallDir overrides the OWLCMS installation directory for this process.
 func SetInstallDir(dir string) {
 	dir = strings.TrimSpace(dir)
@@ -108,6 +110,59 @@ func SetRunAsDaemon(enabled bool) error {
 // control panel instance always knows which port OWLCMS is using.
 func GetPortForRelease(releaseVersion string) string {
 	return GetPort()
+}
+
+// GetReleaseEnvPath returns the version-specific env.properties path for the
+// selected OWLCMS release.
+func GetReleaseEnvPath(releaseVersion string) string {
+	return filepath.Join(installDir, strings.TrimSpace(releaseVersion), "env.properties")
+}
+
+func trackerConnectionURL(port string) string {
+	return fmt.Sprintf("ws://127.0.0.1:%s/ws", strings.TrimSpace(port))
+}
+
+func trackerConnectionPort(value string) (string, bool) {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil {
+		return "", false
+	}
+	if parsed.Scheme != "ws" || parsed.Hostname() != "127.0.0.1" || parsed.Path != "/ws" {
+		return "", false
+	}
+	port := strings.TrimSpace(parsed.Port())
+	if port == "" {
+		return "", false
+	}
+	return port, true
+}
+
+// ConfigureTrackerConnectionForRelease stores the local tracker websocket URL in
+// the same version-specific env.properties used by the interactive options menu.
+func ConfigureTrackerConnectionForRelease(releaseVersion, trackerPort string) error {
+	trackerPort = strings.TrimSpace(trackerPort)
+	if trackerPort == "" {
+		return fmt.Errorf("tracker port is required")
+	}
+	return SavePropertyForRelease(releaseVersion, trackerConnectionEnv, trackerConnectionURL(trackerPort))
+}
+
+// GetTrackerConnectionPortForRelease returns the configured local tracker port
+// from OWLCMS_VIDEODATA for the selected release, or empty when disabled.
+func GetTrackerConnectionPortForRelease(releaseVersion string) string {
+	merged, err := loadEnvironmentForReleaseProps(releaseVersion)
+	if err != nil || merged == nil {
+		return ""
+	}
+	value, ok := merged.Get(trackerConnectionEnv)
+	if !ok {
+		return ""
+	}
+	port, ok := trackerConnectionPort(value)
+	if !ok {
+		return ""
+	}
+	return port
 }
 
 func loadPropertiesFromFile(envFilePath string) (*properties.Properties, error) {
@@ -659,26 +714,18 @@ func GetTrackerConnectionEnabled() bool {
 	if environment == nil {
 		return false
 	}
-	value, ok := environment.Get("OWLCMS_VIDEODATA")
+	value, ok := environment.Get(trackerConnectionEnv)
 	if !ok {
 		return false
 	}
-	// Check if it's a local tracker URL (ws://127.0.0.1:*/ws)
-	return strings.HasPrefix(value, "ws://127.0.0.1:") && strings.HasSuffix(value, "/ws")
+	_, enabled := trackerConnectionPort(value)
+	return enabled
 }
 
 // GetTrackerConnectionEnabledForRelease returns true if the version-specific
 // effective environment points OWLCMS_VIDEODATA to a local tracker websocket.
 func GetTrackerConnectionEnabledForRelease(releaseVersion string) bool {
-	merged, err := loadEnvironmentForReleaseProps(releaseVersion)
-	if err != nil || merged == nil {
-		return false
-	}
-	value, ok := merged.Get("OWLCMS_VIDEODATA")
-	if !ok {
-		return false
-	}
-	return strings.HasPrefix(value, "ws://127.0.0.1:") && strings.HasSuffix(value, "/ws")
+	return GetTrackerConnectionPortForRelease(releaseVersion) != ""
 }
 
 // CheckForUpdates checks for updates to the control panel itself
