@@ -34,7 +34,7 @@ func monitorProcess(done <-chan error, port string) chan error {
 				result <- fmt.Errorf("timed out waiting for process to become ready")
 				return
 			case <-ticker.C:
-			if shared.CheckPort(port) == nil {
+				if shared.CheckPort(port) == nil {
 					result <- nil
 					return
 				}
@@ -48,31 +48,22 @@ func stopProcess(process *exec.Cmd, version string, stopBtn *widget.Button, down
 	log.Printf("Stopping OWLCMS %s...\n", version)
 	statusLbl.SetText(fmt.Sprintf("Stopping OWLCMS %s...", version))
 
-	var pid int
-	if process != nil && process.Process != nil {
-		pid = process.Process.Pid
-	} else if activeRuntime != nil {
-		pid = activeRuntime.PID
-		if !shared.PIDMatchesStartTicks(pid, activeRuntime.ProcessStartTicks) {
-			clearRuntimeState()
-			releaseJavaLock()
-			dialog.ShowError(fmt.Errorf("OWLCMS PID %d no longer matches the saved runtime metadata", pid), w)
-			return
-		}
-	} else {
-		return
+	port := GetPort()
+	if activeRuntime != nil && activeRuntime.Port != "" {
+		port = activeRuntime.Port
 	}
+
 	killedByUs = true
 
-	err := shared.GracefullyStopPID(pid)
+	err := shared.EnsurePortFree(port)
 	if err != nil {
 		killedByUs = false
-		dialog.ShowError(fmt.Errorf("failed to stop OWLCMS %s (PID: %d): %w", version, pid, err), w)
+		dialog.ShowError(fmt.Errorf("failed to stop OWLCMS %s on port %s: %w", version, port, err), w)
 		return
 	}
 
-	log.Printf("OWLCMS %s (PID: %d) has been stopped\n", version, pid)
-	statusLbl.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) has been stopped", version, pid))
+	log.Printf("OWLCMS %s has been stopped (port %s freed)\n", version, port)
+	statusLbl.SetText(fmt.Sprintf("OWLCMS %s has been stopped", version))
 	currentProcess = nil
 	clearRuntimeState()
 

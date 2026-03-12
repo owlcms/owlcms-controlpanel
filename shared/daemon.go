@@ -189,23 +189,11 @@ func PIDMatchesStartTicks(pid int, expected uint64) bool {
 }
 
 // GracefullyStopPID attempts to stop a process while allowing normal shutdown hooks to run.
+// On all platforms it tries os.Interrupt first (SIGINT on Unix, CTRL_BREAK_EVENT on Windows
+// since Go 1.22) which lets Java run shutdown hooks and exit 0.
 func GracefullyStopPID(pid int) error {
 	if pid <= 0 {
 		return fmt.Errorf("invalid PID %d", pid)
-	}
-
-	if GetGoos() == "windows" {
-		cmd := exec.Command("taskkill", "/PID", strconv.Itoa(pid))
-		if err := cmd.Run(); err != nil {
-			return ForcefullyKillPID(pid)
-		}
-
-		time.Sleep(500 * time.Millisecond)
-		if IsProcessRunning(pid) {
-			return ForcefullyKillPID(pid)
-		}
-
-		return nil
 	}
 
 	process, err := os.FindProcess(pid)
@@ -213,17 +201,22 @@ func GracefullyStopPID(pid int) error {
 		return fmt.Errorf("find process %d: %w", pid, err)
 	}
 
-	if err := process.Signal(syscall.SIGINT); err == nil {
-		time.Sleep(1 * time.Second)
+	// First try os.Interrupt — Java handles this and exits cleanly (code 0 on
+	// Windows via CTRL_BREAK_EVENT, code 130 on Linux via SIGINT).
+	if err := process.Signal(os.Interrupt); err == nil {
+		time.Sleep(2 * time.Second)
 		if !IsProcessRunning(pid) {
 			return nil
 		}
 	}
 
-	if err := process.Signal(syscall.SIGTERM); err == nil {
-		time.Sleep(1 * time.Second)
-		if !IsProcessRunning(pid) {
-			return nil
+	if GetGoos() != "windows" {
+		// On Unix, escalate to SIGTERM before force-killing.
+		if err := process.Signal(syscall.SIGTERM); err == nil {
+			time.Sleep(1 * time.Second)
+			if !IsProcessRunning(pid) {
+				return nil
+			}
 		}
 	}
 
@@ -280,6 +273,52 @@ func FindPIDByPort(port int) (int, error) {
 	return 0, nil
 }
 
+// EnsurePortFree finds whatever process is listening on the given port and
+// stops it (SIGINT → SIGTERM → SIGKILL), then verifies the port is free.
+// This is the single stop primitive used by both interactive and headless paths.
+func EnsurePortFree(port string) error {
+	trimmed := strings.TrimSpace(port)
+	if trimmed == "" {
+		return nil
+	}
+
+	portNum, err := strconv.Atoi(trimmed)
+	if err != nil || portNum < 1 || portNum > 65535 {
+		return fmt.Errorf("invalid port %q", port)
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		pid, err := FindPIDByPort(portNum)
+		if err != nil {
+			return err
+		}
+		if pid == 0 {
+			return nil
+		}
+
+		log.Printf("Port %s in use by PID %d, stopping...", trimmed, pid)
+		if err := GracefullyStopPID(pid); err != nil {
+			log.Printf("GracefullyStopPID(%d): %v", pid, err)
+		}
+
+		if time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	pid, err := FindPIDByPort(portNum)
+	if err != nil {
+		return err
+	}
+	if pid != 0 {
+		return fmt.Errorf("port %s is still in use by PID %d", trimmed, pid)
+	}
+
+	return nil
+}
+
 // CheckPort tries to connect to localhost:port and returns nil if a server is responding.
 func CheckPort(port string) error {
 	client := &http.Client{Timeout: 2 * time.Second}
@@ -317,6 +356,9 @@ func CheckDaemonRunning(metadataPath string) (*RuntimeMetadata, bool) {
 			if pid, err := FindPIDByPort(portNum); err == nil && pid > 0 {
 				log.Printf("Resolved PID %d from port %s", pid, metadata.Port)
 				metadata.PID = pid
+				if startTicks, err := ReadProcessStartTicks(pid); err == nil {
+					metadata.ProcessStartTicks = startTicks
+				}
 			}
 		}
 		return metadata, true

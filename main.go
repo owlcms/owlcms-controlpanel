@@ -757,9 +757,9 @@ func stopOneDaemon(label, metadataPath string) bool {
 	log.Printf("Stopping %s %s (PID %d, port %s)...", label, meta.Version, meta.PID, meta.Port)
 	fmt.Printf("Stopping %s %s (PID %d)...\n", label, meta.Version, meta.PID)
 
-	if err := shared.GracefullyStopPID(meta.PID); err != nil {
-		log.Printf("ERROR: failed to stop %s (PID %d): %v", label, meta.PID, err)
-		fmt.Fprintf(os.Stderr, "%s: failed to stop PID %d: %v\n", label, meta.PID, err)
+	if err := shared.EnsurePortFree(meta.Port); err != nil {
+		log.Printf("ERROR: failed to stop %s on port %s: %v", label, meta.Port, err)
+		fmt.Fprintf(os.Stderr, "%s: failed to free port %s: %v\n", label, meta.Port, err)
 		return true
 	}
 

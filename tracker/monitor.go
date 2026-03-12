@@ -49,31 +49,22 @@ func stopProcess(proc *exec.Cmd, version string, stopBtn *widget.Button, downloa
 	log.Printf("Stopping owlcms-tracker %s...\n", version)
 	statusLbl.SetText(fmt.Sprintf("Stopping owlcms-tracker %s...", version))
 
-	var pid int
-	if proc != nil && proc.Process != nil {
-		pid = proc.Process.Pid
-	} else if activeRuntime != nil {
-		pid = activeRuntime.PID
-		if !shared.PIDMatchesStartTicks(pid, activeRuntime.ProcessStartTicks) {
-			clearRuntimeState()
-			releaseTrackerLock()
-			dialog.ShowError(fmt.Errorf("tracker PID %d no longer matches the saved runtime metadata", pid), w)
-			return
-		}
-	} else {
-		return
+	port := GetPort()
+	if activeRuntime != nil && activeRuntime.Port != "" {
+		port = activeRuntime.Port
 	}
+
 	killedByUs = true
 
-	err := shared.GracefullyStopPID(pid)
+	err := shared.EnsurePortFree(port)
 	if err != nil {
 		killedByUs = false
-		dialog.ShowError(fmt.Errorf("failed to stop owlcms-tracker %s (PID: %d): %w", version, pid, err), w)
+		dialog.ShowError(fmt.Errorf("failed to stop owlcms-tracker %s on port %s: %w", version, port, err), w)
 		return
 	}
 
-	log.Printf("owlcms-tracker %s (PID: %d) has been stopped\n", version, pid)
-	statusLbl.SetText(fmt.Sprintf("owlcms-tracker %s (PID: %d) has been stopped", version, pid))
+	log.Printf("owlcms-tracker %s has been stopped (port %s freed)\n", version, port)
+	statusLbl.SetText(fmt.Sprintf("owlcms-tracker %s has been stopped", version))
 	currentProcess = nil
 	clearRuntimeState()
 	stopBtn.Hide()
