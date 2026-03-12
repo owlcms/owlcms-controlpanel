@@ -2,7 +2,7 @@
 # Install or upgrade the owlcms Control Panel on headless Ubuntu (amd64 or arm64)
 # Usage:
 #   git clone https://github.com/owlcms/owlcms-controlpanel
-#   bash owlcms-controlpanel/scripts/install.sh [--version 3.3.0]
+#   bash owlcms-controlpanel/scripts/install.sh [--prerelease|--release] [--version 3.3.0]
 
 set -e
 
@@ -16,17 +16,26 @@ case "$ARCH" in
     *)      echo "Error: unsupported architecture: $ARCH"; exit 1 ;;
 esac
 
-# Parse optional --version flag
+# Parse optional selection flags
 VERSION=""
+INSTALL_KIND="prerelease"
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --prerelease)
+            INSTALL_KIND="prerelease"
+            shift
+            ;;
+        --release)
+            INSTALL_KIND="release"
+            shift
+            ;;
         --version|-v)
             VERSION="$2"
             shift 2
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--version <tag>]"
+            echo "Usage: $0 [--prerelease|--release] [--version <tag>]"
             exit 1
             ;;
     esac
@@ -40,12 +49,17 @@ for cmd in curl jq; do
     fi
 done
 
-# Resolve the release tag using /releases (includes pre-releases; /releases/latest skips them)
+# Resolve the release tag. Default selection is the latest prerelease.
 if [[ -z "$VERSION" ]]; then
-    echo "Fetching latest release tag from GitHub..."
-    VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases" | jq -r '.[0].tag_name')
+    if [[ "$INSTALL_KIND" == "release" ]]; then
+        echo "Fetching latest stable release tag from GitHub..."
+        VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | jq -r '.tag_name')
+    else
+        echo "Fetching latest prerelease tag from GitHub..."
+        VERSION=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases" | jq -r '[.[] | select(.prerelease == true)][0].tag_name')
+    fi
     if [[ -z "$VERSION" || "$VERSION" == "null" ]]; then
-        echo "Error: could not determine latest release version."
+        echo "Error: could not determine latest ${INSTALL_KIND} version."
         exit 1
     fi
 fi
@@ -63,6 +77,34 @@ curl -fsSL -o "$TMP_DEB" "$DOWNLOAD_URL"
 
 echo "Installing package..."
 sudo apt-get install -y "$TMP_DEB"
+
+restart_user_controlpanel_units() {
+    if ! command -v systemctl &>/dev/null; then
+        return
+    fi
+
+    mapfile -t controlpanel_units < <(
+        systemctl --user list-unit-files --type=service --no-legend 2>/dev/null \
+            | awk '{print $1}' \
+            | grep '^controlpanel-.*\.service$' || true
+    )
+
+    if [[ ${#controlpanel_units[@]} -eq 0 ]]; then
+        return
+    fi
+
+    echo "Reloading user systemd units..."
+    systemctl --user daemon-reload || true
+
+    for unit in "${controlpanel_units[@]}"; do
+        if systemctl --user is-enabled "$unit" >/dev/null 2>&1 || systemctl --user is-active "$unit" >/dev/null 2>&1; then
+            echo "Restarting user unit $unit ..."
+            systemctl --user restart "$unit" || echo "Warning: failed to restart $unit"
+        fi
+    done
+}
+
+restart_user_controlpanel_units
 
 echo ""
 echo "Done. owlcms Control Panel ${VERSION} is installed."
