@@ -127,7 +127,7 @@ func main() {
 		}
 	}
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Llongfile)
-	log.Println("Starting OWLCMS Control Panel")
+	log.Printf("Starting OWLCMS Control Panel %s", shared.GetLauncherVersion())
 
 	if owlcmsFlag != "" || trackerFlag != "" {
 		owlcmsStop := strings.EqualFold(owlcmsFlag, "stop")

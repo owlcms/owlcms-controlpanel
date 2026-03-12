@@ -163,7 +163,8 @@ func recordOwlcmsStart(pid int, version, port string) *shared.RuntimeMetadata {
 // on non-zero exit (same supervision as the interactive launcher).
 // Otherwise it detaches the child and returns once the port is ready.
 func LaunchDaemon(version string) error {
-	log.Printf("LaunchDaemon: starting OWLCMS %s headlessly", version)
+	log.Printf("LaunchDaemon: starting OWLCMS %s headlessly (systemd=%v, INVOCATION_ID=%q)",
+		version, shared.IsRunningUnderSystemd(), os.Getenv("INVOCATION_ID"))
 
 	if err := InitEnv(); err != nil {
 		return fmt.Errorf("failed to initialize environment: %w", err)
