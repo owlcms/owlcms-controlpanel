@@ -14,7 +14,7 @@ The control panel is installed once. It will automatically download the correct 
   - A daemon mode is provided
     - Under systemd, the Go process stays alive and supervises OWLCMS (restart on non-zero exit).
     - From a terminal, the Go process exits after launch and a Java helper (MainWrapper) babysits OWLCMS in the background, surviving logout.
-  - running with --owlcms --tracker both creates a connected tandem where owlcms feeds the tracker on the port indicated by the tracker config.
+  - running with --owlcms --tracker both creates a connected tandem where owlcms feeds the tracker on the port indicated by the tracker config.Add
 
 - 3.3.0: Default instance command-line compatibility fixes
   - controlpanel --init now initializes the main owlcms instance instead of reporting an empty instance name
