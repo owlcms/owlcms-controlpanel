@@ -35,8 +35,7 @@ func SetInstallDir(dir string) {
 	}
 	installDir = dir
 	environment = nil
-	lockFilePath = filepath.Join(installDir, "java.lock")
-	pidFilePath = filepath.Join(installDir, "java.pid")
+	refreshRuntimePaths()
 }
 
 // GetLauncherVersion returns the current launcher version
