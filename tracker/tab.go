@@ -50,6 +50,16 @@ func IsRunning() bool {
 	return currentProcess != nil || activeRuntime != nil
 }
 
+// IsLocalProcessRunning returns true when this control panel instance owns the running process.
+func IsLocalProcessRunning() bool {
+	return currentProcess != nil
+}
+
+// IsRecoveredDaemonRunning returns true when the UI reattached to an existing daemon process.
+func IsRecoveredDaemonRunning() bool {
+	return currentProcess == nil && activeRuntime != nil
+}
+
 // OnTabSelected is called when the Tracker tab is selected.
 // It refreshes the version list to update the OWLCMS version warning.
 func OnTabSelected() {

@@ -234,53 +234,75 @@ func anyProgramRunning() bool {
 }
 
 func anyDaemonRunning() bool {
-	return owlcms.IsRunning() || tracker.IsRunning()
+	return owlcms.IsRecoveredDaemonRunning() || tracker.IsRecoveredDaemonRunning()
 }
 
-func anyLocalProgramRunning() bool {
-	return firmata.IsRunning() || cameras.IsRunning() || replays.IsRunning()
-}
-
-func daemonModeEnabled() bool {
-	return shared.GetGoos() == "linux" && shared.IsRunAsDaemonEnabled()
-}
-
-func stopLocalRunningProcesses(w fyne.Window) {
-	firmata.StopRunningProcess(w)
-	cameras.StopRunningProcess(w)
-	replays.StopRunningProcess(w)
-}
-
-func stopLocalRunningProcessesForSignal() {
+func closableProgramNames() []string {
+	programs := make([]string, 0, 5)
+	if owlcms.IsLocalProcessRunning() {
+		programs = append(programs, "OWLCMS")
+	}
+	if tracker.IsLocalProcessRunning() {
+		programs = append(programs, "Tracker")
+	}
 	if firmata.IsRunning() {
-		log.Println("Signal cleanup: forcefully stopping Firmata process")
-		firmata.HandleSignalCleanup()
+		programs = append(programs, "Firmata")
 	}
 	if cameras.IsRunning() {
-		log.Println("Signal cleanup: forcefully stopping Cameras process")
-		cameras.HandleSignalCleanup()
+		programs = append(programs, "Cameras")
 	}
 	if replays.IsRunning() {
-		log.Println("Signal cleanup: forcefully stopping Replays process")
-		replays.HandleSignalCleanup()
+		programs = append(programs, "Replays")
+	}
+	return programs
+}
+
+func recoveredDaemonProgramNames() []string {
+	programs := make([]string, 0, 2)
+	if owlcms.IsRecoveredDaemonRunning() {
+		programs = append(programs, "OWLCMS")
+	}
+	if tracker.IsRecoveredDaemonRunning() {
+		programs = append(programs, "Tracker")
+	}
+	return programs
+}
+
+func anyClosableProgramRunning() bool {
+	return len(closableProgramNames()) > 0
+}
+
+func joinProgramNames(programs []string) string {
+	switch len(programs) {
+	case 0:
+		return ""
+	case 1:
+		return programs[0]
+	case 2:
+		return programs[0] + " and " + programs[1]
+	default:
+		return strings.Join(programs[:len(programs)-1], ", ") + ", and " + programs[len(programs)-1]
 	}
 }
 
-func stopAllRunningProcesses(w fyne.Window) {
-	owlcms.StopRunningProcess(w)
-	tracker.StopRunningProcess(w)
+func stopClosableRunningProcesses(w fyne.Window) {
+	if owlcms.IsLocalProcessRunning() {
+		owlcms.StopRunningProcess(w)
+	}
+	if tracker.IsLocalProcessRunning() {
+		tracker.StopRunningProcess(w)
+	}
 	firmata.StopRunningProcess(w)
 	cameras.StopRunningProcess(w)
 	replays.StopRunningProcess(w)
 }
 
-func stopAllRunningProcessesForSignal() {
-	// For signal handling, use forceful termination (no UI, no delays)
-	if owlcms.IsRunning() {
+func stopClosableRunningProcessesForSignal() {
+	if owlcms.IsLocalProcessRunning() {
 		log.Println("Signal cleanup: forcefully stopping OWLCMS process")
 		owlcms.HandleSignalCleanup()
 	}
-	if tracker.IsRunning() {
+	if tracker.IsLocalProcessRunning() {
 		log.Println("Signal cleanup: forcefully stopping Tracker process")
 		tracker.HandleSignalCleanup()
 	}
@@ -382,22 +404,17 @@ func requestExit(w fyne.Window) {
 		return
 	}
 
-	daemonRunning := anyDaemonRunning()
-	localRunning := anyLocalProgramRunning()
-	daemonMode := daemonModeEnabled()
+	daemonPrograms := recoveredDaemonProgramNames()
+	closablePrograms := closableProgramNames()
 	message := "Exit the Control Panel?"
 	confirmText := "Exit"
-	if daemonMode && daemonRunning && localRunning {
-		message = "OWLCMS and Tracker will continue running in the background. Local applications will be stopped."
-		confirmText = "Exit"
-	} else if daemonMode && daemonRunning {
-		message = "OWLCMS and Tracker will continue running in the background."
-		confirmText = "Exit"
-	} else if anyProgramRunning() {
-		message = "Running applications will be stopped. Exiting may affect users."
+	if len(daemonPrograms) > 0 && len(closablePrograms) > 0 {
+		message = fmt.Sprintf("%s will continue running in the background. Closing the Control Panel will stop %s. Exiting may affect users.", joinProgramNames(daemonPrograms), joinProgramNames(closablePrograms))
 		confirmText = "Stop and Exit"
-	} else if localRunning {
-		message = "Running local applications will be stopped. Exiting may affect users."
+	} else if len(daemonPrograms) > 0 {
+		message = fmt.Sprintf("%s will continue running in the background.", joinProgramNames(daemonPrograms))
+	} else if len(closablePrograms) > 0 {
+		message = fmt.Sprintf("Closing the Control Panel will stop %s. Exiting may affect users.", joinProgramNames(closablePrograms))
 		confirmText = "Stop and Exit"
 	}
 
@@ -410,17 +427,12 @@ func requestExit(w fyne.Window) {
 			}
 
 			exitInProgress = true
-			if daemonMode {
-				if localRunning {
-					log.Println("Exiting launcher - stopping local running processes")
-					stopLocalRunningProcesses(w)
-				}
-				if daemonRunning {
-					log.Println("Exiting launcher - leaving OWLCMS and Tracker running in background")
-				}
-			} else if anyProgramRunning() {
-				log.Println("Exiting launcher - stopping all running processes")
-				stopAllRunningProcesses(w)
+			if len(closablePrograms) > 0 {
+				log.Printf("Exiting launcher - stopping %s", joinProgramNames(closablePrograms))
+				stopClosableRunningProcesses(w)
+			}
+			if len(daemonPrograms) > 0 {
+				log.Printf("Exiting launcher - leaving %s running in background", joinProgramNames(daemonPrograms))
 			}
 
 			// Avoid re-triggering our close intercept (especially when Quit is from the menu).
@@ -534,20 +546,17 @@ func setupSignalHandling() {
 			// Under systemd the Go process owns the child — stop everything
 			// so systemctl stop actually terminates OWLCMS/Tracker.
 			log.Println("Running under systemd — stopping all processes due to signal...")
-			stopAllRunningProcessesForSignal()
+			stopClosableRunningProcessesForSignal()
 			log.Println("All processes stopped.")
-		} else if daemonModeEnabled() {
-			if anyLocalProgramRunning() {
-				log.Println("Stopping local running processes due to signal while daemon mode is enabled...")
-				stopLocalRunningProcessesForSignal()
+		} else {
+			if anyClosableProgramRunning() {
+				log.Printf("Stopping %s due to signal...", joinProgramNames(closableProgramNames()))
+				stopClosableRunningProcessesForSignal()
+				log.Println("Closable processes stopped.")
 			}
 			if anyDaemonRunning() {
-				log.Println("Daemon mode enabled - leaving OWLCMS and Tracker running after terminal signal")
+				log.Printf("Leaving %s running after terminal signal", joinProgramNames(recoveredDaemonProgramNames()))
 			}
-		} else if anyProgramRunning() {
-			log.Println("Stopping all running processes due to signal...")
-			stopAllRunningProcessesForSignal()
-			log.Println("All processes stopped.")
 		}
 
 		log.Println("Exiting Control Panel...")
