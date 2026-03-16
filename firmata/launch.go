@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -59,20 +58,24 @@ var (
 )
 
 func acquireJavaLock() (*flock.Flock, error) {
-	data, err := os.ReadFile(pidFilePath)
-	if err == nil && len(data) > 0 {
-		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-		if err == nil && pid != 0 {
-			log.Printf("Another instance of owlcms-firmata is already running with PID %d", pid)
-			return nil, fmt.Errorf("another instance of owlcms-firmata is already running with PID %d", pid)
-		} else {
-			log.Printf("Failed to parse PID from PID file: %v", err)
-			os.Remove(pidFilePath)
-		}
-	} else {
+	pid, source, err := shared.ResolvePIDFromFileOrPort(pidFilePath, GetPort())
+	if err != nil {
+		return nil, err
+	}
+	if pid == 0 {
 		return nil, nil
 	}
 
+	if source == "pid file" {
+		log.Printf("Another instance of owlcms-firmata is already running with PID %d", pid)
+		return nil, fmt.Errorf("another instance of owlcms-firmata is already running with PID %d", pid)
+	}
+
+	log.Printf("No running PID from PID file, stopping PID %d resolved from %s", pid, source)
+	os.Remove(pidFilePath)
+	if err := shared.StopPIDFileOrPortProcess(pidFilePath, GetPort()); err != nil {
+		log.Printf("Warning: failed to stop process after stale PID cleanup: %v", err)
+	}
 	return nil, nil
 }
 
@@ -87,24 +90,14 @@ func releaseJavaLock() {
 }
 
 func killLockingProcess() error {
-	data, err := os.ReadFile(pidFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to read PID file: %w", err)
-	}
-
-	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-	if err != nil {
-		return fmt.Errorf("failed to parse PID from PID file: %w", err)
-	}
-
-	err = shared.GracefullyStopPID(pid)
-	if err != nil {
+	port := GetPort()
+	if err := shared.StopPIDFileOrPortProcess(pidFilePath, port); err != nil {
 		releaseJavaLock()
 		return err
 	}
 
 	releaseJavaLock()
-	log.Printf("Killed process with PID %d\n", pid)
+	log.Printf("Freed port %s\n", port)
 	return nil
 }
 
