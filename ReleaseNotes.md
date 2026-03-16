@@ -8,20 +8,19 @@ The control panel is installed once. It will automatically download the correct 
 
 ## Release Log
 
+- 3.3.0: Improved process kill
+  - will now attempt to locate and kill a process using the port even if the PID file is stale
+
 - 3.3.0: Command-line options for multiple instances and Linux daemon mode
   - Run controlpanel --help for details
   - These options are Linux-oriented, targeted at virtual privatehosting scenarios.
+  - running with --owlcms --tracker both creates a connected tandem where owlcms feeds the tracker on the port indicated by the tracker config.Add
+  - controlpanel --init now initializes the main owlcms instance instead of reporting an empty instance name
   - A daemon mode is provided
     - Under systemd, the Go process stays alive and supervises OWLCMS (restart on non-zero exit).
     - From a terminal, the Go process exits after launch and a Java helper (MainWrapper) babysits OWLCMS in the background, surviving logout.
-  - running with --owlcms --tracker both creates a connected tandem where owlcms feeds the tracker on the port indicated by the tracker config.Add
 
-- 3.3.0: Default instance command-line compatibility fixes
-  - controlpanel --init now initializes the main owlcms instance instead of reporting an empty instance name
-  - controlpanel owlcms now keeps working for legacy default installs without requiring stored runtime metadata first
-
-- 3.2.0: Configuration options for OWLCMS
-  - the Options menu entries now allow selecting a version
+- 3.2.0: Configuration options
   - a new option to set the port has been added
 
 - 3.2.0: Environment variables processing
