@@ -381,14 +381,14 @@ func TestParseCLIOptionsHelpTakesPrecedenceOverOtherControlVerbs(t *testing.T) {
 	}
 }
 
-func TestParseDaemonFlagsDefaultsMissingValuesToLatest(t *testing.T) {
+func TestParseDaemonFlagsDefaultsMissingValuesToPrevious(t *testing.T) {
 	owlcmsValue, trackerValue := parseDaemonFlags([]string{"--owlcms", "--tracker"})
 
-	if owlcmsValue != "latest" {
-		t.Fatalf("expected owlcms value latest, got %q", owlcmsValue)
+	if owlcmsValue != "previous" {
+		t.Fatalf("expected owlcms value previous, got %q", owlcmsValue)
 	}
-	if trackerValue != "latest" {
-		t.Fatalf("expected tracker value latest, got %q", trackerValue)
+	if trackerValue != "previous" {
+		t.Fatalf("expected tracker value previous, got %q", trackerValue)
 	}
 }
 
@@ -417,22 +417,119 @@ func TestParseDaemonFlagsKeepsListValue(t *testing.T) {
 func TestParseDaemonFlagsDoesNotConsumePositionalInstance(t *testing.T) {
 	owlcmsValue, trackerValue := parseDaemonFlags([]string{"records", "--owlcms", "--tracker"})
 
-	if owlcmsValue != "latest" {
-		t.Fatalf("expected owlcms value latest, got %q", owlcmsValue)
+	if owlcmsValue != "previous" {
+		t.Fatalf("expected owlcms value previous, got %q", owlcmsValue)
 	}
-	if trackerValue != "latest" {
-		t.Fatalf("expected tracker value latest, got %q", trackerValue)
+	if trackerValue != "previous" {
+		t.Fatalf("expected tracker value previous, got %q", trackerValue)
 	}
 }
 
 func TestParseDaemonFlagsIgnoresMQTTFlag(t *testing.T) {
 	owlcmsValue, trackerValue := parseDaemonFlags([]string{"records", "--owlcms", "--mqtt", "--tracker"})
 
-	if owlcmsValue != "latest" {
-		t.Fatalf("expected owlcms value latest, got %q", owlcmsValue)
+	if owlcmsValue != "previous" {
+		t.Fatalf("expected owlcms value previous, got %q", owlcmsValue)
 	}
-	if trackerValue != "latest" {
-		t.Fatalf("expected tracker value latest, got %q", trackerValue)
+	if trackerValue != "previous" {
+		t.Fatalf("expected tracker value previous, got %q", trackerValue)
+	}
+}
+
+func TestResolveVersionPreviousFallsBackToLatestWhenNoPrevious(t *testing.T) {
+	base := t.TempDir()
+	// Create two fake installed version directories
+	os.MkdirAll(filepath.Join(base, "65.0.0"), 0755)
+	os.MkdirAll(filepath.Join(base, "64.0.0"), 0755)
+
+	allVersions := []string{"65.0.0", "64.0.0"} // semver descending
+
+	// getLastRunVersion returns "" to simulate no previous version recorded
+	version, err := resolveVersion("owlcms", "previous", allVersions, base, func() string { return "" })
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if version != "65.0.0" {
+		t.Fatalf("expected fallback to latest 65.0.0, got %q", version)
+	}
+}
+
+func TestResolveVersionPreviousUsesRecordedVersion(t *testing.T) {
+	base := t.TempDir()
+	os.MkdirAll(filepath.Join(base, "65.0.0"), 0755)
+	os.MkdirAll(filepath.Join(base, "64.0.0"), 0755)
+
+	allVersions := []string{"65.0.0", "64.0.0"}
+
+	version, err := resolveVersion("owlcms", "previous", allVersions, base, func() string { return "64.0.0" })
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if version != "64.0.0" {
+		t.Fatalf("expected previous version 64.0.0, got %q", version)
+	}
+}
+
+func TestResolveVersionPreviousFallsBackWhenPreviousUninstalled(t *testing.T) {
+	base := t.TempDir()
+	os.MkdirAll(filepath.Join(base, "65.0.0"), 0755)
+
+	allVersions := []string{"65.0.0"}
+
+	// Previous version 64.0.0 was recorded but is no longer installed
+	version, err := resolveVersion("owlcms", "previous", allVersions, base, func() string { return "64.0.0" })
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if version != "65.0.0" {
+		t.Fatalf("expected fallback to latest 65.0.0, got %q", version)
+	}
+}
+
+func TestResolveVersionTrackerPreviousFallsBackToLatestWhenNoPrevious(t *testing.T) {
+	base := t.TempDir()
+	os.MkdirAll(filepath.Join(base, "2.4.0"), 0755)
+	os.MkdirAll(filepath.Join(base, "2.3.0"), 0755)
+
+	allVersions := []string{"2.4.0", "2.3.0"}
+
+	version, err := resolveVersion("tracker", "previous", allVersions, base, func() string { return "" })
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if version != "2.4.0" {
+		t.Fatalf("expected fallback to latest 2.4.0, got %q", version)
+	}
+}
+
+func TestResolveVersionTrackerPreviousUsesRecordedVersion(t *testing.T) {
+	base := t.TempDir()
+	os.MkdirAll(filepath.Join(base, "2.4.0"), 0755)
+	os.MkdirAll(filepath.Join(base, "2.3.0"), 0755)
+
+	allVersions := []string{"2.4.0", "2.3.0"}
+
+	version, err := resolveVersion("tracker", "previous", allVersions, base, func() string { return "2.3.0" })
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if version != "2.3.0" {
+		t.Fatalf("expected previous version 2.3.0, got %q", version)
+	}
+}
+
+func TestResolveVersionTrackerPreviousFallsBackWhenPreviousUninstalled(t *testing.T) {
+	base := t.TempDir()
+	os.MkdirAll(filepath.Join(base, "2.4.0"), 0755)
+
+	allVersions := []string{"2.4.0"}
+
+	version, err := resolveVersion("tracker", "previous", allVersions, base, func() string { return "2.3.0" })
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if version != "2.4.0" {
+		t.Fatalf("expected fallback to latest 2.4.0, got %q", version)
 	}
 }
 
