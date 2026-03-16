@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
 	"github.com/gofrs/flock"
-	"github.com/shirou/gopsutil/process"
 )
 
 func configureTailLogLink(version, appDir string) {
@@ -296,25 +294,23 @@ func reconnectTrackerRuntime() bool {
 }
 
 func acquireTrackerLock() (*flock.Flock, error) {
-	data, err := os.ReadFile(pidFilePath)
-	if err == nil && len(data) > 0 {
-		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-		if err == nil && pid != 0 {
-			// Check if process is still running
-			proc, procErr := process.NewProcess(int32(pid))
-			if procErr == nil {
-				running, _ := proc.IsRunning()
-				if running {
-					log.Printf("Another instance of owlcms-tracker is already running with PID %d", pid)
-					return nil, fmt.Errorf("another instance of owlcms-tracker is already running with PID %d", pid)
-				}
-			}
-			// Process is not running, clean up stale PID file
-			os.Remove(pidFilePath)
-		} else {
-			log.Printf("Failed to parse PID from PID file: %v", err)
-			os.Remove(pidFilePath)
-		}
+	pid, source, err := shared.ResolvePIDFromFileOrPort(pidFilePath, GetPort())
+	if err != nil {
+		return nil, err
+	}
+	if pid == 0 {
+		return nil, nil
+	}
+
+	if source == "pid file" {
+		log.Printf("Another instance of owlcms-tracker is already running with PID %d", pid)
+		return nil, fmt.Errorf("another instance of owlcms-tracker is already running with PID %d", pid)
+	}
+
+	log.Printf("No running PID from PID file, stopping PID %d resolved from %s", pid, source)
+	os.Remove(pidFilePath)
+	if err := shared.StopPIDFileOrPortProcess(pidFilePath, GetPort()); err != nil {
+		log.Printf("Warning: failed to stop process after stale PID cleanup: %v", err)
 	}
 
 	return nil, nil
@@ -331,24 +327,14 @@ func releaseTrackerLock() {
 }
 
 func killLockingProcess() error {
-	data, err := os.ReadFile(pidFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to read PID file: %w", err)
-	}
-
-	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-	if err != nil {
-		return fmt.Errorf("failed to parse PID from PID file: %w", err)
-	}
-
-	err = shared.GracefullyStopPID(pid)
-	if err != nil {
+	port := GetPort()
+	if err := shared.StopPIDFileOrPortProcess(pidFilePath, port); err != nil {
 		releaseTrackerLock()
 		return err
 	}
 
 	releaseTrackerLock()
-	log.Printf("Killed process with PID %d\n", pid)
+	log.Printf("Freed port %s\n", port)
 	return nil
 }
 
@@ -365,15 +351,42 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 
 	targetPort := GetPortForRelease(version)
 
-	// Check if port is already in use
+	// Free port if already in use
 	if shared.CheckPort(targetPort) == nil {
-		statusLabel.SetText(fmt.Sprintf("Another program is running on port %s", targetPort))
-		statusLabel.Refresh()
-		goBackToMainScreen()
-		log.Printf("Another program is running on port %s", targetPort)
-		return fmt.Errorf("another program is running on port %s", targetPort)
+		log.Printf("Port %s is in use, attempting to free it...", targetPort)
+		progressLabel := widget.NewLabel(fmt.Sprintf("Port %s is busy, stopping the process that is using it...", targetPort))
+		progressDialog := dialog.NewCustom("Freeing Port", "", progressLabel, mainWindow)
+		progressDialog.Show()
+
+		go func() {
+			err := shared.EnsurePortFree(targetPort)
+			progressDialog.Hide()
+
+			if err != nil {
+				log.Printf("Cannot free port %s: %v", targetPort, err)
+				dialog.ShowError(fmt.Errorf("cannot free port %s: %w", targetPort, err), mainWindow)
+				goBackToMainScreen()
+				return
+			}
+			if shared.CheckPort(targetPort) == nil {
+				log.Printf("Port %s is still in use after cleanup", targetPort)
+				dialog.ShowError(fmt.Errorf("port %s is still in use after cleanup", targetPort), mainWindow)
+				goBackToMainScreen()
+				return
+			}
+
+			log.Printf("Port %s successfully freed", targetPort)
+			dialog.ShowInformation("Port Freed", fmt.Sprintf("Port %s has been freed. Launching tracker %s...", targetPort, version), mainWindow)
+			continueTrackerLaunch(version, targetPort, launchButton, stopBtn)
+		}()
+		return nil
 	}
 
+	continueTrackerLaunch(version, targetPort, launchButton, stopBtn)
+	return nil
+}
+
+func continueTrackerLaunch(version, targetPort string, launchButton, stopBtn *widget.Button) {
 	statusLabel.SetText(fmt.Sprintf("Starting owlcms-tracker %s...", version))
 	statusLabel.Refresh()
 	statusLabel.Show()
@@ -381,7 +394,9 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 	// Store current directory to restore it later
 	originalDir, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("getting current directory: %w", err)
+		dialog.ShowError(fmt.Errorf("getting current directory: %w", err), mainWindow)
+		goBackToMainScreen()
+		return
 	}
 
 	params, err := prepareTrackerLaunch(version)
@@ -389,13 +404,14 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 		statusLabel.SetText(err.Error())
 		launchButton.Show()
 		goBackToMainScreen()
-		return err
+		return
 	}
 	targetPort = params.TargetPort
 
 	if err := os.Chdir(params.VersionDir); err != nil {
 		launchButton.Show()
-		return fmt.Errorf("changing to version directory: %w", err)
+		dialog.ShowError(fmt.Errorf("changing to version directory: %w", err), mainWindow)
+		return
 	}
 	defer os.Chdir(originalDir)
 
@@ -415,7 +431,8 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 			if err != nil {
 				launchButton.Show()
 				goBackToMainScreen()
-				return fmt.Errorf("failed to find latest Node.js release: %w", err)
+				dialog.ShowError(fmt.Errorf("failed to find latest Node.js release: %w", err), mainWindow)
+				return
 			}
 		}
 
@@ -460,7 +477,8 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 		if err != nil {
 			launchButton.Show()
 			goBackToMainScreen()
-			return fmt.Errorf("failed to download Node.js: %w", err)
+			dialog.ShowError(fmt.Errorf("failed to download Node.js: %w", err), mainWindow)
+			return
 		}
 
 		log.Printf("Successfully installed Node.js at: %s\n", nodePath)
@@ -473,7 +491,8 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 	if _, err := os.Stat(nodeExe); os.IsNotExist(err) {
 		launchButton.Show()
 		goBackToMainScreen()
-		return fmt.Errorf("node executable not found at %s", nodeExe)
+		dialog.ShowError(fmt.Errorf("node executable not found at %s", nodeExe), mainWindow)
+		return
 	}
 
 	// Make sure node is executable on Unix systems
@@ -518,7 +537,8 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 		if logFile != nil {
 			_ = logFile.Close()
 		}
-		return fmt.Errorf("failed to start owlcms-tracker %s: %w", version, err)
+		dialog.ShowError(fmt.Errorf("failed to start owlcms-tracker %s: %w", version, err), mainWindow)
+		return
 	}
 
 	// Store the PID in the PID file and globally (after Start() succeeds)
@@ -580,6 +600,23 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 		configureTailLogLink(version, appDir)
 		stopContainer.Refresh()
 
+		detachedDaemon := shared.GetGoos() == "linux" && shared.IsRunAsDaemonEnabled()
+		if detachedDaemon {
+			log.Printf("Tracker %s detached daemon is ready; reattaching UI to runtime metadata", version)
+			currentProcess = nil
+			if !reconnectTrackerRuntime() {
+				if activeRuntime == nil {
+					activeRuntime = &shared.RuntimeMetadata{
+						PID:     nodePID,
+						Version: version,
+						Port:    targetPort,
+					}
+				}
+				restoreTrackerRunningUI(version, targetPort, activeRuntime.PID)
+			}
+			return
+		}
+
 		// Auto-open the browser when the tracker is ready
 		if err := shared.OpenBrowser(url); err != nil {
 			log.Printf("Failed to open browser: %v\n", err)
@@ -621,8 +658,6 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 		}
 		releaseTrackerLock()
 	}()
-
-	return nil
 }
 
 func goBackToMainScreen() {
