@@ -1,10 +1,12 @@
 package shared
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 )
 
 const videoConfigSubdir = "video_config"
@@ -85,4 +87,39 @@ func RunVideoExtractBootstrap(exePath, versionDir string) error {
 	}
 
 	return nil
+}
+
+// ReadTopLevelTOMLValue reads a simple top-level TOML key without pulling in a full TOML parser.
+func ReadTopLevelTOMLValue(filePath, key string) (string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "[") {
+			continue
+		}
+
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		if strings.TrimSpace(parts[0]) != key {
+			continue
+		}
+
+		value := strings.TrimSpace(parts[1])
+		value = strings.Trim(value, `"'`)
+		return value, nil
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", err
+	}
+
+	return "", nil
 }

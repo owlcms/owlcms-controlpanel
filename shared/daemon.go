@@ -258,6 +258,107 @@ func ForcefullyKillPID(pid int) error {
 	return nil
 }
 
+// ResolvePIDFromFileOrPort returns a running PID using the standard lookup order:
+// first the PID file, then the TCP port listener.
+func ResolvePIDFromFileOrPort(pidFilePath, port string) (int, string, error) {
+	trimmedPIDFile := strings.TrimSpace(pidFilePath)
+	trimmedPort := strings.TrimSpace(port)
+
+	if trimmedPIDFile != "" {
+		content, err := os.ReadFile(trimmedPIDFile)
+		switch {
+		case err == nil:
+			pidText := strings.TrimSpace(string(content))
+			if pidText != "" {
+				pid, parseErr := strconv.Atoi(pidText)
+				if parseErr == nil && pid > 0 {
+					if IsProcessRunning(pid) {
+						return pid, "pid file", nil
+					}
+					log.Printf("PID file %s is stale (PID %d not running)", trimmedPIDFile, pid)
+				} else {
+					log.Printf("PID file %s is invalid (%q)", trimmedPIDFile, pidText)
+				}
+			}
+		case os.IsNotExist(err):
+			// Fall through to port lookup.
+		default:
+			return 0, "", fmt.Errorf("read PID file %s: %w", trimmedPIDFile, err)
+		}
+	}
+
+	if trimmedPort == "" {
+		return 0, "", nil
+	}
+
+	portNum, err := strconv.Atoi(trimmedPort)
+	if err != nil || portNum < 1 || portNum > 65535 {
+		return 0, "", fmt.Errorf("invalid port %q", port)
+	}
+
+	pid, err := FindPIDByPort(portNum)
+	if err != nil {
+		return 0, "", err
+	}
+	if pid > 0 {
+		return pid, "port", nil
+	}
+
+	return 0, "", nil
+}
+
+// StopPIDFileOrPortProcess resolves a process using the PID file first and the
+// port second, then applies the normal graceful-stop escalation until the port
+// is free or the process is gone.
+func StopPIDFileOrPortProcess(pidFilePath, port string) error {
+	trimmedPort := strings.TrimSpace(port)
+	deadline := time.Now().Add(5 * time.Second)
+
+	for {
+		pid, source, err := ResolvePIDFromFileOrPort(pidFilePath, trimmedPort)
+		if err != nil {
+			return err
+		}
+		if pid == 0 {
+			return nil
+		}
+
+		log.Printf("Stopping PID %d resolved from %s", pid, source)
+		if err := GracefullyStopPID(pid); err != nil {
+			log.Printf("GracefullyStopPID(%d): %v", pid, err)
+		}
+
+		if trimmedPort == "" {
+			if !IsProcessRunning(pid) {
+				return nil
+			}
+		} else if CheckPort(trimmedPort) != nil {
+			return nil
+		}
+
+		if time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	pid, source, err := ResolvePIDFromFileOrPort(pidFilePath, trimmedPort)
+	if err != nil {
+		return err
+	}
+	if pid != 0 {
+		if source == "" {
+			source = "process lookup"
+		}
+		if trimmedPort != "" {
+			return fmt.Errorf("port %s is still in use by PID %d resolved from %s", trimmedPort, pid, source)
+		}
+		return fmt.Errorf("PID %d resolved from %s is still running", pid, source)
+	}
+
+	return nil
+}
+
 // FindPIDByPort returns the PID of the process listening on the given TCP port.
 // Returns 0 with no error if no listener is found.
 func FindPIDByPort(port int) (int, error) {
@@ -277,46 +378,7 @@ func FindPIDByPort(port int) (int, error) {
 // stops it (SIGINT → SIGTERM → SIGKILL), then verifies the port is free.
 // This is the single stop primitive used by both interactive and headless paths.
 func EnsurePortFree(port string) error {
-	trimmed := strings.TrimSpace(port)
-	if trimmed == "" {
-		return nil
-	}
-
-	portNum, err := strconv.Atoi(trimmed)
-	if err != nil || portNum < 1 || portNum > 65535 {
-		return fmt.Errorf("invalid port %q", port)
-	}
-
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		pid, err := FindPIDByPort(portNum)
-		if err != nil {
-			return err
-		}
-		if pid == 0 {
-			return nil
-		}
-
-		log.Printf("Port %s in use by PID %d, stopping...", trimmed, pid)
-		if err := GracefullyStopPID(pid); err != nil {
-			log.Printf("GracefullyStopPID(%d): %v", pid, err)
-		}
-
-		if time.Now().After(deadline) {
-			break
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-
-	pid, err := FindPIDByPort(portNum)
-	if err != nil {
-		return err
-	}
-	if pid != 0 {
-		return fmt.Errorf("port %s is still in use by PID %d", trimmed, pid)
-	}
-
-	return nil
+	return StopPIDFileOrPortProcess("", port)
 }
 
 // CheckPort tries to connect to localhost:port and returns nil if a server is responding.
