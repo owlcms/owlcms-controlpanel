@@ -353,9 +353,14 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 
 	optionsMenuItems := []*fyne.MenuItem{setPortItem, trackerToggleItem}
 	if shared.GetGoos() == "linux" {
-		daemonModeItem := fyne.NewMenuItem("Run as daemon", func() {
-			showDaemonModeDialog(w)
-		})
+		daemonModeItem := fyne.NewMenuItem(daemonModeLabel(), nil)
+		daemonModeItem.Action = func() {
+			newState := !GetRunAsDaemon()
+			if err := SetRunAsDaemon(newState); err != nil {
+				log.Printf("failed to save daemon setting: %v", err)
+			}
+			daemonModeItem.Label = daemonModeLabel()
+		}
 		optionsMenuItems = append(optionsMenuItems, daemonModeItem)
 	}
 
@@ -371,39 +376,11 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 	)
 }
 
-func showDaemonModeDialog(w fyne.Window) {
-	enabledCheck := widget.NewCheck("Leave OWLCMS and Tracker running after closing the window or terminal", nil)
-	enabledCheck.SetChecked(GetRunAsDaemon())
-
-	message := widget.NewLabel("When enabled, newly launched OWLCMS and Tracker processes will detach from the Linux session and survive Fyne window closure and terminal closure. Existing running processes keep the mode they were launched with.")
-	message.Wrapping = fyne.TextWrapWord
-
-	content := container.NewVBox(enabledCheck, message)
-	d := dialog.NewCustomConfirm(
-		"Run as daemon",
-		"Save",
-		"Cancel",
-		content,
-		func(ok bool) {
-			if !ok {
-				return
-			}
-
-			if err := SetRunAsDaemon(enabledCheck.Checked); err != nil {
-				dialog.ShowError(fmt.Errorf("failed to save daemon setting: %w", err), w)
-				return
-			}
-
-			state := "disabled"
-			if enabledCheck.Checked {
-				state = "enabled"
-			}
-
-			dialog.ShowInformation("Run as daemon", fmt.Sprintf("Run as daemon %s. Restart OWLCMS and Tracker if you want the new mode to apply to already-running processes.", state), w)
-		},
-		w,
-	)
-	d.Show()
+func daemonModeLabel() string {
+	if GetRunAsDaemon() {
+		return "Disable daemon mode"
+	}
+	return "Enable daemon mode"
 }
 
 func showTrackerConnectionDialog(w fyne.Window) {

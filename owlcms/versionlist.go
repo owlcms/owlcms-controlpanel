@@ -396,20 +396,34 @@ func createLaunchButton(w fyne.Window, version string, stopBtn *widget.Button, b
 			return
 		}
 
-		log.Printf("Launching version %s\n", version)
-		if err := EnsureReleaseEnvFromParent(version); err != nil {
-			dialog.ShowError(fmt.Errorf("failed to initialize env.properties for %s: %w", version, err), w)
-			return
-		}
-		// Get version-specific Temurin version
-		ver := GetTemurinVersionForRelease(version)
-		if err := shared.CheckAndInstallJava(ver, statusLabel, w, checkJava); err != nil {
-			return
+		doLaunch := func() {
+			log.Printf("Launching version %s\n", version)
+			if err := EnsureReleaseEnvFromParent(version); err != nil {
+				dialog.ShowError(fmt.Errorf("failed to initialize env.properties for %s: %w", version, err), w)
+				return
+			}
+			// Get version-specific Temurin version
+			ver := GetTemurinVersionForRelease(version)
+			if err := shared.CheckAndInstallJava(ver, statusLabel, w, checkJava); err != nil {
+				return
+			}
+
+			if err := launchOwlcms(version, launchButton, stopBtn); err != nil {
+				dialog.ShowError(err, w)
+				return
+			}
 		}
 
-		if err := launchOwlcms(version, launchButton, stopBtn); err != nil {
-			dialog.ShowError(err, w)
-			return
+		if shared.GetGoos() == "linux" && GetRunAsDaemon() {
+			dialog.ShowConfirm("Daemon Mode",
+				"OWLCMS will keep running even if you exit the control panel.\nProceed?",
+				func(ok bool) {
+					if ok {
+						doLaunch()
+					}
+				}, w)
+		} else {
+			doLaunch()
 		}
 	}
 	buttonContainer.Add(container.NewPadded(launchButton))
