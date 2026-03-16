@@ -66,32 +66,19 @@ func stopReplaysProcess(curProcess *exec.Cmd, curVersion string, stopBtn *widget
 	if statusLabel != nil {
 		statusLabel.SetText(fmt.Sprintf("Stopping replays %s...", curVersion))
 	}
-
-	if curProcess == nil || curProcess.Process == nil {
-		return
+	port := getPortForRelease(curVersion)
+	if port == "" {
+		port = runtimeReplaysPort()
 	}
-	pid := curProcess.Process.Pid
 	killedByUs = true
 
-	var err error
-	if shared.GetGoos() == "windows" {
-		cmd := exec.Command("taskkill", "/PID", strconv.Itoa(pid))
-		err = cmd.Run()
-	} else {
-		err = curProcess.Process.Signal(syscall.SIGINT)
+	if err := shared.StopPIDFileOrPortProcess(replaysPIDFile, port); err != nil {
+		killedByUs = false
+		dialog.ShowError(fmt.Errorf("failed to stop replays %s: %w", curVersion, err), w)
+		return
 	}
 
-	if err != nil {
-		log.Printf("Failed to gracefully stop replays %s (PID: %d): %v\n", curVersion, pid, err)
-		err = curProcess.Process.Kill()
-		if err != nil {
-			killedByUs = false
-			dialog.ShowError(fmt.Errorf("failed to stop replays %s (PID: %d): %w", curVersion, pid, err), w)
-			return
-		}
-	}
-
-	log.Printf("Replays %s (PID: %d) stopped\n", curVersion, pid)
+	log.Printf("Replays %s stopped\n", curVersion)
 	if statusLabel != nil {
 		statusLabel.SetText(fmt.Sprintf("Replays %s stopped", curVersion))
 	}
@@ -108,35 +95,15 @@ func stopReplaysProcess(curProcess *exec.Cmd, curVersion string, stopBtn *widget
 }
 
 func killLockingProcess() error {
-	// Try to kill any stale cameras or replays processes by reading PID files
-	for _, pidFile := range []string{camerasPIDFile, replaysPIDFile} {
-		data, err := os.ReadFile(pidFile)
-		if err != nil {
-			continue
-		}
-		pid, err := strconv.Atoi(string(data))
-		if err != nil {
-			os.Remove(pidFile)
-			continue
-		}
-		proc, err := os.FindProcess(pid)
-		if err != nil {
-			os.Remove(pidFile)
-			continue
-		}
-		if shared.GetGoos() == "windows" {
-			cmd := exec.Command("taskkill", "/PID", strconv.Itoa(pid), "/F")
-			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("failed to kill process %d: %w", pid, err)
-			}
-		} else {
-			if err := proc.Signal(syscall.SIGKILL); err != nil {
-				return fmt.Errorf("failed to kill process %d: %w", pid, err)
-			}
-		}
-		os.Remove(pidFile)
-		log.Printf("Killed stale video process PID %d\n", pid)
+	if err := shared.StopPIDFileOrPortProcess(camerasPIDFile, ""); err != nil {
+		return err
 	}
+	os.Remove(camerasPIDFile)
+
+	if err := shared.StopPIDFileOrPortProcess(replaysPIDFile, runtimeReplaysPort()); err != nil {
+		return err
+	}
+	os.Remove(replaysPIDFile)
 	return nil
 }
 

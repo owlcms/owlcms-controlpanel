@@ -173,6 +173,7 @@ func launchReplays(version string, _ *widget.Button, w fyne.Window) error {
 	versionDir := filepath.Join(installDir, version)
 	configDir := versionDir
 	exePath := filepath.Join(versionDir, replaysExeName())
+	targetPort := getPortForRelease(version)
 
 	if _, err := os.Stat(exePath); os.IsNotExist(err) {
 		return fmt.Errorf("replays binary not found: %s", exePath)
@@ -206,6 +207,16 @@ func launchReplays(version string, _ *widget.Button, w fyne.Window) error {
 	}
 
 	cmd.Env = shared.BuildVideoLaunchEnv(versionDir)
+
+	if targetPort != "" && shared.CheckPort(targetPort) == nil {
+		log.Printf("Replays port %s is in use, attempting to free it...", targetPort)
+		if err := shared.StopPIDFileOrPortProcess(replaysPIDFile, targetPort); err != nil {
+			return fmt.Errorf("failed to free Replays port %s: %w", targetPort, err)
+		}
+		if shared.CheckPort(targetPort) == nil {
+			return fmt.Errorf("replays port %s is still in use after cleanup", targetPort)
+		}
+	}
 
 	log.Printf("Starting replays %s: %s", version, exePath)
 	if err := cmd.Start(); err != nil {

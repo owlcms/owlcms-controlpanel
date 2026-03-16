@@ -4,6 +4,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	"controlpanel/shared"
 
@@ -72,4 +74,59 @@ func InitEnv() error {
 	}
 	environment = props
 	return nil
+}
+
+func getPortForRelease(version string) string {
+	if strings.TrimSpace(version) == "" {
+		return ""
+	}
+
+	configPath := filepath.Join(installDir, version, "config.toml")
+	value, err := shared.ReadTopLevelTOMLValue(configPath, "port")
+	if err != nil {
+		log.Printf("Failed to read Replays port from %s: %v", configPath, err)
+		return ""
+	}
+
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+
+	portNum, err := strconv.Atoi(value)
+	if err != nil || portNum < 1 || portNum > 65535 {
+		log.Printf("Invalid Replays port %q in %s", value, configPath)
+		return ""
+	}
+
+	return strconv.Itoa(portNum)
+}
+
+func runtimeReplaysPort() string {
+	if port := getPortForRelease(replaysVersion); port != "" {
+		return port
+	}
+
+	seen := make(map[string]struct{})
+	for _, version := range getAllInstalledVersions() {
+		port := getPortForRelease(version)
+		if port == "" {
+			continue
+		}
+		if _, ok := seen[port]; ok {
+			continue
+		}
+		seen[port] = struct{}{}
+
+		portNum, err := strconv.Atoi(port)
+		if err != nil {
+			continue
+		}
+		pid, err := shared.FindPIDByPort(portNum)
+		if err == nil && pid > 0 {
+			return port
+		}
+	}
+
+	return ""
 }
