@@ -716,21 +716,10 @@ func runHeadlessDaemons(owlcmsVersion, trackerVersion string, enableEmbeddedMQTT
 		os.Exit(1)
 	}
 
-	if resolvedOwlcmsVersion != "" {
-		if meta, running := shared.CheckDaemonRunning(owlcms.RuntimeMetadataPath()); running {
-			log.Printf("OWLCMS %s is already running (PID %d, port %s)", meta.Version, meta.PID, meta.Port)
-			fmt.Printf("owlcms %s already running (PID %d, port %s)\n", meta.Version, meta.PID, meta.Port)
-		} else {
-			if err := owlcms.LaunchDaemon(resolvedOwlcmsVersion, enableEmbeddedMQTT); err != nil {
-				log.Printf("ERROR: failed to launch owlcms %s: %v", resolvedOwlcmsVersion, err)
-				fmt.Fprintf(os.Stderr, "owlcms %s: %v\n", resolvedOwlcmsVersion, err)
-				failed = true
-			} else {
-				fmt.Printf("owlcms %s started successfully\n", resolvedOwlcmsVersion)
-			}
-		}
-	}
-
+	// Launch Tracker BEFORE OWLCMS because under systemd OWLCMS's
+	// LaunchDaemon blocks on cmd.Wait() (foreground supervision).
+	// Tracker's LaunchDaemon starts the process and returns once the
+	// port is ready, so it must go first.
 	if resolvedTrackerVersion != "" {
 		if meta, running := shared.CheckDaemonRunning(tracker.RuntimeMetadataPath()); running {
 			log.Printf("Tracker %s is already running (PID %d, port %s)", meta.Version, meta.PID, meta.Port)
@@ -742,6 +731,21 @@ func runHeadlessDaemons(owlcmsVersion, trackerVersion string, enableEmbeddedMQTT
 				failed = true
 			} else {
 				fmt.Printf("tracker %s started successfully\n", resolvedTrackerVersion)
+			}
+		}
+	}
+
+	if resolvedOwlcmsVersion != "" {
+		if meta, running := shared.CheckDaemonRunning(owlcms.RuntimeMetadataPath()); running {
+			log.Printf("OWLCMS %s is already running (PID %d, port %s)", meta.Version, meta.PID, meta.Port)
+			fmt.Printf("owlcms %s already running (PID %d, port %s)\n", meta.Version, meta.PID, meta.Port)
+		} else {
+			if err := owlcms.LaunchDaemon(resolvedOwlcmsVersion, enableEmbeddedMQTT); err != nil {
+				log.Printf("ERROR: failed to launch owlcms %s: %v", resolvedOwlcmsVersion, err)
+				fmt.Fprintf(os.Stderr, "owlcms %s: %v\n", resolvedOwlcmsVersion, err)
+				failed = true
+			} else {
+				fmt.Printf("owlcms %s started successfully\n", resolvedOwlcmsVersion)
 			}
 		}
 	}
