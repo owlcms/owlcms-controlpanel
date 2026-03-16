@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -219,7 +218,14 @@ func LaunchDaemon(version string, enableEmbeddedMQTT bool) error {
 
 	targetPort := GetPort()
 	if shared.CheckPort(targetPort) == nil {
-		return fmt.Errorf("port %s is already in use", targetPort)
+		log.Printf("LaunchDaemon: port %s is in use, attempting to free it...", targetPort)
+		if err := shared.EnsurePortFree(targetPort); err != nil {
+			return fmt.Errorf("port %s is in use and could not be freed: %w", targetPort, err)
+		}
+		if shared.CheckPort(targetPort) == nil {
+			return fmt.Errorf("port %s is still in use after cleanup", targetPort)
+		}
+		log.Printf("LaunchDaemon: port %s successfully freed", targetPort)
 	}
 
 	params, err := prepareOwlcmsLaunch(version, &enableEmbeddedMQTT)
@@ -327,24 +333,24 @@ var (
 )
 
 func acquireJavaLock() (*flock.Flock, error) {
-	data, err := os.ReadFile(pidFilePath)
-	if err == nil && len(data) > 0 {
-		pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-		if err == nil && pid != 0 {
-			if shared.IsProcessRunning(pid) {
-				log.Printf("Another instance of OWLCMS is already running with PID %d", pid)
-				return nil, fmt.Errorf("another instance of OWLCMS is already running with PID %d", pid)
-			} else {
-				log.Printf("Stale PID file found (PID %d is not running), removing and proceeding", pid)
-				os.Remove(pidFilePath)
-				os.Remove(lockFilePath)
-			}
-		} else {
-			log.Printf("Failed to parse PID from PID file: %v", err)
-			os.Remove(pidFilePath)
-		}
-	} else {
+	pid, source, err := shared.ResolvePIDFromFileOrPort(pidFilePath, GetPort())
+	if err != nil {
+		return nil, err
+	}
+	if pid == 0 {
 		return nil, nil
+	}
+
+	if source == "pid file" {
+		log.Printf("Another instance of OWLCMS is already running with PID %d", pid)
+		return nil, fmt.Errorf("another instance of OWLCMS is already running with PID %d", pid)
+	}
+
+	log.Printf("No running PID from PID file, stopping PID %d resolved from %s", pid, source)
+	os.Remove(pidFilePath)
+	os.Remove(lockFilePath)
+	if err := shared.StopPIDFileOrPortProcess(pidFilePath, GetPort()); err != nil {
+		log.Printf("Warning: failed to stop process after stale PID cleanup: %v", err)
 	}
 
 	return nil, nil
@@ -362,24 +368,14 @@ func releaseJavaLock() {
 }
 
 func killLockingProcess() error {
-	data, err := os.ReadFile(pidFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to read PID file: %w", err)
-	}
-
-	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
-	if err != nil {
-		return fmt.Errorf("failed to parse PID from PID file: %w", err)
-	}
-
-	err = shared.GracefullyStopPID(pid)
-	if err != nil {
+	port := GetPort()
+	if err := shared.StopPIDFileOrPortProcess(pidFilePath, port); err != nil {
 		releaseJavaLock()
 		return err
 	}
 
 	releaseJavaLock()
-	log.Printf("Killed process with PID %d\n", pid)
+	log.Printf("Freed port %s\n", port)
 	return nil
 }
 
@@ -390,8 +386,6 @@ func killLockingProcess() error {
 // the synchronous headless equivalent used under systemd.
 func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 	currentVersion = version
-	const maxRestartRetries = 3          // same as launchDaemonForeground
-	const restartDelay = 1 * time.Second // same as launchDaemonForeground
 
 	var err error
 	lock, err = acquireJavaLock()
@@ -402,12 +396,42 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 
 	targetPort := GetPort()
 	if shared.CheckPort(targetPort) == nil {
-		statusLabel.SetText(fmt.Sprintf("Another program is running on port %s", targetPort))
-		statusLabel.Refresh()
-		goBackToMainScreen()
-		log.Printf("Another program is running on port %s", targetPort)
-		return fmt.Errorf("another program is running on port %s", targetPort)
+		log.Printf("Port %s is in use, attempting to free it...", targetPort)
+		progressLabel := widget.NewLabel(fmt.Sprintf("Port %s is busy, stopping the process that is using it...", targetPort))
+		progressDialog := dialog.NewCustom("Freeing Port", "", progressLabel, mainWindow)
+		progressDialog.Show()
+
+		go func() {
+			err := shared.EnsurePortFree(targetPort)
+			progressDialog.Hide()
+
+			if err != nil {
+				log.Printf("Cannot free port %s: %v", targetPort, err)
+				dialog.ShowError(fmt.Errorf("cannot free port %s: %w", targetPort, err), mainWindow)
+				goBackToMainScreen()
+				return
+			}
+			if shared.CheckPort(targetPort) == nil {
+				log.Printf("Port %s is still in use after cleanup", targetPort)
+				dialog.ShowError(fmt.Errorf("port %s is still in use after cleanup", targetPort), mainWindow)
+				goBackToMainScreen()
+				return
+			}
+
+			log.Printf("Port %s successfully freed", targetPort)
+			dialog.ShowInformation("Port Freed", fmt.Sprintf("Port %s has been freed. Launching OWLCMS %s...", targetPort, version), mainWindow)
+			continueOwlcmsLaunch(version, targetPort, launchButton, stopBtn)
+		}()
+		return nil
 	}
+
+	continueOwlcmsLaunch(version, targetPort, launchButton, stopBtn)
+	return nil
+}
+
+func continueOwlcmsLaunch(version, targetPort string, launchButton, stopBtn *widget.Button) {
+	const maxRestartRetries = 3
+	const restartDelay = 1 * time.Second
 
 	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s...", version))
 	statusLabel.Refresh()
@@ -415,7 +439,9 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 
 	originalDir, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("getting current directory: %w", err)
+		dialog.ShowError(fmt.Errorf("getting current directory: %w", err), mainWindow)
+		goBackToMainScreen()
+		return
 	}
 
 	params, err := prepareOwlcmsLaunch(version, nil)
@@ -424,13 +450,14 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 		launchButton.Show()
 		goBackToMainScreen()
 		releaseJavaLock()
-		return err
+		return
 	}
 	targetPort = params.TargetPort
 
 	if err := os.Chdir(params.VersionDir); err != nil {
 		launchButton.Show()
-		return fmt.Errorf("changing to version directory: %w", err)
+		dialog.ShowError(fmt.Errorf("changing to version directory: %w", err), mainWindow)
+		return
 	}
 	defer os.Chdir(originalDir)
 
@@ -527,6 +554,22 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 			appDirLink.Show()
 			configureTailLogLink(version, appDir)
 
+			if useDaemonWrapper {
+				log.Printf("OWLCMS %s detached daemon is ready; reattaching UI to runtime metadata", version)
+				currentProcess = nil
+				if !reconnectOwlcmsRuntime() {
+					if activeRuntime == nil {
+						activeRuntime = &shared.RuntimeMetadata{
+							PID:     pid,
+							Version: version,
+							Port:    targetPort,
+						}
+					}
+					restoreOwlcmsRunningUI(version, targetPort, activeRuntime.PID)
+				}
+				return
+			}
+
 			err := <-done
 
 			if !killedByUs && err != nil {
@@ -582,8 +625,6 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 	}
 
 	launchAttempt(0)
-
-	return nil
 }
 
 // showStartupLogArea creates and shows the startup log text area
