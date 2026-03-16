@@ -564,20 +564,20 @@ func setupSignalHandling() {
 	}()
 }
 
-// parseDaemonFlags scans args for --owlcms [version|latest|stop|list] and --tracker [version|latest|stop|list].
-// When a switch is present without a value, it defaults to "latest".
+// parseDaemonFlags scans args for --owlcms [version|latest|previous|stop|list] and --tracker [version|latest|previous|stop|list].
+// When a switch is present without a value, it defaults to "previous".
 // Returns empty strings when the flags are absent.
 func parseDaemonFlags(args []string) (owlcmsVersion, trackerVersion string) {
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--owlcms":
-			owlcmsVersion = "latest"
+			owlcmsVersion = "previous"
 			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				i++
 				owlcmsVersion = args[i]
 			}
 		case "--tracker":
-			trackerVersion = "latest"
+			trackerVersion = "previous"
 			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				i++
 				trackerVersion = args[i]
@@ -622,7 +622,7 @@ func handleHeadlessListRequests(out io.Writer, owlcmsRequest, trackerRequest str
 // resolveVersion turns "latest" into the highest semver-installed directory name,
 // or validates that the given version directory exists.  installDir is the module's
 // install root and allVersions is the semver-descending list from GetAllInstalledVersions.
-func resolveVersion(label, requested string, allVersions []string, installDir string) (string, error) {
+func resolveVersion(label, requested string, allVersions []string, installDir string, getLastRunVersion func() string) (string, error) {
 	if len(allVersions) == 0 {
 		return "", fmt.Errorf("no installed %s versions found", label)
 	}
@@ -630,6 +630,23 @@ func resolveVersion(label, requested string, allVersions []string, installDir st
 		v := allVersions[0] // already sorted by semver descending
 		log.Printf("Resolved %s 'latest' to %s", label, v)
 		return v, nil
+	}
+
+	if strings.EqualFold(requested, "previous") {
+		prev := getLastRunVersion()
+		if prev == "" {
+			v := allVersions[0]
+			log.Printf("No previous %s version recorded, falling back to latest: %s", label, v)
+			return v, nil
+		}
+		dir := filepath.Join(installDir, prev)
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			v := allVersions[0]
+			log.Printf("Previous %s version %q no longer installed, falling back to latest: %s", label, prev, v)
+			return v, nil
+		}
+		log.Printf("Resolved %s 'previous' to %s", label, prev)
+		return prev, nil
 	}
 
 	// Check the requested version exists as a directory
@@ -666,7 +683,7 @@ func runHeadlessDaemons(owlcmsVersion, trackerVersion string, enableEmbeddedMQTT
 	var resolvedTrackerVersion string
 
 	if owlcmsVersion != "" {
-		version, err := resolveVersion("owlcms", owlcmsVersion, owlcms.GetAllInstalledVersions(), owlcms.GetInstallDir())
+		version, err := resolveVersion("owlcms", owlcmsVersion, owlcms.GetAllInstalledVersions(), owlcms.GetInstallDir(), owlcms.GetLastRunVersion)
 		if err != nil {
 			log.Printf("ERROR: %v", err)
 			fmt.Fprintf(os.Stderr, "owlcms: %v\n", err)
@@ -677,7 +694,7 @@ func runHeadlessDaemons(owlcmsVersion, trackerVersion string, enableEmbeddedMQTT
 	}
 
 	if trackerVersion != "" {
-		version, err := resolveVersion("tracker", trackerVersion, tracker.GetAllInstalledVersions(), tracker.GetInstallDir())
+		version, err := resolveVersion("tracker", trackerVersion, tracker.GetAllInstalledVersions(), tracker.GetInstallDir(), tracker.GetLastRunVersion)
 		if err != nil {
 			log.Printf("ERROR: %v", err)
 			fmt.Fprintf(os.Stderr, "tracker: %v\n", err)

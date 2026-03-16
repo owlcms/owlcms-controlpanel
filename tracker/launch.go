@@ -157,12 +157,32 @@ func recordTrackerStart(pid int, version, port string) *shared.RuntimeMetadata {
 		log.Printf("Wrote PID %d to PID file %s\n", pid, pidFilePath)
 	}
 
+	SaveLastRunVersion(version)
+
 	metadata, err := shared.WriteRuntimeMetadata(runtimeMetadataPath(), pid, version, port)
 	if err != nil {
 		log.Printf("Failed to write tracker runtime metadata: %v", err)
 		return nil
 	}
 	return metadata
+}
+
+// SaveLastRunVersion persists the version so that --tracker previous can find it.
+func SaveLastRunVersion(version string) {
+	p := filepath.Join(installDir, "last-version.txt")
+	if err := os.WriteFile(p, []byte(version), 0644); err != nil {
+		log.Printf("Failed to save tracker last-run version: %v", err)
+	}
+}
+
+// GetLastRunVersion returns the previously launched tracker version, or empty string.
+func GetLastRunVersion() string {
+	p := filepath.Join(installDir, "last-version.txt")
+	data, err := os.ReadFile(p)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
 }
 
 // LaunchDaemon starts the tracker headlessly (no UI) in daemon mode.
