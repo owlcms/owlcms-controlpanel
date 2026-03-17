@@ -1,7 +1,6 @@
 package owlcms
 
 import (
-	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -572,27 +571,29 @@ func continueOwlcmsLaunch(version, targetPort string, launchButton, stopBtn *wid
 
 			err := <-done
 
-			if !killedByUs && err != nil {
-				var exitErr *exec.ExitError
-				if errors.As(err, &exitErr) && exitErr.ExitCode() > 0 && exitErr.ExitCode() < 128 && retryCount < maxRestartRetries {
-					attemptNum := retryCount + 1
-					log.Printf("OWLCMS %s (PID: %d) exited with code %d; restarting in %s (attempt %d/%d)\n", version, pid, exitErr.ExitCode(), restartDelay, attemptNum, maxRestartRetries)
-					setOwlcmsTabModeRunning()
-					currentProcess = nil
-					stopBtn.Hide()
-					stopContainer.Hide()
-					launchButton.Hide()
-					urlLink.Hide()
-					appDirLink.Hide()
-					if tailLogLink != nil {
-						tailLogLink.Hide()
-					}
-					showStartupLogArea("Restarting OWLCMS")
-					setStartupLogText("")
-					time.Sleep(restartDelay)
-					launchAttempt(retryCount + 1)
-					return
+			// Restart decision uses the same rules as Docker/systemd:
+			//   exit 0                   → don't restart (clean shutdown)
+			//   exit non-zero (e.g. 1)   → restart (database import, or unexpected error)
+			//   SIGTERM / SIGINT          → don't restart (intentional stop by user)
+			//   abnormal signal (SIGSEGV) → restart (JVM native crash)
+			if !killedByUs && shared.ShouldRestartProcess(err) && retryCount < maxRestartRetries {
+				attemptNum := retryCount + 1
+				log.Printf("OWLCMS %s (PID: %d) exited unexpectedly (%v); restarting in %s (attempt %d/%d)\n", version, pid, err, restartDelay, attemptNum, maxRestartRetries)
+				setOwlcmsTabModeRunning()
+				currentProcess = nil
+				stopBtn.Hide()
+				stopContainer.Hide()
+				launchButton.Hide()
+				urlLink.Hide()
+				appDirLink.Hide()
+				if tailLogLink != nil {
+					tailLogLink.Hide()
 				}
+				showStartupLogArea("Restarting OWLCMS")
+				setStartupLogText("")
+				time.Sleep(restartDelay)
+				launchAttempt(retryCount + 1)
+				return
 			}
 
 			if killedByUs {

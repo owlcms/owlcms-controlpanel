@@ -1,0 +1,50 @@
+# systemd unit — primary OWLCMS instance with Tracker
+#
+# Starts both OWLCMS and Tracker headlessly using the default (main) instance.
+# Uses the same restart semantics as Docker's on-failure policy:
+#   Exit 0       → do not restart
+#   Exit non-zero → restart (used intentionally on database loads)
+#   SIGTERM       → do not restart  (SuccessExitStatus=SIGTERM)
+#   Abnormal signal (SIGSEGV, …) → restart
+#
+# Installation:
+#   sudo cp owlcms.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now owlcms
+#
+# Logs:
+#   journalctl -u owlcms -f
+
+[Unit]
+Description=OWLCMS Competition Management (main instance)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# --- adjust User to the account that owns ~/.local/share/owlcms-controlpanel ---
+User=jflamy
+
+# Launch both OWLCMS and Tracker with the last-run (or latest installed) versions.
+# Add explicit version numbers if needed, e.g. --owlcms 65.0.0 --tracker 2.3.0
+ExecStart=/usr/bin/controlpanel --owlcms --tracker --mqtt
+
+# Stop: SIGTERM → Java shutdown hooks → clean exit.
+ExecStop=/usr/bin/controlpanel --owlcms stop --tracker stop
+KillMode=mixed
+TimeoutStopSec=15
+
+# Restart policy matching Docker on-failure:
+Restart=on-failure
+SuccessExitStatus=SIGTERM
+RestartSec=3
+
+# Harden
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+# The control panel needs write access to its data directory
+ReadWritePaths=%h/.local/share/owlcms-controlpanel
+
+[Install]
+WantedBy=multi-user.target

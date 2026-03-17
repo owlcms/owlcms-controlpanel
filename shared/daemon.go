@@ -189,8 +189,16 @@ func PIDMatchesStartTicks(pid int, expected uint64) bool {
 }
 
 // GracefullyStopPID attempts to stop a process while allowing normal shutdown hooks to run.
-// On all platforms it tries os.Interrupt first (SIGINT on Unix, CTRL_BREAK_EVENT on Windows
-// since Go 1.22) which lets Java run shutdown hooks and exit 0.
+//
+// On Unix: sends SIGTERM first.  Java installs a SIGTERM handler that runs
+// shutdown hooks and then exits, so SIGTERM is the cleanest stop signal.
+// SIGINT is skipped — it produces exit code 130 (128+SIGINT) which systemd's
+// Restart=on-failure would treat as a failure, triggering an unwanted restart.
+// Under systemd with SuccessExitStatus=SIGTERM, a SIGTERM death is treated
+// as a clean exit.
+//
+// On Windows: sends os.Interrupt (CTRL_BREAK_EVENT since Go 1.22) which Java
+// handles via its console handler, running shutdown hooks and exiting 0.
 func GracefullyStopPID(pid int) error {
 	if pid <= 0 {
 		return fmt.Errorf("invalid PID %d", pid)
@@ -201,19 +209,20 @@ func GracefullyStopPID(pid int) error {
 		return fmt.Errorf("find process %d: %w", pid, err)
 	}
 
-	// First try os.Interrupt — Java handles this and exits cleanly (code 0 on
-	// Windows via CTRL_BREAK_EVENT, code 130 on Linux via SIGINT).
-	if err := process.Signal(os.Interrupt); err == nil {
-		time.Sleep(2 * time.Second)
-		if !IsProcessRunning(pid) {
-			return nil
+	if GetGoos() == "windows" {
+		// Windows: CTRL_BREAK_EVENT lets Java run shutdown hooks and exit 0.
+		if err := process.Signal(os.Interrupt); err == nil {
+			time.Sleep(3 * time.Second)
+			if !IsProcessRunning(pid) {
+				return nil
+			}
 		}
-	}
-
-	if GetGoos() != "windows" {
-		// On Unix, escalate to SIGTERM before force-killing.
+	} else {
+		// Unix (Linux/macOS): SIGTERM triggers Java shutdown hooks.
+		// Java exits cleanly after running hooks, or is killed by the
+		// kernel if the signal is not caught (same end result).
 		if err := process.Signal(syscall.SIGTERM); err == nil {
-			time.Sleep(1 * time.Second)
+			time.Sleep(3 * time.Second)
 			if !IsProcessRunning(pid) {
 				return nil
 			}

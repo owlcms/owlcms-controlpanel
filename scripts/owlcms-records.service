@@ -1,0 +1,61 @@
+# systemd unit — secondary OWLCMS instance (records)
+#
+# Runs a second, independent OWLCMS on a different port using a named instance.
+# The instance must already be initialized:
+#   controlpanel records --init
+#
+# The instance's env.properties controls the port (default shown below).
+# Same restart semantics as Docker's on-failure policy:
+#   Exit 0        → do not restart
+#   Exit non-zero → restart (used intentionally on database loads)
+#   SIGTERM        → do not restart  (SuccessExitStatus=SIGTERM)
+#   Abnormal signal (SIGSEGV, …) → restart
+#
+# Installation:
+#   1. Initialize the instance (once):
+#        controlpanel records --init
+#   2. Set the port in the instance's env.properties:
+#        Edit ~/.local/share/owlcms-controlpanel-records/owlcms/env.properties
+#        OWLCMS_PORT=8081
+#   3. Install the service:
+#        sudo cp owlcms-records.service /etc/systemd/system/
+#        sudo systemctl daemon-reload
+#        sudo systemctl enable --now owlcms-records
+#
+# Logs:
+#   journalctl -u owlcms-records -f
+
+[Unit]
+Description=OWLCMS Competition Management (records instance, port 8081)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# --- adjust User to the account that owns the instance directory ---
+User=jflamy
+
+# Launch OWLCMS only (no tracker) for the "records" instance.
+# Change "records" to match the name you used with --init.
+# we do not use --mqtt on this instance
+ExecStart=/usr/bin/controlpanel records --owlcms
+
+# Stop the records instance.
+ExecStop=/usr/bin/controlpanel records --owlcms stop
+KillMode=mixed
+TimeoutStopSec=15
+
+# Restart policy matching Docker on-failure:
+Restart=on-failure
+SuccessExitStatus=SIGTERM
+RestartSec=3
+
+# Harden
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+# The secondary instance needs write access to its own data directory
+ReadWritePaths=%h/.local/share/owlcms-controlpanel-records
+
+[Install]
+WantedBy=multi-user.target
