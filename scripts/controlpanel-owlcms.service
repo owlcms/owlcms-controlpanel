@@ -8,12 +8,12 @@
 #   Abnormal signal (SIGSEGV, …) → restart
 #
 # Installation:
-#   sudo cp owlcms.service /etc/systemd/system/
-#   sudo systemctl daemon-reload
-#   sudo systemctl enable --now owlcms
+#   cp controlpanel-owlcms.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now controlpanel-owlcms.service
 #
 # Logs:
-#   journalctl -u owlcms -f
+#   journalctl --user -u controlpanel-owlcms.service -f
 
 [Unit]
 Description=OWLCMS Competition Management (main instance)
@@ -48,4 +48,4 @@ ProtectHome=read-only
 ReadWritePaths=%h/.local/share/owlcms-controlpanel
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target

@@ -18,12 +18,12 @@
 #        Edit ~/.local/share/owlcms-controlpanel-records/owlcms/env.properties
 #        OWLCMS_PORT=8081
 #   3. Install the service:
-#        sudo cp owlcms-records.service /etc/systemd/system/
-#        sudo systemctl daemon-reload
-#        sudo systemctl enable --now owlcms-records
+#        cp controlpanel-records.service ~/.config/systemd/user/
+#        systemctl --user daemon-reload
+#        systemctl --user enable --now controlpanel-records.service
 #
 # Logs:
-#   journalctl -u owlcms-records -f
+#   journalctl --user -u controlpanel-records.service -f
 
 [Unit]
 Description=OWLCMS Competition Management (records instance, port 8081)
@@ -58,4 +58,4 @@ ProtectHome=read-only
 ReadWritePaths=%h/.local/share/owlcms-controlpanel-records
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
