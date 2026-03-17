@@ -27,7 +27,8 @@ User=jflamy
 
 # Launch both OWLCMS and Tracker with the last-run (or latest installed) versions.
 # Add explicit version numbers if needed, e.g. --owlcms 65.0.0 --tracker 2.3.0
-ExecStart=/usr/bin/controlpanel --owlcms --tracker --mqtt
+# we do not use --mqtt on this instance
+ExecStart=/usr/bin/controlpanel --owlcms --tracker
 
 # Stop: SIGTERM → Java shutdown hooks → clean exit.
 ExecStop=/usr/bin/controlpanel --owlcms stop --tracker stop
