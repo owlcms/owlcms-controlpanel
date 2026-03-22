@@ -8,7 +8,7 @@
 # Same restart semantics as Docker's on-failure policy:
 #   Exit 0        → do not restart
 #   Exit non-zero → restart (used intentionally on database loads)
-#   SIGTERM        → do not restart  (SuccessExitStatus=SIGTERM)
+#   Deliberate external stop (TERM/KILL) → do not restart
 #   Abnormal signal (SIGSEGV, …) → restart
 #
 # Installation:

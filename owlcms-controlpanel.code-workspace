@@ -2,6 +2,9 @@
 	"folders": [
 		{
 			"path": "."
+		},
+		{
+			"path": "../owlcms4"
 		}
 	],
 	"settings": {
@@ -11,6 +14,7 @@
 				"path": "C:\\Program Files\\Git\\bin\\bash.exe",
 				"args": []
 			}
-		}
+		},
+		"java.compile.nullAnalysis.mode": "disabled"
 	}
 }
