@@ -10,6 +10,7 @@ The control panel is installed once. It will automatically download the correct 
 
 - 3.3.0: Improved process kill
   - will now attempt to locate and kill a process using the port even if the PID file is stale
+  - SIGINT, SIGTERM, SIGKILL are treated as intentional stops, same as using the stop button, no restarts.
 
 - 3.3.0: Command-line options for multiple instances and Linux daemon mode
   - Run controlpanel --help for details
