@@ -21,7 +21,10 @@ func ShouldRestartProcess(waitErr error) bool {
 	}
 	if ws, ok := exitErr.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
 		sig := ws.Signal()
-		return sig != syscall.SIGTERM && sig != syscall.SIGINT
+		return sig != syscall.SIGTERM && sig != syscall.SIGINT && sig != syscall.SIGKILL
+	}
+	if code := exitErr.ExitCode(); code == 130 || code == 137 || code == 143 {
+		return false
 	}
 	return exitErr.ExitCode() > 0
 }

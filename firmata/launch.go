@@ -195,6 +195,7 @@ func launchFirmata(version string, launchButton *widget.Button) error {
 	}
 
 	cmd := exec.Command(localJava, "-jar", "owlcms-firmata.jar", "--port", targetPort, "--device-configs", "./config")
+	shared.ConfigureNoConsoleWindow(cmd)
 	cmd.Env = env
 
 	// Remove startup.log if it exists to ensure fresh log output

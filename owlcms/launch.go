@@ -1,6 +1,7 @@
 package owlcms
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"controlpanel/owlcms/javacheck"
@@ -72,6 +74,46 @@ func clearRuntimeState() {
 	if err := shared.ClearRuntimeMetadata(runtimeMetadataPath()); err != nil {
 		log.Printf("Failed to clear OWLCMS runtime metadata: %v", err)
 	}
+}
+
+func logRestartDecision(version string, pid int, waitErr error, retryCount, maxRestartRetries int) bool {
+	restartable := shared.ShouldRestartProcess(waitErr)
+	willRestart := !killedByUs && restartable && retryCount < maxRestartRetries
+
+	details := []string{
+		fmt.Sprintf("killedByUs=%t", killedByUs),
+		fmt.Sprintf("retryCount=%d", retryCount),
+		fmt.Sprintf("maxRestartRetries=%d", maxRestartRetries),
+		fmt.Sprintf("waitErrNil=%t", waitErr == nil),
+		fmt.Sprintf("restartable=%t", restartable),
+		fmt.Sprintf("willRestart=%t", willRestart),
+	}
+
+	if waitErr == nil {
+		details = append(details, "waitErr=<nil>")
+	} else {
+		details = append(details, fmt.Sprintf("waitErr=%v", waitErr))
+		var exitErr *exec.ExitError
+		if errors.As(waitErr, &exitErr) {
+			details = append(details,
+				"waitErrType=*exec.ExitError",
+				fmt.Sprintf("exitCode=%d", exitErr.ExitCode()),
+				fmt.Sprintf("sysType=%T", exitErr.Sys()),
+			)
+			if ws, ok := exitErr.Sys().(syscall.WaitStatus); ok {
+				details = append(details,
+					fmt.Sprintf("signaled=%t", ws.Signaled()),
+					fmt.Sprintf("signal=%v", ws.Signal()),
+					fmt.Sprintf("status=%d", ws.ExitStatus()),
+				)
+			}
+		} else {
+			details = append(details, fmt.Sprintf("waitErrType=%T", waitErr))
+		}
+	}
+
+	log.Printf("OWLCMS restart decision for %s (PID: %d): %s", version, pid, strings.Join(details, ", "))
+	return willRestart
 }
 
 type owlcmsLaunchParams struct {
@@ -241,9 +283,12 @@ func LaunchDaemon(version string, enableEmbeddedMQTT bool) error {
 // launchDaemonForeground starts OWLCMS under systemd (or Docker).
 // Restarts are handled by the external supervisor, so the Go process
 // simply starts Java, waits for the port, blocks on cmd.Wait(), and
-// returns the result.
+// returns a failure only for restartable exits. Deliberate external TERM/KILL
+// stops are normalized to a clean return so the outer supervisor treats them
+// as intentional stops.
 func launchDaemonForeground(version string, params *owlcmsLaunchParams) error {
 	cmd := buildOwlcmsCommand(params, false)
+	shared.ConfigureNoConsoleWindow(cmd)
 	cmd.Env = params.Env
 	cmd.Dir = params.VersionDir
 	cmd.Stdout = os.Stdout
@@ -283,9 +328,16 @@ func launchDaemonForeground(version string, params *owlcmsLaunchParams) error {
 
 	if waitErr == nil {
 		log.Printf("LaunchDaemon(systemd): OWLCMS %s exited normally (code 0)", version)
-	} else {
-		log.Printf("LaunchDaemon(systemd): OWLCMS %s (PID %d) exited: %v", version, pid, waitErr)
+		return nil
 	}
+
+	restartable := shared.ShouldRestartProcess(waitErr)
+	if !restartable {
+		log.Printf("LaunchDaemon(systemd): OWLCMS %s (PID %d) exited intentionally: %v", version, pid, waitErr)
+		return nil
+	}
+
+	log.Printf("LaunchDaemon(systemd): OWLCMS %s (PID %d) exited with restartable failure: %v", version, pid, waitErr)
 	return waitErr
 }
 
@@ -296,6 +348,7 @@ func launchDaemonForeground(version string, params *owlcmsLaunchParams) error {
 func launchDaemonDetached(version string, params *owlcmsLaunchParams) error {
 	useDaemonWrapper := shouldUseOwlcmsDaemonWrapper()
 	cmd := buildOwlcmsCommand(params, useDaemonWrapper)
+	shared.ConfigureNoConsoleWindow(cmd)
 	shared.ConfigureDetachedDaemonProcess(cmd, useDaemonWrapper)
 	cmd.Env = params.Env
 	cmd.Dir = params.VersionDir
@@ -464,6 +517,7 @@ func continueOwlcmsLaunch(version, targetPort string, launchButton, stopBtn *wid
 	launchAttempt = func(retryCount int) {
 		useDaemonWrapper := shouldUseOwlcmsDaemonWrapper()
 		cmd := buildOwlcmsCommand(params, useDaemonWrapper)
+		shared.ConfigureNoConsoleWindow(cmd)
 		shared.ConfigureDetachedDaemonProcess(cmd, useDaemonWrapper)
 		cmd.Env = params.Env
 		cmd.Dir = params.VersionDir
@@ -576,7 +630,7 @@ func continueOwlcmsLaunch(version, targetPort string, launchButton, stopBtn *wid
 			//   exit non-zero (e.g. 1)   → restart (database import, or unexpected error)
 			//   SIGTERM / SIGINT          → don't restart (intentional stop by user)
 			//   abnormal signal (SIGSEGV) → restart (JVM native crash)
-			if !killedByUs && shared.ShouldRestartProcess(err) && retryCount < maxRestartRetries {
+			if logRestartDecision(version, pid, err, retryCount, maxRestartRetries) {
 				attemptNum := retryCount + 1
 				log.Printf("OWLCMS %s (PID: %d) exited unexpectedly (%v); restarting in %s (attempt %d/%d)\n", version, pid, err, restartDelay, attemptNum, maxRestartRetries)
 				setOwlcmsTabModeRunning()

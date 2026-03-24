@@ -9,16 +9,18 @@ import (
 )
 
 // ShouldRestartProcess inspects the error returned by cmd.Wait() and decides
-// whether the process should be restarted.  The rules match Docker/systemd
-// Restart=on-failure + SuccessExitStatus=SIGTERM:
+// whether the process should be restarted.
 //
-//   - exit 0                    → false  (clean shutdown)
-//   - exit non-zero (e.g. 1)    → true   (database import triggers restart)
-//   - killed by SIGTERM/SIGINT  → false  (intentional stop by control panel or systemctl stop)
-//   - killed by abnormal signal → true   (JVM native crash: SIGSEGV/SIGABRT in JIT/GC/JNI)
+//   - exit 0                              → false  (clean shutdown)
+//   - shell-style 128+SIGINT/SIGTERM/SIGKILL → false  (deliberate external stop)
+//   - killed by SIGINT/SIGTERM/SIGKILL    → false  (deliberate external stop)
+//   - exit non-zero (e.g. 1)              → true   (database import or unexpected failure)
+//   - killed by abnormal signal           → true   (JVM native crash: SIGSEGV/SIGABRT in JIT/GC/JNI)
 //
-// Background: Go's ExitCode() returns -1 for signal deaths (not the shell 128+N
-// convention), so the old "> 0 && < 128" check silently skipped all signal deaths.
+// Background: some JVM/runtime combinations report external TERM/INT handling as
+// ordinary exit codes 143/130 instead of a signaled WaitStatus.  We treat both
+// shapes as intentional user stops so the control panel returns to the launch tab
+// instead of relaunching OWLCMS after a deliberate kill.
 func ShouldRestartProcess(waitErr error) bool {
 	if waitErr == nil {
 		return false
@@ -30,8 +32,11 @@ func ShouldRestartProcess(waitErr error) bool {
 	// Signal death: ExitCode() is -1; inspect the signal directly.
 	if ws, ok := exitErr.Sys().(syscall.WaitStatus); ok && ws.Signaled() {
 		sig := ws.Signal()
-		// SIGTERM and SIGINT are intentional stops — do not restart.
-		return sig != syscall.SIGTERM && sig != syscall.SIGINT
+		// SIGTERM, SIGINT, and SIGKILL are treated as deliberate external stops.
+		return sig != syscall.SIGTERM && sig != syscall.SIGINT && sig != syscall.SIGKILL
+	}
+	if code := exitErr.ExitCode(); code == 130 || code == 137 || code == 143 {
+		return false
 	}
 	// Voluntary non-zero exit (e.g. exit 1 from database import) → restart.
 	return exitErr.ExitCode() > 0

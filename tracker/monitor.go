@@ -67,16 +67,21 @@ func stopProcess(proc *exec.Cmd, version string, stopBtn *widget.Button, downloa
 	statusLbl.SetText(fmt.Sprintf("owlcms-tracker %s has been stopped", version))
 	currentProcess = nil
 	clearRuntimeState()
+
 	stopBtn.Hide()
-	urlLink.Hide() // Hide the URL when stopping
+	stopContainer.Hide()
+
+	// Restore UI using centralized mode switching (prevents desync).
+	_ = downloadGroup
+	_ = versionCont
+	setTrackerTabMode(w)
+
+	urlLink.Hide()
 	if appDirLink != nil {
 		appDirLink.Hide()
 	}
 	if tailLogLink != nil {
 		tailLogLink.Hide()
 	}
-	checkForNewerVersion()
-	downloadGroup.Show()
-	versionCont.Show()
 	releaseTrackerLock()
 }
