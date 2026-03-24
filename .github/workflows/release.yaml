@@ -154,7 +154,10 @@ jobs:
         echo "TAG=${{ inputs.tag }}" >> $GITHUB_ENV
         VERSION="${{ inputs.tag }}"
         VERSION="${VERSION#v}"
-        echo "DEB_TAG=${VERSION}" >> $GITHUB_ENV
+        DEB_VERSION="${VERSION/-alpha/~alpha}"
+        DEB_VERSION="${DEB_VERSION/-beta/~beta}"
+        DEB_VERSION="${DEB_VERSION/-rc/~rc}"
+        echo "DEB_TAG=${DEB_VERSION}" >> $GITHUB_ENV
 
     - name: Substitute tag in config.go
       run: |
@@ -312,8 +315,12 @@ jobs:
       if: ${{ env.BUILD_WINDOWS == 'true' }}
       run: |
         tag="${{ inputs.tag }}"
+        deb_tag="${tag#v}"
+        deb_tag="${deb_tag/-alpha/~alpha}"
+        deb_tag="${deb_tag/-beta/~beta}"
+        deb_tag="${deb_tag/-rc/~rc}"
         echo "TAG=$tag" >> $GITHUB_ENV
-        echo "DEB_TAG=${tag#v}" >> $GITHUB_ENV
+        echo "DEB_TAG=${deb_tag}" >> $GITHUB_ENV
         echo "Extracted TAG=$tag"
 
     - name: Verify gh CLI
@@ -441,7 +448,10 @@ jobs:
         echo "TAG=${{ inputs.tag }}" >> $GITHUB_ENV
         VERSION="${{ inputs.tag }}"
         VERSION="${VERSION#v}"
-        echo "DEB_TAG=${VERSION}" >> $GITHUB_ENV
+        DEB_VERSION="${VERSION/-alpha/~alpha}"
+        DEB_VERSION="${DEB_VERSION/-beta/~beta}"
+        DEB_VERSION="${DEB_VERSION/-rc/~rc}"
+        echo "DEB_TAG=${DEB_VERSION}" >> $GITHUB_ENV
 
     - name: Create dist directory
       run: mkdir -p dist
