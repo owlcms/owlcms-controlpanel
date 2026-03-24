@@ -851,7 +851,7 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 			return
 		}
 		releaseNotesLink := widget.NewHyperlink("Release Notes", parsedURL)
-		installerLink := widget.NewHyperlink("Installer", parsedURL)
+		installerLink := widget.NewHyperlink("Download the Installer", parsedURL)
 		links := container.NewHBox(installerLink, releaseNotesLink)
 		content := container.NewVBox(
 			widget.NewLabel(fmt.Sprintf("A new version (%s) is available. You are currently using version %s.\nYou can simply download the new installer and install over the current version.", newerRelease.TagName, shared.GetLauncherVersion())),
