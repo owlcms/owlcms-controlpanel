@@ -288,6 +288,7 @@ func LaunchDaemon(version string, enableEmbeddedMQTT bool) error {
 // as intentional stops.
 func launchDaemonForeground(version string, params *owlcmsLaunchParams) error {
 	cmd := buildOwlcmsCommand(params, false)
+	shared.ConfigureNoConsoleWindow(cmd)
 	cmd.Env = params.Env
 	cmd.Dir = params.VersionDir
 	cmd.Stdout = os.Stdout
@@ -347,6 +348,7 @@ func launchDaemonForeground(version string, params *owlcmsLaunchParams) error {
 func launchDaemonDetached(version string, params *owlcmsLaunchParams) error {
 	useDaemonWrapper := shouldUseOwlcmsDaemonWrapper()
 	cmd := buildOwlcmsCommand(params, useDaemonWrapper)
+	shared.ConfigureNoConsoleWindow(cmd)
 	shared.ConfigureDetachedDaemonProcess(cmd, useDaemonWrapper)
 	cmd.Env = params.Env
 	cmd.Dir = params.VersionDir
@@ -515,6 +517,7 @@ func continueOwlcmsLaunch(version, targetPort string, launchButton, stopBtn *wid
 	launchAttempt = func(retryCount int) {
 		useDaemonWrapper := shouldUseOwlcmsDaemonWrapper()
 		cmd := buildOwlcmsCommand(params, useDaemonWrapper)
+		shared.ConfigureNoConsoleWindow(cmd)
 		shared.ConfigureDetachedDaemonProcess(cmd, useDaemonWrapper)
 		cmd.Env = params.Env
 		cmd.Dir = params.VersionDir
