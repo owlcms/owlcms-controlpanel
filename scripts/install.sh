@@ -3,6 +3,7 @@
 # Usage:
 #   git clone https://github.com/owlcms/owlcms-controlpanel
 #   bash owlcms-controlpanel/scripts/install.sh [--prerelease|--release] [--version 3.3.0]
+#   INSTALL_KIND=release VERSION=3.3.0 bash owlcms-controlpanel/scripts/install.sh
 
 set -e
 
@@ -16,9 +17,10 @@ case "$ARCH" in
     *)      echo "Error: unsupported architecture: $ARCH"; exit 1 ;;
 esac
 
-# Parse optional selection flags
-VERSION=""
-INSTALL_KIND="prerelease"
+# Parse optional selection flags. Environment variables provide defaults,
+# command-line flags override them.
+VERSION="${VERSION:-}"
+INSTALL_KIND="${INSTALL_KIND:-prerelease}"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --prerelease)
@@ -40,6 +42,15 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+case "$INSTALL_KIND" in
+    release|prerelease)
+        ;;
+    *)
+        echo "Error: INSTALL_KIND must be 'release' or 'prerelease'"
+        exit 1
+        ;;
+esac
 
 # Require curl and jq
 for cmd in curl jq; do
