@@ -192,16 +192,23 @@ func ExtractVersionFromFilename(fileName string) (string, error) {
 		log.Printf("ExtractVersionFromFilename: stripped prefix '%s', extracted '%s' from '%s'", prefix, nameWithoutExt, fileName)
 	}
 
-	// Strip accents to convert Unicode to ASCII (e.g., "équipes" -> "equipes")
-	normalized := StripAccents(nameWithoutExt)
-	if normalized != nameWithoutExt {
-		log.Printf("ExtractVersionFromFilename: normalized accents '%s' -> '%s'", nameWithoutExt, normalized)
-		nameWithoutExt = normalized
-	}
-
-	// Strip metadata (everything after +) before semver validation
-	// Metadata can contain Unicode which is not valid in semver
+	// Strip metadata (everything after +) before semver validation.
+	// Metadata is intentionally allowed to contain Unicode (including accents).
 	baseVersion := StripMetadata(nameWithoutExt)
+
+	// Strip accents only from the base version (before +), not from metadata.
+	// Metadata may legitimately contain accented characters (e.g., "équipes").
+	normalizedBase := StripAccents(baseVersion)
+	if normalizedBase != baseVersion {
+		log.Printf("ExtractVersionFromFilename: normalized accents in base '%s' -> '%s'", baseVersion, normalizedBase)
+		// Reconstruct nameWithoutExt with the accent-stripped base but original metadata
+		if metaIdx := strings.Index(nameWithoutExt, "+"); metaIdx >= 0 {
+			nameWithoutExt = normalizedBase + nameWithoutExt[metaIdx:]
+		} else {
+			nameWithoutExt = normalizedBase
+		}
+		baseVersion = normalizedBase
+	}
 
 	// Validate base version as semver
 	if IsValidSemVer(baseVersion) {
@@ -279,17 +286,14 @@ func ShowRenameVersionDialog(installDir, version string, w fyne.Window, onSucces
 
 		// If not empty, validate the build metadata
 		if newBuild != "" {
-			// Validate the new build metadata by attempting to construct and parse the new version
-			baseVersion, _ := ParseVersionWithBuild(version)
 			sanitizedBuild := SanitizeVersionBuild(newBuild)
 			if sanitizedBuild == "" {
 				dialog.ShowError(fmt.Errorf("build identifier '%s' becomes empty after sanitization", newBuild), w)
 				return
 			}
 
-			// Test if the resulting version string is valid semver
-			testVersion := fmt.Sprintf("%s+%s", baseVersion, sanitizedBuild)
-			if _, err := semver.NewVersion(testVersion); err != nil {
+			// Validate using our extended metadata rules (allows Unicode; bans only filesystem-forbidden chars)
+			if err := ValidateMetadata(sanitizedBuild); err != nil {
 				dialog.ShowError(fmt.Errorf("invalid build identifier '%s': %w", newBuild, err), w)
 				return
 			}
@@ -323,7 +327,7 @@ func ShowRenameVersionDialog(installDir, version string, w fyne.Window, onSucces
 	entryContainer := container.NewGridWrap(fyne.NewSize(300, 35), buildEntry)
 	formRow := container.NewHBox(label, entryContainer)
 
-	noteLabel := widget.NewLabel("Note: Spaces become dots, only ASCII alphanumerics allowed")
+	noteLabel := widget.NewLabel("Note: Unicode letters, digits, '.', and '-' are allowed; spaces become '.' and other characters are stripped")
 	noteLabel.TextStyle = fyne.TextStyle{Italic: true}
 
 	content := container.NewVBox(
@@ -373,7 +377,7 @@ func ShowDuplicateVersionDialog(installDir, version string, w fyne.Window, onSuc
 	entryContainer := container.NewGridWrap(fyne.NewSize(300, 35), buildEntry)
 	formRow := container.NewHBox(label, entryContainer)
 
-	noteLabel := widget.NewLabel("Note: Spaces become dots, only ASCII alphanumerics allowed")
+	noteLabel := widget.NewLabel("Note: Unicode letters, digits, '.', and '-' are allowed; spaces become '.' and other characters are stripped")
 	noteLabel.TextStyle = fyne.TextStyle{Italic: true}
 
 	// Variables to hold buttons so we can modify them
@@ -386,17 +390,14 @@ func ShowDuplicateVersionDialog(installDir, version string, w fyne.Window, onSuc
 
 		// If not empty, validate the build metadata
 		if newBuild != "" {
-			// Validate the new build metadata by attempting to construct and parse the new version
-			baseVersion, _ := ParseVersionWithBuild(version)
 			sanitizedBuild := SanitizeVersionBuild(newBuild)
 			if sanitizedBuild == "" {
 				dialog.ShowError(fmt.Errorf("build identifier '%s' becomes empty after sanitization", newBuild), w)
 				return
 			}
 
-			// Test if the resulting version string is valid semver
-			testVersion := fmt.Sprintf("%s+%s", baseVersion, sanitizedBuild)
-			if _, err := semver.NewVersion(testVersion); err != nil {
+			// Validate using our extended metadata rules (allows Unicode; bans only filesystem-forbidden chars)
+			if err := ValidateMetadata(sanitizedBuild); err != nil {
 				dialog.ShowError(fmt.Errorf("invalid build identifier '%s': %w", newBuild, err), w)
 				return
 			}
@@ -733,8 +734,9 @@ func ResolveCollisionForBuild(installDir, baseVersion, currentBuild string) stri
 	return resolvedBuild
 }
 
-// SanitizeVersionBuild sanitizes a user-provided build identifier to be semver-compliant.
-// Spaces become dots, and only ASCII alphanumerics, dots, and hyphens are kept.
+// SanitizeVersionBuild sanitizes a user-provided build identifier.
+// Extended metadata rules: Unicode letters, digits, dots, and hyphens are accepted.
+// Spaces become dots, and other characters are stripped.
 func SanitizeVersionBuild(input string) string {
 	// Replace spaces with dots
 	input = strings.ReplaceAll(input, " ", ".")
@@ -743,10 +745,8 @@ func SanitizeVersionBuild(input string) string {
 	var result strings.Builder
 	for _, r := range input {
 		if unicode.IsLetter(r) || unicode.IsDigit(r) {
-			// Keep ASCII letters and digits
-			if r <= unicode.MaxASCII {
-				result.WriteRune(r)
-			}
+			// Keep all Unicode letters and digits (including accented characters)
+			result.WriteRune(r)
 		} else if r == '.' || r == '-' {
 			// Keep dots and hyphens
 			result.WriteRune(r)

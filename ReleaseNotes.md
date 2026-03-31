@@ -8,10 +8,12 @@ The control panel is installed once. It will automatically download the correct 
 
 ## Release Log
 
+- 3.3.2: Updating a version using the Update button in the version list will preserve the metadata information
+  - also, we accept Unicode accented letters in the metadata as an extension to semantic versioning.
+- 3.3.1: Fixed the installer package numbering for Linux .deb files
 - 3.3.0: Improved process kill
   - will now attempt to locate and kill a process using the port even if the PID file is stale
   - SIGINT, SIGTERM, SIGKILL are treated as intentional stops, same as using the stop button, no restarts.
-
 - 3.3.0: Command-line options for multiple instances and Linux daemon mode
   - Run controlpanel --help for details
   - These options are Linux-oriented, targeted at virtual privatehosting scenarios.
@@ -22,7 +24,7 @@ The control panel is installed once. It will automatically download the correct 
     - From a terminal, the Go process exits after launch and a Java helper (MainWrapper) babysits OWLCMS in the background, surviving logout.
 
 - 3.2.0: Configuration options
-  - a new option to set the port has been added
+  - a new option to set the port has been added to the various tabs
 
 - 3.2.0: Environment variables processing
   - For all applications, all versions can now have an env.properties file

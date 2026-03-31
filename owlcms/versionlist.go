@@ -431,7 +431,8 @@ func createLaunchButton(w fyne.Window, version string, stopBtn *widget.Button, b
 
 func adjustUpdateButton(mostRecent string, version string, updateButton *widget.Button, buttonContainer *fyne.Container, w fyne.Window) {
 	if shared.CompareVersions(mostRecent, version) {
-		updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
+		targetInstallVersion := computeUpdateTargetVersion(version, mostRecent)
+		updateButton.SetText(fmt.Sprintf("Update to %s", targetInstallVersion))
 		updateButton.OnTapped = func() {
 			currentOS := shared.GetGoos()
 			if currentOS == "linux" || currentOS == "darwin" {
@@ -468,17 +469,22 @@ func adjustUpdateButton(mostRecent string, version string, updateButton *widget.
 	}
 }
 
+func computeUpdateTargetVersion(existingVersion string, targetVersion string) string {
+	targetBaseVersion, _ := shared.ParseVersionWithBuild(targetVersion)
+	existingBuild := shared.GetCurrentBuildString(existingVersion)
+	if existingBuild == "" {
+		return targetBaseVersion
+	}
+
+	resolvedBuild := shared.ResolveCollisionForBuild(installDir, targetBaseVersion, existingBuild)
+	return fmt.Sprintf("%s+%s", targetBaseVersion, resolvedBuild)
+}
+
 func updateVersion(existingVersion string, targetVersion string, w fyne.Window) {
 	// Note the timestamp of the current version's top-level directory
 	currentVersionDir := filepath.Join(installDir, existingVersion)
 	existingVersionDir := currentVersionDir
-	targetBaseVersion, _ := shared.ParseVersionWithBuild(targetVersion)
-	existingBuild := shared.GetCurrentBuildString(existingVersion)
-	targetInstallVersion := targetVersion
-	if existingBuild != "" {
-		resolvedBuild := shared.ResolveCollisionForBuild(installDir, targetBaseVersion, existingBuild)
-		targetInstallVersion = fmt.Sprintf("%s+%s", targetBaseVersion, resolvedBuild)
-	}
+	targetInstallVersion := computeUpdateTargetVersion(existingVersion, targetVersion)
 
 	// Download and extract the version given by string
 	var urlPrefix string

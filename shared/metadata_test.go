@@ -166,6 +166,68 @@ func TestStripMetadata(t *testing.T) {
 	}
 }
 
+func TestSanitizeVersionBuild(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"ascii", "test123", "test123"},
+		{"spaces become dots", "my version", "my.version"},
+		{"accented preserved", "équipes", "équipes"},
+		{"japanese preserved", "日本語", "日本語"},
+		{"forbidden chars removed", "test<bad>", "testbad"},
+		{"plus removed", "a+b", "ab"},
+		{"leading trailing stripped", ".-test-.", "test"},
+		{"consecutive dots collapsed", "a..b", "a.b"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := SanitizeVersionBuild(tt.input)
+			if result != tt.expected {
+				t.Errorf("SanitizeVersionBuild(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestExtractVersionFromFilename(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+		wantErr  bool
+	}{
+		{"plain version", "owlcms_5.0.0.zip", "5.0.0", false},
+		{"ascii metadata", "owlcms_5.0.0+build123.zip", "5.0.0+build123", false},
+		{"accented metadata preserved", "owlcms_5.0.0+équipes.zip", "5.0.0+équipes", false},
+		{"japanese metadata preserved", "owlcms_5.0.0+日本語版.zip", "5.0.0+日本語版", false},
+		{"accented base normalized", "owlcms_5.0.0+TEST.zip", "5.0.0+TEST", false},
+		{"no zip extension", "owlcms_5.0.0", "", true},
+		{"invalid semver", "owlcms_notaversion.zip", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := ExtractVersionFromFilename(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("ExtractVersionFromFilename(%q) expected error, got %q", tt.input, result)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("ExtractVersionFromFilename(%q) unexpected error: %v", tt.input, err)
+				return
+			}
+			if result != tt.expected {
+				t.Errorf("ExtractVersionFromFilename(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestHasUnicodeLetters(t *testing.T) {
 	tests := []struct {
 		name     string
