@@ -469,7 +469,7 @@ func showTrackerConnectionDialog(w fyne.Window) {
 				return
 			}
 
-			if err := DeletePropertyForRelease(targetVersion, trackerConnectionEnv); err != nil {
+			if err := DisableTrackerConnectionForRelease(targetVersion); err != nil {
 				dialog.ShowError(fmt.Errorf("failed to disable tracker connection: %w", err), w)
 				return
 			}

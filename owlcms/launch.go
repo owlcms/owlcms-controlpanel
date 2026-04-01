@@ -21,6 +21,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/Masterminds/semver/v3"
 	"github.com/gofrs/flock"
+	"github.com/magiconair/properties"
 )
 
 func configureTailLogLink(version, appDir string) {
@@ -132,6 +133,10 @@ func shouldUseOwlcmsDaemonWrapper() bool {
 }
 
 func setEnvValue(env []string, key, value string) []string {
+	return shared.UpsertEnv(env, key, value)
+}
+
+func removeEnvKey(env []string, key string) []string {
 	prefix := key + "="
 	filtered := env[:0]
 	for _, entry := range env {
@@ -139,7 +144,21 @@ func setEnvValue(env []string, key, value string) []string {
 			filtered = append(filtered, entry)
 		}
 	}
-	return append(filtered, prefix+value)
+	return filtered
+}
+
+func applyOwlcmsPropertiesToEnv(env []string, props *properties.Properties) []string {
+	if props == nil {
+		return env
+	}
+
+	skipKeys := map[string]struct{}{}
+	if value, ok := props.Get(trackerConnectionEnv); ok && strings.TrimSpace(value) == "" {
+		env = removeEnvKey(env, trackerConnectionEnv)
+		skipKeys[trackerConnectionEnv] = struct{}{}
+	}
+
+	return shared.ApplyPropertiesToEnv(env, props, skipKeys)
 }
 
 // prepareOwlcmsLaunch resolves paths, verifies the jar exists, finds Java,
@@ -177,13 +196,13 @@ func prepareOwlcmsLaunch(version string, embeddedMQTTOverride *bool) (*owlcmsLau
 
 	env := os.Environ()
 	lv := shared.GetLauncherVersionSemver()
-	env = append(env, fmt.Sprintf("OWLCMS_LAUNCHER=%s", lv))
-	env = append(env, fmt.Sprintf("OWLCMS_CONTROLPANEL=%s", lv))
+	env = shared.UpsertEnv(env, "OWLCMS_LAUNCHER", lv)
+	env = shared.UpsertEnv(env, "OWLCMS_CONTROLPANEL", lv)
 	for _, key := range mergedEnv.Keys() {
 		value, _ := mergedEnv.Get(key)
 		log.Printf("   %s=%s", key, value)
-		env = append(env, fmt.Sprintf("%s=%s", key, value))
 	}
+	env = applyOwlcmsPropertiesToEnv(env, mergedEnv)
 	if embeddedMQTTOverride != nil {
 		value := "false"
 		if *embeddedMQTTOverride {

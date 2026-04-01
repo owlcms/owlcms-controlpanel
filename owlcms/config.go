@@ -146,9 +146,46 @@ func ConfigureTrackerConnectionForRelease(releaseVersion, trackerPort string) er
 	return SavePropertyForRelease(releaseVersion, trackerConnectionEnv, trackerConnectionURL(trackerPort))
 }
 
+// DisableTrackerConnectionForRelease writes an explicit blank release override so
+// the selected release clears any shared default tracker connection.
+func DisableTrackerConnectionForRelease(releaseVersion string) error {
+	return SavePropertyForRelease(releaseVersion, trackerConnectionEnv, "")
+}
+
+func loadReleaseProperties(releaseVersion string) (*properties.Properties, error) {
+	releaseVersion = strings.TrimSpace(releaseVersion)
+	if releaseVersion == "" {
+		return nil, nil
+	}
+
+	releaseEnvPath := filepath.Join(installDir, releaseVersion, "env.properties")
+	if _, err := os.Stat(releaseEnvPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to check release env.properties: %w", err)
+	}
+
+	return loadPropertiesFromFile(releaseEnvPath)
+}
+
 // GetTrackerConnectionPortForRelease returns the configured local tracker port
 // from OWLCMS_VIDEODATA for the selected release, or empty when disabled.
 func GetTrackerConnectionPortForRelease(releaseVersion string) string {
+	releaseProps, err := loadReleaseProperties(releaseVersion)
+	if err == nil && releaseProps != nil {
+		if value, ok := releaseProps.Get(trackerConnectionEnv); ok {
+			if strings.TrimSpace(value) == "" {
+				return ""
+			}
+			port, ok := trackerConnectionPort(value)
+			if !ok {
+				return ""
+			}
+			return port
+		}
+	}
+
 	merged, err := loadEnvironmentForReleaseProps(releaseVersion)
 	if err != nil || merged == nil {
 		return ""

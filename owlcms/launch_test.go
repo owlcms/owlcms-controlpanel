@@ -1,6 +1,11 @@
 package owlcms
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/magiconair/properties"
+)
 
 func TestShouldUseOwlcmsDaemonWrapperForDetachedDaemonMode(t *testing.T) {
 	t.Setenv("CONTROLPANEL_RUN_AS_DAEMON", "true")
@@ -82,5 +87,22 @@ func TestSetEnvValueReplacesExistingValue(t *testing.T) {
 	}
 	if matches != 1 {
 		t.Fatalf("expected exactly one mqtt env entry, got %d in %v", matches, env)
+	}
+}
+
+func TestApplyPropertiesToEnvClearsInheritedTrackerConnection(t *testing.T) {
+	env := []string{trackerConnectionEnv + "=ws://127.0.0.1:18123/ws"}
+	props := properties.NewProperties()
+	props.Set(trackerConnectionEnv, "")
+
+	env = applyOwlcmsPropertiesToEnv(env, props)
+
+	for _, entry := range env {
+		if strings.HasPrefix(entry, trackerConnectionEnv+"=") {
+			t.Fatalf("expected tracker env to be removed, env=%v", env)
+		}
+	}
+	if len(env) != 0 {
+		t.Fatalf("expected tracker env slice to be empty after removal, got %v", env)
 	}
 }

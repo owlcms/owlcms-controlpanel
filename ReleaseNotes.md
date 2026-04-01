@@ -8,9 +8,13 @@ The control panel is installed once. It will automatically download the correct 
 
 ## Release Log
 
+- 3.3.3: Disabling the local tracker connection to use the owlcms database value did not work (an override still took place)
+
 - 3.3.2: Updating a version using the Update button in the version list will preserve the metadata information
   - also, we accept Unicode accented letters in the metadata as an extension to semantic versioning.
+
 - 3.3.1: Fixed the installer package numbering for Linux .deb files
+
 - 3.3.0: Improved process kill
   - will now attempt to locate and kill a process using the port even if the PID file is stale
   - SIGINT, SIGTERM, SIGKILL are treated as intentional stops, same as using the stop button, no restarts.
@@ -22,42 +26,6 @@ The control panel is installed once. It will automatically download the correct 
   - A daemon mode is provided
     - Under systemd, the Go process stays alive and supervises OWLCMS (restart on non-zero exit).
     - From a terminal, the Go process exits after launch and a Java helper (MainWrapper) babysits OWLCMS in the background, surviving logout.
-
-- 3.2.0: Configuration options
-  - a new option to set the port has been added to the various tabs
-
-- 3.2.0: Environment variables processing
-  - For all applications, all versions can now have an env.properties file
-  - This is merged with the parent env.properties and added to the environment when launching
-
-- 3.2.0: Metadata preserved in version name when updating (the "+" suffix is now kept)
-
-- 3.2.0: Additional tabs for replays and cameras
-  - Not enabled on macOS (video features require extensive testing and adjustments with the actual platform)
-  - A hared copy of ffmpeg installed next to Java and Node.js (same repo for Windows and Linux ARM/AMD)
-
-- 3.1.0: The control panel will restart OWLCMS (version 62.2 or later) if it exits with a non-zero status
-  - OWLCMS does this intentionally after loading a JSON database import or an SBDE full registration file.
-
-- 3.0.5: The shared owlms/tracker/firmata control panel is now the official way to install and run owlcms-firmata
-- 3.0.5: Copy env.properties when updating/importing owlcms and owlcms-firmata that have such a file
-
-- 3.0.4: Accept non-Latin letters in the semantic versioning descriptive metadata (after the +), since metadata is ignored for version comparison anyway.
-This deviation from the standard is so all the non-English countries can have proper descriptions when naming "Install from Zip" releases.
-
-- 3.0.3: Fix a (harmless) error message when firmata for Arduino Devices was not installed.  The configuration file is now correctly created.
-- 3.0.2: An env.properties file is created in each owlcms installation, initialized with the parent env.properties. This allows overriding environment variables per installation.
-- 3.0.2: Under Windows, logging control-panel.log in the Control Panel installation directory should now work.
-- 3.0.2: Factually accurate progress bar for the long unzip in tracker
-- 3.0.2: Correctly deal with opening folders that have a + in their name
-
-### Notable Changes for version 3.0.x
-- Control owlcms, owlcms-tracker and owlcms-firmata from the same control panel
-- Consolidation and cleanup of Java and Node runtimes
-- Added "Duplicate" and "Rename" functions to make copies of an application
-- Added capability to install Tracker packages from zip, for custom plugins
-- Show a dialog if "OWLCMS Ready" does not show up before 60 seconds with a link to the logs.
-- Improved import process for owlcms
 
 ### Installing the Control Panel
 
