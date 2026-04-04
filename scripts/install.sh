@@ -2,7 +2,7 @@
 # Install or upgrade the owlcms Control Panel on headless Ubuntu (amd64 or arm64)
 # Usage:
 #   git clone https://github.com/owlcms/owlcms-controlpanel
-#   bash owlcms-controlpanel/scripts/install.sh [--prerelease|--release] [--version 3.3.0]
+#   bash owlcms-controlpanel/scripts/install.sh [--release|--prerelease] [--version 3.3.0]
 #   INSTALL_KIND=release VERSION=3.3.0 bash owlcms-controlpanel/scripts/install.sh
 
 set -e
@@ -20,7 +20,7 @@ esac
 # Parse optional selection flags. Environment variables provide defaults,
 # command-line flags override them.
 VERSION="${VERSION:-}"
-INSTALL_KIND="${INSTALL_KIND:-prerelease}"
+INSTALL_KIND="${INSTALL_KIND:-release}"
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --prerelease)
@@ -37,7 +37,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             echo "Unknown option: $1"
-            echo "Usage: $0 [--prerelease|--release] [--version <tag>]"
+            echo "Usage: $0 [--release|--prerelease] [--version <tag>]"
             exit 1
             ;;
     esac
@@ -60,7 +60,7 @@ for cmd in curl jq; do
     fi
 done
 
-# Resolve the release tag. Default selection is the latest prerelease.
+# Resolve the release tag. Default selection is the latest stable release.
 if [[ -z "$VERSION" ]]; then
     if [[ "$INSTALL_KIND" == "release" ]]; then
         echo "Fetching latest stable release tag from GitHub..."
