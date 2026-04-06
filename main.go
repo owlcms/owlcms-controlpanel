@@ -148,6 +148,8 @@ func main() {
 		return
 	}
 
+	shared.NormalizeLocaleEnvironment()
+
 	appID, windowTitle := getInstanceIdentity()
 	a := app.NewWithID(appID)
 	a.Settings().SetTheme(newMyTheme())
