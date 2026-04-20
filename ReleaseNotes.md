@@ -8,6 +8,8 @@ The control panel is installed once. It will automatically download the correct 
 
 ## Release Log
 
+- 3.3.4: When updating cameras, copy the prior config.toml 
+
 - 3.3.3: Disabling the local tracker connection to use the owlcms database value did not work (an override still took place)
 
 - 3.3.2: Updating a version using the Update button in the version list will preserve the metadata information
