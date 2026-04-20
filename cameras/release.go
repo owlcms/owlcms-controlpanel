@@ -445,7 +445,7 @@ func updateVersion(existingVersion, targetVersion string, w fyne.Window) {
 	}
 
 	// Copy config from existing version
-	if err := copyFiles(filepath.Join(existingDir, "config"), filepath.Join(newVersionDir, "config"), true); err != nil {
+	if err := copyVersionConfigArtifacts(existingDir, newVersionDir); err != nil {
 		log.Printf("No config to copy from %s: %v", existingDir, err)
 	}
 

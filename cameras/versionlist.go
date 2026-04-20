@@ -294,7 +294,7 @@ func createImportButton(versions []string, version string, w fyne.Window, button
 			}
 			sourceDir := filepath.Join(installDir, sourceVersion)
 			destDir := filepath.Join(installDir, version)
-			if err := copyFiles(filepath.Join(sourceDir, "config"), filepath.Join(destDir, "config"), true); err != nil {
+			if err := copyVersionConfigArtifacts(sourceDir, destDir); err != nil {
 				log.Printf("No config to copy from %s: %v", sourceDir, err)
 			}
 			dialog.ShowInformation("Import Complete",
@@ -346,6 +346,82 @@ func filterVersions(versions []string, current string) []string {
 		}
 	}
 	return filtered
+}
+
+func copyVersionConfigArtifacts(srcDir, destDir string) error {
+	copiedAny := false
+
+	if copied, err := copyFileIfExists(filepath.Join(srcDir, "config.toml"), filepath.Join(destDir, "config.toml")); err != nil {
+		return err
+	} else if copied {
+		copiedAny = true
+	}
+
+	if copied, err := copyDirIfExists(filepath.Join(srcDir, "config"), filepath.Join(destDir, "config")); err != nil {
+		return err
+	} else if copied {
+		copiedAny = true
+	}
+
+	if !copiedAny {
+		return fmt.Errorf("no config artifacts found in %s", srcDir)
+	}
+
+	return nil
+}
+
+func copyFileIfExists(srcPath, destPath string) (bool, error) {
+	info, err := os.Stat(srcPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	if info.IsDir() {
+		return false, fmt.Errorf("expected file but found directory: %s", srcPath)
+	}
+
+	srcFile, err := os.Open(srcPath)
+	if err != nil {
+		return false, err
+	}
+	defer srcFile.Close()
+
+	if err := shared.EnsureDir0755(filepath.Dir(destPath)); err != nil {
+		return false, err
+	}
+
+	destFile, err := os.OpenFile(destPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, info.Mode())
+	if err != nil {
+		return false, err
+	}
+	defer destFile.Close()
+
+	if _, err := io.Copy(destFile, srcFile); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func copyDirIfExists(srcDir, destDir string) (bool, error) {
+	info, err := os.Stat(srcDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	if !info.IsDir() {
+		return false, fmt.Errorf("expected directory but found file: %s", srcDir)
+	}
+
+	if err := copyFiles(srcDir, destDir, true); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func copyFiles(srcDir, destDir string, alwaysCopy bool) error {
