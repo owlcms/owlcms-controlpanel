@@ -6,7 +6,10 @@ This is a control panel for owlcms and associated modules.  It is meant to:
 
 The control panel is installed once. It will automatically download the correct version of Java when used for the first time.
 
+
 ## Release Log
+
+- 3.3.5: when launching 
 
 - 3.3.4: When updating cameras, copy the prior config.toml 
 

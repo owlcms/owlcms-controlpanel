@@ -7,6 +7,45 @@ import (
 	"testing"
 )
 
+func TestGetPortForReleaseUsesReleaseOverride(t *testing.T) {
+	installDir := t.TempDir()
+	previousDir := GetInstallDir()
+	SetInstallDir(installDir)
+	t.Cleanup(func() {
+		SetInstallDir(previousDir)
+	})
+
+	if err := os.WriteFile(filepath.Join(installDir, "env.properties"), []byte("OWLCMS_PORT=8080\nTEMURIN_VERSION=jdk-25\nCONTROLPANEL_RUN_AS_DAEMON=false\n"), 0o644); err != nil {
+		t.Fatalf("write shared env: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(installDir, "65.0.0"), 0o755); err != nil {
+		t.Fatalf("mkdir release dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(installDir, "65.0.0", "env.properties"), []byte("OWLCMS_PORT=18080\nTEMURIN_VERSION=jdk-25\nCONTROLPANEL_RUN_AS_DAEMON=true\nOWLCMS_INITIALDATA=TESTDATA\n"), 0o644); err != nil {
+		t.Fatalf("write release env: %v", err)
+	}
+
+	if got := GetPortForRelease("65.0.0"); got != "18080" {
+		t.Fatalf("expected release port 18080, got %q", got)
+	}
+	if got := GetPortForRelease("missing"); got != "8080" {
+		t.Fatalf("expected fallback shared port 8080, got %q", got)
+	}
+
+	if err := LoadEnvironmentForRelease("65.0.0"); err != nil {
+		t.Fatalf("load release environment: %v", err)
+	}
+	if got := GetPort(); got != "18080" {
+		t.Fatalf("expected loaded environment to use release port 18080, got %q", got)
+	}
+	if !GetRunAsDaemon() {
+		t.Fatal("expected loaded environment to use release daemon override")
+	}
+	if got, ok := GetEnvironment().Get("OWLCMS_INITIALDATA"); !ok || got != "TESTDATA" {
+		t.Fatalf("expected release-only property to be preserved, got value=%q ok=%v", got, ok)
+	}
+}
+
 func TestGetTrackerConnectionPortForReleaseReadsStoredURL(t *testing.T) {
 	installDir := t.TempDir()
 	previousDir := GetInstallDir()

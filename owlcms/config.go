@@ -104,11 +104,22 @@ func SetRunAsDaemon(enabled bool) error {
 	return shared.SetRunAsDaemonEnabled(enabled)
 }
 
-// GetPortForRelease returns the shared OWLCMS_PORT.
-// The port is intentionally not overridable per-release so that a single
-// control panel instance always knows which port OWLCMS is using.
+// GetPortForRelease returns the effective OWLCMS_PORT for a selected release,
+// falling back to the shared env.properties value.
 func GetPortForRelease(releaseVersion string) string {
-	return GetPort()
+	merged, err := loadEnvironmentForReleaseProps(releaseVersion)
+	if err != nil || merged == nil {
+		if err != nil {
+			log.Printf("Falling back to shared OWLCMS port for %s: %v", strings.TrimSpace(releaseVersion), err)
+		}
+		return GetPort()
+	}
+
+	port, ok := merged.Get("OWLCMS_PORT")
+	if !ok || strings.TrimSpace(port) == "" {
+		return "8080"
+	}
+	return strings.TrimSpace(port)
 }
 
 // GetReleaseEnvPath returns the version-specific env.properties path for the
@@ -229,18 +240,6 @@ func cloneProperties(src *properties.Properties) *properties.Properties {
 	return clone
 }
 
-func enforceSharedOwlcmsKeys(merged, sharedProps *properties.Properties) {
-	if merged == nil || sharedProps == nil {
-		return
-	}
-
-	for _, key := range []string{"OWLCMS_PORT", shared.RunAsDaemonEnv} {
-		if value, ok := sharedProps.Get(key); ok {
-			merged.Set(key, value)
-		}
-	}
-}
-
 func loadEnvironmentForReleaseProps(releaseVersion string) (*properties.Properties, error) {
 	if err := EnsureParentEnvDefaults(); err != nil {
 		return nil, err
@@ -271,7 +270,6 @@ func loadEnvironmentForReleaseProps(releaseVersion string) (*properties.Properti
 		}
 	}
 
-	enforceSharedOwlcmsKeys(merged, sharedProps)
 	return merged, nil
 }
 

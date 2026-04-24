@@ -192,7 +192,7 @@ func prepareOwlcmsLaunch(version string, embeddedMQTTOverride *bool) (*owlcmsLau
 		return nil, fmt.Errorf("failed to load environment: %w", err)
 	}
 
-	targetPort := GetPort()
+	targetPort := GetPortForRelease(version)
 
 	env := os.Environ()
 	lv := shared.GetLauncherVersionSemver()
@@ -276,7 +276,7 @@ func LaunchDaemon(version string, enableEmbeddedMQTT bool) error {
 		return fmt.Errorf("failed to initialize environment: %w", err)
 	}
 
-	targetPort := GetPort()
+	targetPort := GetPortForRelease(version)
 	if shared.CheckPort(targetPort) == nil {
 		log.Printf("LaunchDaemon: port %s is in use, attempting to free it...", targetPort)
 		if err := shared.EnsurePortFree(targetPort); err != nil {
@@ -465,7 +465,7 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 		return err
 	}
 
-	targetPort := GetPort()
+	targetPort := GetPortForRelease(version)
 	if shared.CheckPort(targetPort) == nil {
 		log.Printf("Port %s is in use, attempting to free it...", targetPort)
 		progressLabel := widget.NewLabel(fmt.Sprintf("Port %s is busy, stopping the process that is using it...", targetPort))
