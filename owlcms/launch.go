@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -161,6 +162,21 @@ func applyOwlcmsPropertiesToEnv(env []string, props *properties.Properties) []st
 	return shared.ApplyPropertiesToEnv(env, props, skipKeys)
 }
 
+func logEffectiveOwlcmsEnvironment(version string, props *properties.Properties) {
+	if props == nil {
+		return
+	}
+
+	keys := append([]string(nil), props.Keys()...)
+	sort.Strings(keys)
+
+	log.Printf("Effective env for OWLCMS %s:", version)
+	for _, key := range keys {
+		value, _ := props.Get(key)
+		log.Printf("   %s=%s", key, value)
+	}
+}
+
 // prepareOwlcmsLaunch resolves paths, verifies the jar exists, finds Java,
 // loads the release environment, and builds the process env slice.
 // Callers must ensure InitEnv() has been called before this.
@@ -177,31 +193,32 @@ func prepareOwlcmsLaunch(version string, embeddedMQTTOverride *bool) (*owlcmsLau
 		return nil, fmt.Errorf("owlcms.jar not found in %s", versionDir)
 	}
 
-	if err := EnsureReleaseEnvFromParent(version); err != nil {
-		return nil, fmt.Errorf("failed to initialize env.properties: %w", err)
-	}
-
-	temurinVersion := GetTemurinVersionForRelease(version)
-	localJava, err := javacheck.FindLocalJavaForVersion(temurinVersion)
-	if err != nil {
-		return nil, fmt.Errorf("java not found for %s: %w", temurinVersion, err)
-	}
-
 	mergedEnv, err := loadEnvironmentForReleaseProps(version)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load environment: %w", err)
 	}
 
-	targetPort := GetPortForRelease(version)
+	temurinVersion := getTemurinVersionFromProperties(mergedEnv)
+	localJava, err := javacheck.FindLocalJavaForVersion(temurinVersion)
+	if err != nil {
+		return nil, fmt.Errorf("java not found for %s: %w", temurinVersion, err)
+	}
+
+	targetPort := getPortFromProperties(mergedEnv)
 
 	env := os.Environ()
 	lv := shared.GetLauncherVersionSemver()
 	env = shared.UpsertEnv(env, "OWLCMS_LAUNCHER", lv)
 	env = shared.UpsertEnv(env, "OWLCMS_CONTROLPANEL", lv)
-	for _, key := range mergedEnv.Keys() {
-		value, _ := mergedEnv.Get(key)
-		log.Printf("   %s=%s", key, value)
+	effectiveEnv := cloneProperties(mergedEnv)
+	if embeddedMQTTOverride != nil {
+		value := "false"
+		if *embeddedMQTTOverride {
+			value = "true"
+		}
+		effectiveEnv.Set(embeddedMQTTEnv, value)
 	}
+	logEffectiveOwlcmsEnvironment(version, effectiveEnv)
 	env = applyOwlcmsPropertiesToEnv(env, mergedEnv)
 	if embeddedMQTTOverride != nil {
 		value := "false"
@@ -272,25 +289,20 @@ func LaunchDaemon(version string, enableEmbeddedMQTT bool) error {
 	log.Printf("LaunchDaemon: starting OWLCMS %s headlessly (systemd=%v, INVOCATION_ID=%q)",
 		version, shared.IsRunningUnderSystemd(), os.Getenv("INVOCATION_ID"))
 
-	if err := InitEnv(); err != nil {
-		return fmt.Errorf("failed to initialize environment: %w", err)
-	}
-
-	targetPort := GetPortForRelease(version)
-	if shared.CheckPort(targetPort) == nil {
-		log.Printf("LaunchDaemon: port %s is in use, attempting to free it...", targetPort)
-		if err := shared.EnsurePortFree(targetPort); err != nil {
-			return fmt.Errorf("port %s is in use and could not be freed: %w", targetPort, err)
-		}
-		if shared.CheckPort(targetPort) == nil {
-			return fmt.Errorf("port %s is still in use after cleanup", targetPort)
-		}
-		log.Printf("LaunchDaemon: port %s successfully freed", targetPort)
-	}
-
 	params, err := prepareOwlcmsLaunch(version, &enableEmbeddedMQTT)
 	if err != nil {
 		return err
+	}
+
+	if shared.CheckPort(params.TargetPort) == nil {
+		log.Printf("LaunchDaemon: port %s is in use, attempting to free it...", params.TargetPort)
+		if err := shared.EnsurePortFree(params.TargetPort); err != nil {
+			return fmt.Errorf("port %s is in use and could not be freed: %w", params.TargetPort, err)
+		}
+		if shared.CheckPort(params.TargetPort) == nil {
+			return fmt.Errorf("port %s is still in use after cleanup", params.TargetPort)
+		}
+		log.Printf("LaunchDaemon: port %s successfully freed", params.TargetPort)
 	}
 
 	if shared.IsRunningUnderSystemd() {
@@ -465,7 +477,14 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 		return err
 	}
 
-	targetPort := GetPortForRelease(version)
+	params, err := prepareOwlcmsLaunch(version, nil)
+	if err != nil {
+		goBackToMainScreen()
+		releaseJavaLock()
+		return err
+	}
+
+	targetPort := params.TargetPort
 	if shared.CheckPort(targetPort) == nil {
 		log.Printf("Port %s is in use, attempting to free it...", targetPort)
 		progressLabel := widget.NewLabel(fmt.Sprintf("Port %s is busy, stopping the process that is using it...", targetPort))
@@ -491,18 +510,19 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 
 			log.Printf("Port %s successfully freed", targetPort)
 			dialog.ShowInformation("Port Freed", fmt.Sprintf("Port %s has been freed. Launching OWLCMS %s...", targetPort, version), mainWindow)
-			continueOwlcmsLaunch(version, targetPort, launchButton, stopBtn)
+			continueOwlcmsLaunch(version, params, launchButton, stopBtn)
 		}()
 		return nil
 	}
 
-	continueOwlcmsLaunch(version, targetPort, launchButton, stopBtn)
+	continueOwlcmsLaunch(version, params, launchButton, stopBtn)
 	return nil
 }
 
-func continueOwlcmsLaunch(version, targetPort string, launchButton, stopBtn *widget.Button) {
+func continueOwlcmsLaunch(version string, params *owlcmsLaunchParams, launchButton, stopBtn *widget.Button) {
 	const maxRestartRetries = 3
 	const restartDelay = 1 * time.Second
+	targetPort := params.TargetPort
 
 	statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s...", version))
 	statusLabel.Refresh()
@@ -514,16 +534,6 @@ func continueOwlcmsLaunch(version, targetPort string, launchButton, stopBtn *wid
 		goBackToMainScreen()
 		return
 	}
-
-	params, err := prepareOwlcmsLaunch(version, nil)
-	if err != nil {
-		statusLabel.SetText(err.Error())
-		launchButton.Show()
-		goBackToMainScreen()
-		releaseJavaLock()
-		return
-	}
-	targetPort = params.TargetPort
 
 	if err := os.Chdir(params.VersionDir); err != nil {
 		launchButton.Show()

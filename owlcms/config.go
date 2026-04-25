@@ -45,26 +45,12 @@ func GetLauncherVersion() string {
 
 // GetPort returns the configured port from env.properties, defaulting to "8080"
 func GetPort() string {
-	if environment == nil {
-		return "8080"
-	}
-	port, ok := environment.Get("OWLCMS_PORT")
-	if !ok {
-		return "8080"
-	}
-	return port
+	return getPortFromProperties(environment)
 }
 
 // GetTemurinVersion returns the configured Temurin version from env.properties
 func GetTemurinVersion() string {
-	if environment == nil {
-		return "jdk-25"
-	}
-	version, ok := environment.Get("TEMURIN_VERSION")
-	if !ok {
-		return "jdk-25"
-	}
-	return version
+	return getTemurinVersionFromProperties(environment)
 }
 
 // GetRunAsDaemon returns true if the control panel should leave OWLCMS and Tracker
@@ -115,11 +101,7 @@ func GetPortForRelease(releaseVersion string) string {
 		return GetPort()
 	}
 
-	port, ok := merged.Get("OWLCMS_PORT")
-	if !ok || strings.TrimSpace(port) == "" {
-		return "8080"
-	}
-	return strings.TrimSpace(port)
+	return getPortFromProperties(merged)
 }
 
 // GetReleaseEnvPath returns the version-specific env.properties path for the
@@ -223,7 +205,122 @@ func loadPropertiesFromFile(envFilePath string) (*properties.Properties, error) 
 		return nil, fmt.Errorf("failed to load env.properties file: %w", err)
 	}
 
+	log.Printf("Loaded env.properties file: %s", envFilePath)
+
 	return props, nil
+}
+
+func getPropertyOrDefault(props *properties.Properties, key, defaultValue string) string {
+	if props == nil {
+		return defaultValue
+	}
+
+	value, ok := props.Get(key)
+	if !ok || strings.TrimSpace(value) == "" {
+		return defaultValue
+	}
+
+	return strings.TrimSpace(value)
+}
+
+func getPortFromProperties(props *properties.Properties) string {
+	return getPropertyOrDefault(props, "OWLCMS_PORT", "8080")
+}
+
+func getTemurinVersionFromProperties(props *properties.Properties) string {
+	return getPropertyOrDefault(props, "TEMURIN_VERSION", "jdk-25")
+}
+
+func ensureReleaseEnvFromCurrentParent(releaseVersion string) (*properties.Properties, error) {
+	releaseVersion = strings.TrimSpace(releaseVersion)
+	if releaseVersion == "" {
+		return nil, nil
+	}
+
+	releaseEnvPath := filepath.Join(installDir, releaseVersion, "env.properties")
+	if err := shared.EnsureDir0755(filepath.Dir(releaseEnvPath)); err != nil {
+		return nil, fmt.Errorf("creating release env directory: %w", err)
+	}
+
+	releaseProps := properties.NewProperties()
+	releaseExists := false
+	if _, err := os.Stat(releaseEnvPath); err == nil {
+		releaseExists = true
+		loadedProps, loadErr := loadPropertiesFromFile(releaseEnvPath)
+		if loadErr != nil {
+			return nil, fmt.Errorf("failed to load release env.properties: %w", loadErr)
+		}
+		releaseProps = loadedProps
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("failed to check release env.properties: %w", err)
+	} else {
+		releaseProps = cloneProperties(environment)
+	}
+
+	defaults, defaultComments := defaultOwlcmsProperties()
+	updated := !releaseExists
+	for _, key := range defaults.Keys() {
+		if _, ok := releaseProps.Get(key); !ok {
+			value, _ := defaults.Get(key)
+			releaseProps.Set(key, value)
+			updated = true
+		}
+	}
+
+	if current, _ := releaseProps.Get("TEMURIN_VERSION"); shouldUpgradeTemurinTo25(current) {
+		releaseProps.Set("TEMURIN_VERSION", "jdk-25")
+		updated = true
+	}
+
+	if !releaseExists {
+		if _, ok := releaseProps.Get("TEMURIN_VERSION"); !ok {
+			releaseProps.Set("TEMURIN_VERSION", "jdk-25")
+		}
+	}
+
+	if !updated {
+		return releaseProps, nil
+	}
+
+	commentBlock := defaultComments
+	if releaseExists {
+		if content, err := os.ReadFile(releaseEnvPath); err == nil {
+			var comments []string
+			lines := strings.Split(string(content), "\n")
+			for _, line := range lines {
+				trimmed := strings.TrimSpace(line)
+				if strings.HasPrefix(trimmed, "#") {
+					comments = append(comments, line)
+				}
+			}
+			if len(comments) > 0 {
+				commentBlock = strings.Join(comments, "\n")
+			}
+		}
+	}
+	if commentBlock != "" && !releaseExists {
+		lines := strings.Split(commentBlock, "\n")
+		if len(lines) > 3 {
+			commentBlock = strings.Join(lines[3:], "\n")
+		}
+	}
+
+	file, err := os.Create(releaseEnvPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create release env.properties: %w", err)
+	}
+	defer file.Close()
+
+	if _, err := releaseProps.Write(file, properties.UTF8); err != nil {
+		return nil, fmt.Errorf("failed to write release env.properties: %w", err)
+	}
+	if commentBlock != "" {
+		if _, err := file.WriteString("\n" + commentBlock + "\n"); err != nil {
+			log.Printf("Failed to write comments to release env.properties file: %v, but file is usable", err)
+		}
+	}
+
+	return releaseProps, nil
 }
 
 func cloneProperties(src *properties.Properties) *properties.Properties {
@@ -245,28 +342,15 @@ func loadEnvironmentForReleaseProps(releaseVersion string) (*properties.Properti
 		return nil, err
 	}
 
-	sharedEnvPath := filepath.Join(installDir, "env.properties")
-	sharedProps, err := loadPropertiesFromFile(sharedEnvPath)
+	merged := cloneProperties(environment)
+	releaseProps, err := ensureReleaseEnvFromCurrentParent(releaseVersion)
 	if err != nil {
 		return nil, err
 	}
-
-	merged := cloneProperties(sharedProps)
-	releaseVersion = strings.TrimSpace(releaseVersion)
-	if releaseVersion != "" {
-		releaseEnvPath := filepath.Join(installDir, releaseVersion, "env.properties")
-		if _, statErr := os.Stat(releaseEnvPath); statErr == nil {
-			releaseProps, loadErr := loadPropertiesFromFile(releaseEnvPath)
-			if loadErr != nil {
-				return nil, fmt.Errorf("failed to load release env.properties: %w", loadErr)
-			}
-
-			for _, key := range releaseProps.Keys() {
-				value, _ := releaseProps.Get(key)
-				merged.Set(key, value)
-			}
-		} else if !os.IsNotExist(statErr) {
-			return nil, fmt.Errorf("failed to check release env.properties: %w", statErr)
+	if releaseProps != nil {
+		for _, key := range releaseProps.Keys() {
+			value, _ := releaseProps.Get(key)
+			merged.Set(key, value)
 		}
 	}
 
@@ -289,19 +373,11 @@ func LoadEnvironmentForRelease(releaseVersion string) error {
 // It first checks the version-specific env.properties file, then falls back to
 // the shared env.properties file, and finally to the default value.
 func GetTemurinVersionForRelease(releaseVersion string) string {
-	// First, try to load version-specific env.properties
-	versionEnvPath := filepath.Join(installDir, releaseVersion, "env.properties")
-	if _, err := os.Stat(versionEnvPath); err == nil {
-		// Version-specific env.properties exists, try to load it
-		versionProps := properties.NewProperties()
-		content, err := os.ReadFile(versionEnvPath)
-		if err == nil {
-			if err := versionProps.Load(content, properties.UTF8); err == nil {
-				if temurinVersion, ok := versionProps.Get("TEMURIN_VERSION"); ok {
-					log.Printf("Using version-specific Temurin %s for owlcms %s", temurinVersion, releaseVersion)
-					return temurinVersion
-				}
-			}
+	if versionProps, err := loadReleaseProperties(releaseVersion); err == nil && versionProps != nil {
+		if temurinVersion, ok := versionProps.Get("TEMURIN_VERSION"); ok {
+			trimmed := strings.TrimSpace(temurinVersion)
+			log.Printf("Using version-specific Temurin %s for owlcms %s", trimmed, releaseVersion)
+			return trimmed
 		}
 	}
 
@@ -424,98 +500,8 @@ func EnsureReleaseEnvFromParent(releaseVersion string) error {
 	if err := EnsureParentEnvDefaults(); err != nil {
 		return err
 	}
-
-	releaseEnvPath := filepath.Join(installDir, releaseVersion, "env.properties")
-	if err := shared.EnsureDir0755(filepath.Dir(releaseEnvPath)); err != nil {
-		return fmt.Errorf("creating release env directory: %w", err)
-	}
-
-	releaseProps := properties.NewProperties()
-	releaseExists := false
-	if _, err := os.Stat(releaseEnvPath); err == nil {
-		releaseExists = true
-		content, readErr := os.ReadFile(releaseEnvPath)
-		if readErr != nil {
-			return fmt.Errorf("failed to read release env.properties: %w", readErr)
-		}
-		if loadErr := releaseProps.Load(content, properties.UTF8); loadErr != nil {
-			return fmt.Errorf("failed to load release env.properties: %w", loadErr)
-		}
-	} else if !os.IsNotExist(err) {
-		return fmt.Errorf("failed to check release env.properties: %w", err)
-	} else {
-		// New file: seed with all parent properties.
-		for _, key := range environment.Keys() {
-			value, _ := environment.Get(key)
-			releaseProps.Set(key, value)
-		}
-	}
-
-	defaults, defaultComments := defaultOwlcmsProperties()
-	updated := !releaseExists
-	for _, key := range defaults.Keys() {
-		if _, ok := releaseProps.Get(key); !ok {
-			value, _ := defaults.Get(key)
-			releaseProps.Set(key, value)
-			updated = true
-		}
-	}
-
-	if current, _ := releaseProps.Get("TEMURIN_VERSION"); shouldUpgradeTemurinTo25(current) {
-		releaseProps.Set("TEMURIN_VERSION", "jdk-25")
-		updated = true
-	}
-
-	if !releaseExists {
-		if _, ok := releaseProps.Get("TEMURIN_VERSION"); !ok {
-			releaseProps.Set("TEMURIN_VERSION", "jdk-25")
-		}
-	}
-
-	if !updated {
-		return nil
-	}
-
-	// Use the default comment block for release env.properties (skip first 3 lines)
-	commentBlock := defaultComments
-	if releaseExists {
-		if content, err := os.ReadFile(releaseEnvPath); err == nil {
-			var comments []string
-			lines := strings.Split(string(content), "\n")
-			for _, line := range lines {
-				trimmed := strings.TrimSpace(line)
-				if strings.HasPrefix(trimmed, "#") {
-					comments = append(comments, line)
-				}
-			}
-			if len(comments) > 0 {
-				commentBlock = strings.Join(comments, "\n")
-			}
-		}
-	}
-	if commentBlock != "" && !releaseExists {
-		lines := strings.Split(commentBlock, "\n")
-		if len(lines) > 3 {
-			commentBlock = strings.Join(lines[3:], "\n")
-		}
-	}
-
-	file, err := os.Create(releaseEnvPath)
-	if err != nil {
-		return fmt.Errorf("failed to create release env.properties: %w", err)
-	}
-	defer file.Close()
-
-	if _, err := releaseProps.Write(file, properties.UTF8); err != nil {
-		return fmt.Errorf("failed to write release env.properties: %w", err)
-	}
-	if commentBlock != "" {
-		if _, err := file.WriteString("\n" + commentBlock + "\n"); err != nil {
-			log.Printf("Failed to write comments to release env.properties file: %v, but file is usable", err)
-		}
-	}
-
-	return nil
+	_, err := ensureReleaseEnvFromCurrentParent(releaseVersion)
+	return err
 }
 
 // GetInstallDir returns the installation directory
@@ -578,27 +564,11 @@ func InitEnv() error {
 }
 
 func loadProperties(envFilePath string) error {
-	environment = properties.NewProperties()
-	file, err := os.Open(envFilePath)
+	loaded, err := loadPropertiesFromFile(envFilePath)
 	if err != nil {
-		return fmt.Errorf("failed to open env.properties file: %w", err)
+		return err
 	}
-	defer file.Close()
-
-	content, err := os.ReadFile(envFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to read env.properties file: %w", err)
-	}
-
-	if err := environment.Load(content, properties.UTF8); err != nil {
-		return fmt.Errorf("failed to load env.properties file: %w", err)
-	}
-
-	log.Printf("Loaded properties from %s:", envFilePath)
-	for _, key := range environment.Keys() {
-		value, _ := environment.Get(key)
-		log.Printf("  %s = %s", key, value)
-	}
+	environment = loaded
 
 	if err := shared.SetRunAsDaemonEnabled(GetRunAsDaemon()); err != nil {
 		return fmt.Errorf("failed to sync daemon setting to process environment: %w", err)
