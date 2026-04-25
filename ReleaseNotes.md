@@ -9,7 +9,7 @@ The control panel is installed once. It will automatically download the correct 
 
 ## Release Log
 
-- 3.3.6: Add cleanup step to prevent wrong architecture DLL from being found by jSerialComm in its cache directories
+- 3.3.6: for owlcms-firmata, we now explicitly extract the shared library or DLL and force it.  Windows-on-Windows emulation broke that in Windows 11.
 
 - 3.3.5: fixed the environment construction prior to launching a Java process so the local env.properties overrides the global one
 
