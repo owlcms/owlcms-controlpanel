@@ -216,7 +216,24 @@ func launchFirmata(version string, launchButton *widget.Button) error {
 		env = append(env, fmt.Sprintf("%s=%s", key, value))
 	}
 
-	cmd := exec.Command(localJava, "-jar", "owlcms-firmata.jar", "--port", targetPort, "--device-configs", "./config")
+	// Force jSerialComm to use the correct native library by extracting it from
+	// the jar to a deterministic location and pointing the JVM at it. This
+	// bypasses jSerialComm's autodetection (which is unreliable when the JVM
+	// is launched from a Go binary under WoW emulation on Windows).
+	versionDir := filepath.Join(installDir, version)
+	jarFullPath := filepath.Join(versionDir, "owlcms-firmata.jar")
+	jSerialLibPath, jsErr := shared.ExtractJSerialCommNative(jarFullPath, versionDir)
+	if jsErr != nil {
+		log.Printf("Warning: could not extract jSerialComm native: %v (falling back to jSerialComm autodetection)", jsErr)
+	}
+
+	javaArgs := []string{}
+	if jsErr == nil {
+		javaArgs = append(javaArgs, "-DjSerialComm.library.path="+jSerialLibPath)
+	}
+	javaArgs = append(javaArgs, "-jar", "owlcms-firmata.jar", "--port", targetPort, "--device-configs", "./config")
+
+	cmd := exec.Command(localJava, javaArgs...)
 	shared.ConfigureNoConsoleWindow(cmd)
 	cmd.Env = env
 
