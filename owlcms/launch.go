@@ -206,7 +206,7 @@ func prepareOwlcmsLaunch(version string, embeddedMQTTOverride *bool) (*owlcmsLau
 
 	targetPort := getPortFromProperties(mergedEnv)
 
-	env := os.Environ()
+	env := shared.NormalizeChildProcessEnv(os.Environ())
 	lv := shared.GetLauncherVersionSemver()
 	env = shared.UpsertEnv(env, "OWLCMS_LAUNCHER", lv)
 	env = shared.UpsertEnv(env, "OWLCMS_CONTROLPANEL", lv)

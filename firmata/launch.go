@@ -182,7 +182,7 @@ func launchFirmata(version string, launchButton *widget.Button) error {
 	}
 	targetPort = GetPort()
 
-	env := os.Environ()
+	env := shared.NormalizeChildProcessEnv(os.Environ())
 	newVar := shared.GetLauncherVersionSemver()
 	env = append(env, fmt.Sprintf("FIRMATA_LAUNCHER=%s", newVar))
 	env = append(env, fmt.Sprintf("OWLCMS_CONTROLPANEL=%s", newVar))

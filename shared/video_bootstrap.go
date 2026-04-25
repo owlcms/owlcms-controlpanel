@@ -28,7 +28,7 @@ func fileMissing(path string) bool {
 // BuildVideoLaunchEnv builds the shared env passed to replays/cameras child processes.
 func BuildVideoLaunchEnv(versionDir string) []string {
 	configDir := VideoConfigDir(versionDir)
-	env := os.Environ()
+	env := NormalizeChildProcessEnv(os.Environ())
 	env = UpsertEnv(env, "VIDEO_CONFIGDIR", configDir)
 	env = UpsertEnv(env, "VIDEO_CONTROLPANEL_DIR", GetControlPanelInstallDir())
 	env = UpsertEnv(env, "VIDEO_LAUNCHER", GetLauncherVersionSemver())

@@ -114,7 +114,7 @@ func prepareTrackerLaunch(version string) (*trackerLaunchParams, error) {
 	}
 
 	// Build environment
-	env := os.Environ()
+	env := shared.NormalizeChildProcessEnv(os.Environ())
 	lv := shared.GetLauncherVersionSemver()
 	env = append(env, fmt.Sprintf("TRACKER_LAUNCHER=%s", lv))
 	env = append(env, fmt.Sprintf("OWLCMS_CONTROLPANEL=%s", lv))
