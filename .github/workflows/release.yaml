@@ -12,10 +12,10 @@ jobs:
   build_mac:
     runs-on: macos-15-intel
     env:
-      BUILD_MAC: false
+      BUILD_MAC: true
       BUILD_WINDOWS: true
-      BUILD_RASPBERRY: false
-      BUILD_LINUX: false
+      BUILD_RASPBERRY: true
+      BUILD_LINUX: true
       MACOSX_DEPLOYMENT_TARGET: "13.0"
       CGO_CFLAGS: "-mmacosx-version-min=13.0"
       CGO_LDFLAGS: "-mmacosx-version-min=13.0"
@@ -124,10 +124,10 @@ jobs:
   build_crosscompile:
     runs-on: ubuntu-latest
     env:
-      BUILD_MAC: false
+      BUILD_MAC: true
       BUILD_WINDOWS: true
-      BUILD_RASPBERRY: false
-      BUILD_LINUX: false
+      BUILD_RASPBERRY: true
+      BUILD_LINUX: true
 
     steps:
     - name: Checkout code
@@ -299,10 +299,10 @@ jobs:
     runs-on: windows-latest
     needs: build_crosscompile
     env:
-      BUILD_MAC: false
+      BUILD_MAC: true
       BUILD_WINDOWS: true
-      BUILD_RASPBERRY: false
-      BUILD_LINUX: false
+      BUILD_RASPBERRY: true
+      BUILD_LINUX: true
 
     steps:
     - name: Checkout code
@@ -433,10 +433,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build_mac, build_crosscompile, package_windows]
     env:
-      BUILD_MAC: false
+      BUILD_MAC: true
       BUILD_WINDOWS: true
-      BUILD_RASPBERRY: false
-      BUILD_LINUX: false
+      BUILD_RASPBERRY: true
+      BUILD_LINUX: true
 
     steps:
     - name: Checkout code
