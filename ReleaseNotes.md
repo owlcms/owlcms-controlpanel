@@ -9,8 +9,9 @@ The control panel is installed once. It will automatically download the correct 
 
 ## Release Log
 
+- 3.3.6: investigate why cross-compiled version of control-panel is triggering a wrong native DLL load on Windows (ARM intead of AMD)
+
 - 3.3.5: fixed the environment construction prior to launching a Java process so the local env.properties overrides the global one
-- 3.3.5: refactoring the environment build fixes a behavior where owlcms-firmata was looking for the wrong architecture libraries on Windows
 
 - 3.3.4: When updating cameras, copy the prior config.toml 
 
