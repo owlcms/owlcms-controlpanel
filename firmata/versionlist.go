@@ -1,6 +1,7 @@
 package firmata
 
 import (
+	"errors"
 	"fmt"
 	"image/color"
 	"io"
@@ -372,6 +373,27 @@ func createLaunchButton(w fyne.Window, version string, buttonContainer *fyne.Con
 		}
 
 		if err := launchFirmata(version, launchButton); err != nil {
+			var ext *ExternalPortOwnerError
+			if errors.As(err, &ext) {
+				dialog.ShowConfirm(
+					"Process already running",
+					fmt.Sprintf("A process (PID %d) is already using port %s.\n\nThis may be a previous owlcms-firmata that did not shut down cleanly, or it may be running on purpose.\n\nForcefully terminate it and launch %s?", ext.PID, ext.Port, version),
+					func(confirm bool) {
+						if !confirm {
+							return
+						}
+						if killErr := ForceFreeJavaPort(); killErr != nil {
+							dialog.ShowError(killErr, w)
+							return
+						}
+						if retryErr := launchFirmata(version, launchButton); retryErr != nil {
+							dialog.ShowError(retryErr, w)
+						}
+					},
+					w,
+				)
+				return
+			}
 			dialog.ShowError(err, w)
 			return
 		}

@@ -204,8 +204,16 @@ func GracefullyStopPID(pid int) error {
 		return fmt.Errorf("invalid PID %d", pid)
 	}
 
+	// On Windows, os.FindProcess opens a handle with full access and fails
+	// with "Access is denied" for processes running at higher integrity
+	// (e.g. an elevated leftover javaw.exe). In that case skip the graceful
+	// signal step and go straight to taskkill, which may still succeed.
 	process, err := os.FindProcess(pid)
 	if err != nil {
+		if GetGoos() == "windows" {
+			log.Printf("GracefullyStopPID(%d): cannot open handle (%v); falling through to taskkill", pid, err)
+			return ForcefullyKillPID(pid)
+		}
 		return fmt.Errorf("find process %d: %w", pid, err)
 	}
 
@@ -238,8 +246,15 @@ func ForcefullyKillPID(pid int) error {
 		return fmt.Errorf("invalid PID %d", pid)
 	}
 
+	// On Windows, jump straight to taskkill /F /T when we can't get a
+	// process handle (typically denied for elevated processes). taskkill
+	// runs as its own process and can sometimes succeed where the direct
+	// OpenProcess from this process is denied.
 	process, err := os.FindProcess(pid)
 	if err != nil {
+		if GetGoos() == "windows" {
+			return windowsTaskkill(pid)
+		}
 		return fmt.Errorf("find process %d: %w", pid, err)
 	}
 
@@ -253,11 +268,7 @@ func ForcefullyKillPID(pid int) error {
 	}
 
 	if GetGoos() == "windows" {
-		cmd := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(pid))
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("force taskkill pid %d: %w (%s)", pid, err, strings.TrimSpace(string(out)))
-		}
-		return nil
+		return windowsTaskkill(pid)
 	}
 
 	if err := process.Kill(); err != nil {
@@ -265,6 +276,62 @@ func ForcefullyKillPID(pid int) error {
 	}
 
 	return nil
+}
+
+// windowsTaskkill runs `taskkill /F /T /PID <pid>` and reports success when
+// the process is no longer running afterwards (taskkill sometimes returns
+// non-zero with "Access is denied" yet still succeeds on the next attempt,
+// or the process exits between the check and the call). When the regular
+// invocation is denied (typically because the target process is running at
+// a higher integrity level / elevated), a second attempt is made through
+// UAC ("Run as administrator"), which pops a consent prompt to the user.
+func windowsTaskkill(pid int) error {
+	cmd := exec.Command("taskkill", "/F", "/T", "/PID", strconv.Itoa(pid))
+	out, err := cmd.CombinedOutput()
+	time.Sleep(500 * time.Millisecond)
+	if !IsProcessRunning(pid) {
+		return nil
+	}
+
+	combined := strings.TrimSpace(string(out))
+	if err == nil {
+		return fmt.Errorf("force taskkill pid %d: process still running (%s)", pid, combined)
+	}
+
+	// Access denied (typical exit status 255 with "could not be terminated"
+	// or "Access is denied") usually means the target is elevated. Retry
+	// via UAC. This will trigger a consent prompt; user can decline.
+	lower := strings.ToLower(combined)
+	if strings.Contains(lower, "access is denied") || strings.Contains(lower, "could not be terminated") {
+		log.Printf("taskkill pid %d denied; retrying with elevation (UAC prompt)", pid)
+		if elevErr := windowsElevatedTaskkill(pid); elevErr == nil {
+			return nil
+		} else {
+			return fmt.Errorf("force taskkill pid %d: %w (%s); elevated retry: %v", pid, err, combined, elevErr)
+		}
+	}
+
+	return fmt.Errorf("force taskkill pid %d: %w (%s)", pid, err, combined)
+}
+
+// windowsElevatedTaskkill uses PowerShell's Start-Process -Verb RunAs to
+// re-invoke taskkill at administrator integrity. The user sees a UAC
+// consent dialog. Returns nil if the process is gone afterwards.
+func windowsElevatedTaskkill(pid int) error {
+	psCmd := fmt.Sprintf(
+		`Start-Process -FilePath taskkill -ArgumentList '/F','/T','/PID','%d' -Verb RunAs -WindowStyle Hidden -Wait`,
+		pid,
+	)
+	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", psCmd)
+	out, err := cmd.CombinedOutput()
+	time.Sleep(500 * time.Millisecond)
+	if !IsProcessRunning(pid) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("elevated taskkill: %w (%s)", err, strings.TrimSpace(string(out)))
+	}
+	return fmt.Errorf("elevated taskkill: process still running (%s)", strings.TrimSpace(string(out)))
 }
 
 // ResolvePIDFromFileOrPort returns a running PID using the standard lookup order:

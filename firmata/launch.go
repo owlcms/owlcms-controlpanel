@@ -71,12 +71,33 @@ func acquireJavaLock() (*flock.Flock, error) {
 		return nil, fmt.Errorf("another instance of owlcms-firmata is already running with PID %d", pid)
 	}
 
-	log.Printf("No running PID from PID file, stopping PID %d resolved from %s", pid, source)
+	// Port is held by something we did not start (no PID file). Do NOT
+	// silently kill it — the user might have launched it on purpose.
+	// Surface the situation so the caller can ask for confirmation.
+	return nil, &ExternalPortOwnerError{PID: pid, Port: GetPort()}
+}
+
+// ExternalPortOwnerError is returned by acquireJavaLock when the configured
+// port is held by a process that was not started via this PID file. The
+// caller should ask the user before forcefully terminating it.
+type ExternalPortOwnerError struct {
+	PID  int
+	Port string
+}
+
+func (e *ExternalPortOwnerError) Error() string {
+	return fmt.Sprintf("port %s is in use by PID %d (not started by this controlpanel)", e.Port, e.PID)
+}
+
+// ForceFreeJavaPort terminates whatever is holding the firmata port. Intended
+// to be called only after the user has confirmed via a dialog.
+func ForceFreeJavaPort() error {
+	port := GetPort()
 	os.Remove(pidFilePath)
-	if err := shared.StopPIDFileOrPortProcess(pidFilePath, GetPort()); err != nil {
-		log.Printf("Warning: failed to stop process after stale PID cleanup: %v", err)
+	if err := shared.StopPIDFileOrPortProcess(pidFilePath, port); err != nil {
+		return fmt.Errorf("freeing port %s: %w", port, err)
 	}
-	return nil, nil
+	return nil
 }
 
 func releaseJavaLock() {
