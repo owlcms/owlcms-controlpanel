@@ -11,6 +11,9 @@
 		},
 		{
 			"path": "../firmata4j"
+		},
+		{
+			"path": "../owlcms-tracker"
 		}
 	],
 	"settings": {

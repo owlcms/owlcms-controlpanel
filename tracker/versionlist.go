@@ -158,7 +158,7 @@ func createVersionList(w fyne.Window, stopBtn *widget.Button) *widget.List {
 				container.NewPadded(launchButton),
 				layout.NewSpacer(),
 			)
-			grid := container.New(layout.NewHBoxLayout(), container.NewGridWrap(fyne.NewSize(120, 25), label), buttonContainer)
+			grid := container.New(layout.NewHBoxLayout(), container.NewGridWrap(fyne.NewSize(250, 25), label), buttonContainer)
 			return grid
 		},
 		func(index widget.ListItemID, item fyne.CanvasObject) {
@@ -251,12 +251,48 @@ func createImportButton(versions []string, version string, w fyne.Window, button
 					return
 				}
 
-				// Copy local files
-				if err := copyFiles(filepath.Join(sourceDir, "local"), filepath.Join(destDir, "local"), true); err != nil {
-					log.Printf("No local files to copy from %s\n", sourceDir)
+				performImport := func() {
+					// Copy local files
+					if err := copyFiles(filepath.Join(sourceDir, "local"), filepath.Join(destDir, "local"), true); err != nil {
+						log.Printf("No local files to copy from %s\n", sourceDir)
+					}
+
+					dialog.ShowInformation("Import Complete", fmt.Sprintf("Successfully imported data and config from version %s to version %s", sourceVersion, version), w)
 				}
 
-				dialog.ShowInformation("Import Complete", fmt.Sprintf("Successfully imported data and config from version %s to version %s", sourceVersion, version), w)
+				sourcePlugins, sourceIsCustom := readCustomBuildPlugins(sourceDir)
+				destPlugins, destIsCustom := readCustomBuildPlugins(destDir)
+
+				switch {
+				case !sourceIsCustom && !destIsCustom:
+					// Neither is custom — proceed normally
+					performImport()
+
+				case sourceIsCustom && destIsCustom && customBuildPluginsEqual(sourcePlugins, destPlugins):
+					// Same custom plugins on both sides — warn then allow
+					showCustomBuildWarning(
+						w,
+						importMatchedCustomBuildWarning(sourceVersion, version, sourcePlugins),
+						"Continue Import",
+						"Abandon Import",
+						performImport,
+					)
+
+				case sourceIsCustom && destIsCustom:
+					// Both custom but different plugin lists — warn strongly, allow if user is sure
+					showCustomBuildWarning(
+						w,
+						importMismatchedCustomBuildWarning(sourceVersion, version, sourcePlugins, destPlugins),
+						"Continue Import",
+						"Abandon Import",
+						performImport,
+					)
+
+				default:
+					// One side custom, one side standard — hard block
+					msg := importBlockMessage(sourceVersion, version, sourcePlugins, sourceIsCustom, destPlugins, destIsCustom)
+					dialog.ShowError(fmt.Errorf("%s", msg), w)
+				}
 			},
 			w)
 		d.Show()
@@ -368,12 +404,46 @@ func adjustUpdateButton(mostRecent string, version string, updateButton *widget.
 	if shared.CompareVersions(mostRecent, version) {
 		updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
 		updateButton.OnTapped = func() {
-			updateVersion(version, mostRecent, w)
+			confirmUpdateVersion(version, mostRecent, w)
 		}
 		updateButton.Refresh()
 	} else {
 		buttonContainer.Refresh()
 	}
+}
+
+func confirmUpdateVersion(existingVersion string, targetVersion string, w fyne.Window) {
+	currentVersionDir := filepath.Join(installDir, existingVersion)
+	_, isCustom := readCustomBuildPlugins(currentVersionDir)
+	if !isCustom {
+		updateVersion(existingVersion, targetVersion, w)
+		return
+	}
+
+	dialog.ShowError(fmt.Errorf("%s", updateCustomBuildBlockMessage(existingVersion, targetVersion)), w)
+}
+
+func showCustomBuildWarning(w fyne.Window, message, continueLabel, abandonLabel string, onContinue func()) {
+	label := widget.NewLabel(message)
+	label.Wrapping = fyne.TextWrapWord
+
+	d := dialog.NewCustomConfirm(
+		"Custom Build Detected",
+		abandonLabel,
+		continueLabel,
+		container.NewPadded(label),
+		func(ok bool) {
+			if ok {
+				// "Abandon" (the default) was clicked — do nothing
+				return
+			}
+
+			// "Continue" was explicitly chosen by the user
+			onContinue()
+		},
+		w,
+	)
+	d.Show()
 }
 
 func updateVersion(existingVersion string, targetVersion string, w fyne.Window) {
@@ -451,6 +521,12 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		err = downloadutils.ExtractZip(zipPath, extractDir, extractProgress)
 		if err != nil {
 			dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
+			return
+		}
+
+		err = removeCustomBuildMarker(extractDir)
+		if err != nil {
+			dialog.ShowError(fmt.Errorf("failed to remove custom build marker: %w", err), w)
 			return
 		}
 

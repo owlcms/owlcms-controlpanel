@@ -133,7 +133,7 @@ func createVersionList(w fyne.Window) *widget.List {
 				container.NewPadded(repsBtn),
 				layout.NewSpacer(),
 			)
-			grid := container.New(layout.NewHBoxLayout(), container.NewGridWrap(fyne.NewSize(120, 25), label), buttonContainer)
+			grid := container.New(layout.NewHBoxLayout(), container.NewGridWrap(fyne.NewSize(250, 25), label), buttonContainer)
 			return grid
 		},
 		func(index widget.ListItemID, item fyne.CanvasObject) {
