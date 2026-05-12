@@ -9,6 +9,8 @@ The control panel is installed once. It will automatically download the correct 
 
 ## Release Log
 
+- 3.3.8: Detect that the tracker version is a custom zip with a non-standard set of plugins. Prevent updating with a standard build.
+
 - 3.3.7: build for all versions
 - 3.3.6: for owlcms-firmata, we now explicitly extract the shared library or DLL and force it.  Windows-on-Windows emulation broke that in Windows 11.
 - 3.3.6: On Windows, if a process will not die, we do a priviledge escalation as a last resort
