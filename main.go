@@ -154,7 +154,7 @@ func main() {
 	a := app.NewWithID(appID)
 	a.Settings().SetTheme(newMyTheme())
 	w := a.NewWindow(windowTitle)
-	w.Resize(fyne.NewSize(950, 600))
+	initialWindowSize := fyne.NewSize(950, 600)
 
 	// Create tab contents - owlcms.CreateTab handles its own initialization
 	owlcmsTabContent := owlcms.CreateTab(w, a)
@@ -186,6 +186,7 @@ func main() {
 	}
 
 	w.SetContent(mainContent)
+	w.Resize(initialWindowSize)
 
 	// Setup menus
 	setupMenus(w)
@@ -219,8 +220,29 @@ func main() {
 	// Setup cleanup on exit
 	setupCleanupOnExit(w)
 
-	// Run the application
-	w.ShowAndRun()
+	// Run the application. Refresh once after the native window is shown and once
+	// after startup resize events settle so rendered positions and hit targets agree.
+	w.Show()
+	refreshWindowLayout(w, mainContent)
+	time.AfterFunc(150*time.Millisecond, func() {
+		refreshWindowLayout(w, mainContent)
+	})
+	a.Run()
+}
+
+func refreshWindowLayout(w fyne.Window, content fyne.CanvasObject) {
+	if w == nil || content == nil {
+		return
+	}
+
+	canvasSize := w.Canvas().Size()
+	if canvasSize.Width <= 0 || canvasSize.Height <= 0 {
+		return
+	}
+
+	content.Resize(canvasSize)
+	content.Refresh()
+	w.Canvas().Refresh(content)
 }
 
 func anyProgramRunning() bool {
