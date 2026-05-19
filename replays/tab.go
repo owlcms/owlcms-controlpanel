@@ -157,8 +157,6 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	replaysStopButton.Hide()
 	stopContainer.Hide()
 
-	downloadContainer.Resize(fyne.NewSize(800, 180))
-
 	menuBar := createMenuBar(w)
 	topSpacer := canvas.NewRectangle(color.Transparent)
 	topSpacer.SetMinSize(fyne.NewSize(1, 8))

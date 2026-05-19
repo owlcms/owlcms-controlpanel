@@ -329,9 +329,6 @@ func CreateTab(w fyne.Window) *fyne.Container {
 	stopButton.Hide()
 	stopContainer.Hide()
 
-	// Set a fixed height for the bottom container to match OWLCMS tab
-	downloadContainer.Resize(fyne.NewSize(800, 180))
-
 	// Create menu bar
 	menuBar := createMenuBar(w)
 	topSpacer := canvas.NewRectangle(color.Transparent)

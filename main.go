@@ -148,6 +148,8 @@ func main() {
 		return
 	}
 
+	configureProcessDPIAwareness()
+
 	shared.NormalizeLocaleEnvironment()
 
 	appID, windowTitle := getInstanceIdentity()
@@ -186,7 +188,6 @@ func main() {
 	}
 
 	w.SetContent(mainContent)
-	w.Resize(initialWindowSize)
 
 	// Setup menus
 	setupMenus(w)
@@ -220,29 +221,12 @@ func main() {
 	// Setup cleanup on exit
 	setupCleanupOnExit(w)
 
-	// Run the application. Refresh once after the native window is shown and once
-	// after startup resize events settle so rendered positions and hit targets agree.
 	w.Show()
-	refreshWindowLayout(w, mainContent)
-	time.AfterFunc(150*time.Millisecond, func() {
-		refreshWindowLayout(w, mainContent)
-	})
+	// Resize after Show so the GL framebuffer matches the painted canvas on
+	// Windows; resizing before Show leaves an unpainted band at the bottom of
+	// the window with Fyne v2.5 on Windows.
+	w.Resize(initialWindowSize)
 	a.Run()
-}
-
-func refreshWindowLayout(w fyne.Window, content fyne.CanvasObject) {
-	if w == nil || content == nil {
-		return
-	}
-
-	canvasSize := w.Canvas().Size()
-	if canvasSize.Width <= 0 || canvasSize.Height <= 0 {
-		return
-	}
-
-	content.Resize(canvasSize)
-	content.Refresh()
-	w.Canvas().Refresh(content)
 }
 
 func anyProgramRunning() bool {
