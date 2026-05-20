@@ -61,7 +61,7 @@ func stopCamerasProcess(curProcess *exec.Cmd, curVersion string, stopBtn *widget
 	hideAllRunLinks()
 }
 
-func stopReplaysProcess(curProcess *exec.Cmd, curVersion string, stopBtn *widget.Button, w fyne.Window) {
+func stopReplaysProcess(_ *exec.Cmd, curVersion string, stopBtn *widget.Button, w fyne.Window) {
 	log.Printf("Stopping replays %s...\n", curVersion)
 	if statusLabel != nil {
 		statusLabel.SetText(fmt.Sprintf("Stopping replays %s...", curVersion))

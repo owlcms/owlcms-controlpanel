@@ -18,16 +18,9 @@ var (
 )
 
 func configureProcessDPIAwareness() {
-	if setPerMonitorV2DPIAwareness() {
-		return
-	}
-	if setPerMonitorDPIAwareness() {
-		return
-	}
-	if setSystemDPIAwareness() {
-		return
-	}
-	log.Println("could not enable Windows DPI awareness")
+	// Let Fyne / GLFW automatically handle process DPI awareness natively.
+	// Manual intervention can conflict with GLFW's multi-monitor DPI scaling.
+	log.Println("Process DPI awareness is managed natively by Fyne/GLFW")
 }
 
 func setPerMonitorV2DPIAwareness() bool {

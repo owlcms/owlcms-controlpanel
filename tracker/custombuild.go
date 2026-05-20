@@ -60,6 +60,9 @@ func readCustomBuildPlugins(versionDir string) ([]string, bool) {
 			return result, true
 		}
 	}
+	if err := scanner.Err(); err != nil {
+		return nil, false
+	}
 	// Marker exists but has no plugins line (older format)
 	return []string{}, true
 }

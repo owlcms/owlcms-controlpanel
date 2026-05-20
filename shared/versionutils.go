@@ -870,16 +870,49 @@ func DuplicateVersionWithName(baseDir, version, newBuild string) (string, error)
 		log.Printf("DuplicateVersionWithName: resolved collision from %s to %s", newBuild, resolvedBuild)
 	}
 
-	// Copy the directory
+	if _, err := DuplicateVersionDirectory(baseDir, version, newVersion); err != nil {
+		return "", err
+	}
+
+	log.Printf("DuplicateVersionWithName: successfully duplicated to %s", newVersion)
+	return newVersion, nil
+}
+
+// DuplicateVersionDirectory creates an exact copy of version under newVersion.
+func DuplicateVersionDirectory(baseDir, version, newVersion string) (string, error) {
+	version = strings.TrimSpace(version)
+	newVersion = strings.TrimSpace(newVersion)
+	if version == "" {
+		return "", fmt.Errorf("source version is required")
+	}
+	if newVersion == "" {
+		return "", fmt.Errorf("duplicate version name is required")
+	}
+	if newVersion == "." || newVersion == ".." || filepath.Base(newVersion) != newVersion || strings.ContainsAny(newVersion, `<>:"/\|?*`) {
+		return "", fmt.Errorf("duplicate version name %q is not a safe directory name", newVersion)
+	}
+
 	srcPath := filepath.Join(baseDir, version)
 	dstPath := filepath.Join(baseDir, newVersion)
 
-	log.Printf("DuplicateVersionWithName: copying %s to %s", srcPath, dstPath)
+	srcInfo, err := os.Stat(srcPath)
+	if err != nil {
+		return "", fmt.Errorf("source version %q not found: %w", version, err)
+	}
+	if !srcInfo.IsDir() {
+		return "", fmt.Errorf("source version %q is not a directory", version)
+	}
+	if _, err := os.Stat(dstPath); err == nil {
+		return "", fmt.Errorf("destination version %q already exists", newVersion)
+	} else if !os.IsNotExist(err) {
+		return "", fmt.Errorf("checking destination version %q: %w", newVersion, err)
+	}
+
+	log.Printf("DuplicateVersionDirectory: copying %s to %s", srcPath, dstPath)
 	if err := CopyDir(srcPath, dstPath); err != nil {
 		return "", fmt.Errorf("failed to copy directory: %w", err)
 	}
 
-	log.Printf("DuplicateVersionWithName: successfully duplicated to %s", newVersion)
 	return newVersion, nil
 }
 

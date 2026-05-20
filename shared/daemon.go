@@ -197,47 +197,81 @@ func PIDMatchesStartTicks(pid int, expected uint64) bool {
 // Under systemd with SuccessExitStatus=SIGTERM, a SIGTERM death is treated
 // as a clean exit.
 //
-// On Windows: sends os.Interrupt (CTRL_BREAK_EVENT since Go 1.22) which Java
-// handles via its console handler, running shutdown hooks and exiting 0.
+// On Windows: first tries os.Interrupt when available, then non-forced
+// taskkill. Both are gentler than taskkill /F and give Java a chance to run
+// shutdown hooks and choose its own exit code.
 func GracefullyStopPID(pid int) error {
 	if pid <= 0 {
 		return fmt.Errorf("invalid PID %d", pid)
 	}
 
-	// On Windows, os.FindProcess opens a handle with full access and fails
-	// with "Access is denied" for processes running at higher integrity
-	// (e.g. an elevated leftover javaw.exe). In that case skip the graceful
-	// signal step and go straight to taskkill, which may still succeed.
+	if GetGoos() == "windows" {
+		return windowsGracefullyStopPID(pid)
+	}
+
 	process, err := os.FindProcess(pid)
 	if err != nil {
-		if GetGoos() == "windows" {
-			log.Printf("GracefullyStopPID(%d): cannot open handle (%v); falling through to taskkill", pid, err)
-			return ForcefullyKillPID(pid)
-		}
 		return fmt.Errorf("find process %d: %w", pid, err)
 	}
 
-	if GetGoos() == "windows" {
-		// Windows: CTRL_BREAK_EVENT lets Java run shutdown hooks and exit 0.
-		if err := process.Signal(os.Interrupt); err == nil {
-			time.Sleep(3 * time.Second)
-			if !IsProcessRunning(pid) {
-				return nil
-			}
-		}
-	} else {
-		// Unix (Linux/macOS): SIGTERM triggers Java shutdown hooks.
-		// Java exits cleanly after running hooks, or is killed by the
-		// kernel if the signal is not caught (same end result).
-		if err := process.Signal(syscall.SIGTERM); err == nil {
-			time.Sleep(3 * time.Second)
-			if !IsProcessRunning(pid) {
-				return nil
-			}
+	// Unix (Linux/macOS): SIGTERM triggers Java shutdown hooks.
+	// Java exits cleanly after running hooks, or is killed by the
+	// kernel if the signal is not caught (same end result).
+	if err := process.Signal(syscall.SIGTERM); err == nil {
+		if waitForProcessExit(pid, 10*time.Second) {
+			return nil
 		}
 	}
 
 	return ForcefullyKillPID(pid)
+}
+
+func waitForProcessExit(pid int, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if !IsProcessRunning(pid) {
+			return true
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	return !IsProcessRunning(pid)
+}
+
+func windowsGracefullyStopPID(pid int) error {
+	process, err := os.FindProcess(pid)
+	if err == nil {
+		if err := process.Signal(os.Interrupt); err == nil {
+			if waitForProcessExit(pid, 10*time.Second) {
+				return nil
+			}
+		} else {
+			log.Printf("GracefullyStopPID(%d): os.Interrupt not available or not accepted: %v", pid, err)
+		}
+	} else {
+		log.Printf("GracefullyStopPID(%d): cannot open handle for os.Interrupt: %v", pid, err)
+	}
+
+	if err := windowsGentleTaskkill(pid); err == nil {
+		return nil
+	} else {
+		log.Printf("GracefullyStopPID(%d): gentle taskkill failed: %v", pid, err)
+	}
+
+	return ForcefullyKillPID(pid)
+}
+
+func windowsGentleTaskkill(pid int) error {
+	cmd := exec.Command("taskkill", "/T", "/PID", strconv.Itoa(pid))
+	out, err := cmd.CombinedOutput()
+	if waitForProcessExit(pid, 10*time.Second) {
+		return nil
+	}
+
+	combined := strings.TrimSpace(string(out))
+	if err != nil {
+		return fmt.Errorf("gentle taskkill pid %d: %w (%s)", pid, err, combined)
+	}
+	return fmt.Errorf("gentle taskkill pid %d: process still running (%s)", pid, combined)
 }
 
 // ForcefullyKillPID terminates a process immediately.

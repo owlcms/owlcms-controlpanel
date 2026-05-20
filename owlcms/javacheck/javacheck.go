@@ -37,6 +37,80 @@ func FindLocalJavaForVersion(temurinVersion string) (string, error) {
 	return shared.FindLocalJavaForVersion(temurinVersion, shared.GetGoos)
 }
 
+// CheckJavaHeadless is a headless-friendly version of CheckJava that does not depend on Fyne.
+func CheckJavaHeadless() error {
+	javaPath, err := FindLocalJava()
+	if err == nil {
+		log.Printf("*** Found local Java at: %s\n", javaPath)
+		return nil
+	} else {
+		log.Printf("*** Local Java not found at %s: %v\n", javaPath, err)
+	}
+
+	fmt.Println("Suitable Java not found. Downloading from Temurin...")
+	log.Println("Downloading a local copy of the Java language runtime.")
+
+	var temurinVersion string
+	if getTemurinVersionFunc != nil {
+		temurinVersion = getTemurinVersionFunc()
+	} else {
+		temurinVersion = "jdk-25" // fallback
+	}
+
+	javaDir := shared.GetSharedJavaDir(temurinVersion)
+
+	if _, err := os.Stat(javaDir); err == nil {
+		err := os.RemoveAll(javaDir)
+		if err != nil {
+			return fmt.Errorf("failed to delete existing java directory: %w", err)
+		}
+	}
+
+	if err := shared.EnsureDir0755(javaDir); err != nil {
+		return fmt.Errorf("creating java directory: %w", err)
+	}
+
+	downloadURL, err := shared.GetTemurinDownloadURL(temurinVersion, shared.GetGoos, "controlpanel")
+	if err != nil {
+		return fmt.Errorf("getting Temurin download URL: %w", err)
+	}
+
+	archivePath := filepath.Join(javaDir, "temurin")
+	if shared.GetGoos() == "windows" && !shared.IsWSL() {
+		archivePath += ".zip"
+	} else {
+		archivePath += ".tar.gz"
+	}
+
+	progressCallback := func(downloaded, total int64) {
+		if total > 0 {
+			percentage := float64(downloaded) / float64(total)
+			log.Printf("Downloading Java... %.1f%%", percentage*100)
+			fmt.Printf("\rDownloading Java... %.1f%%", percentage*100)
+		}
+	}
+
+	if err := shared.DownloadArchive(downloadURL, archivePath, progressCallback, nil); err != nil {
+		os.Remove(archivePath)
+		return fmt.Errorf("error downloading Java: %w", err)
+	}
+
+	log.Println("Extracting files...")
+	if shared.GetGoos() == "windows" && !shared.IsWSL() {
+		if err := shared.ExtractZip(archivePath, javaDir); err != nil {
+			return fmt.Errorf("error extracting Temurin zip: %w", err)
+		}
+	} else {
+		if err := shared.ExtractTarGz(archivePath, javaDir); err != nil {
+			return fmt.Errorf("extracting Temurin tar.gz: %w", err)
+		}
+	}
+
+	log.Printf("Java downloaded and installed to %s\n", javaDir)
+	fmt.Printf("\nJava downloaded and installed to %s\n", javaDir)
+	return nil
+}
+
 // CheckJava checks for Java 17 or later and downloads/installs it if necessary.
 func CheckJava(statusLabel *widget.Label) error {
 	// First check for local Java installation

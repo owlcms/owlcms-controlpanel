@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"controlpanel/shared"
-	"controlpanel/tracker/downloadutils"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -251,10 +250,10 @@ func createImportButton(versions []string, version string, w fyne.Window, button
 					return
 				}
 
-				performImport := func() {
-					// Copy local files
-					if err := copyFiles(filepath.Join(sourceDir, "local"), filepath.Join(destDir, "local"), true); err != nil {
-						log.Printf("No local files to copy from %s\n", sourceDir)
+				performImport := func(allowMismatchedCustomBuilds bool) {
+					if _, err := importDataAndConfig(sourceVersion, version, allowMismatchedCustomBuilds); err != nil {
+						dialog.ShowError(fmt.Errorf("failed to import data and config: %w", err), w)
+						return
 					}
 
 					dialog.ShowInformation("Import Complete", fmt.Sprintf("Successfully imported data and config from version %s to version %s", sourceVersion, version), w)
@@ -266,7 +265,7 @@ func createImportButton(versions []string, version string, w fyne.Window, button
 				switch {
 				case !sourceIsCustom && !destIsCustom:
 					// Neither is custom — proceed normally
-					performImport()
+					performImport(false)
 
 				case sourceIsCustom && destIsCustom && customBuildPluginsEqual(sourcePlugins, destPlugins):
 					// Same custom plugins on both sides — warn then allow
@@ -275,7 +274,7 @@ func createImportButton(versions []string, version string, w fyne.Window, button
 						importMatchedCustomBuildWarning(sourceVersion, version, sourcePlugins),
 						"Continue Import",
 						"Abandon Import",
-						performImport,
+						func() { performImport(false) },
 					)
 
 				case sourceIsCustom && destIsCustom:
@@ -285,7 +284,7 @@ func createImportButton(versions []string, version string, w fyne.Window, button
 						importMismatchedCustomBuildWarning(sourceVersion, version, sourcePlugins, destPlugins),
 						"Continue Import",
 						"Abandon Import",
-						performImport,
+						func() { performImport(true) },
 					)
 
 				default:
@@ -342,8 +341,7 @@ func createRemoveButton(version string, w fyne.Window, buttonContainer *fyne.Con
 				}
 
 				log.Printf("Removing version %s\n", version)
-				err := os.RemoveAll(filepath.Join(installDir, version))
-				if err != nil {
+				if err := RemoveInstalledVersion(version); err != nil {
 					dialog.ShowError(fmt.Errorf("failed to remove owlcms-tracker %s: %w", version, err), w)
 					return
 				}
@@ -447,103 +445,65 @@ func showCustomBuildWarning(w fyne.Window, message, continueLabel, abandonLabel 
 }
 
 func updateVersion(existingVersion string, targetVersion string, w fyne.Window) {
-	currentVersionDir := filepath.Join(installDir, existingVersion)
-	targetBaseVersion, _ := shared.ParseVersionWithBuild(targetVersion)
-	existingBuild := shared.GetCurrentBuildString(existingVersion)
-	targetInstallVersion := targetVersion
-	if existingBuild != "" {
-		resolvedBuild := shared.ResolveCollisionForBuild(installDir, targetBaseVersion, existingBuild)
-		targetInstallVersion = fmt.Sprintf("%s+%s", targetBaseVersion, resolvedBuild)
+	var actionProgressBar *widget.ProgressBar
+	var actionMessageLabel *widget.Label
+	var actionProgressDialog dialog.Dialog
+	if w != nil {
+		actionProgressBar = widget.NewProgressBar()
+		actionProgressBar.SetValue(0.01)
+		actionMessageLabel = widget.NewLabel(fmt.Sprintf("Downloading owlcms-tracker %s...", targetVersion))
+		actionProgressDialog = dialog.NewCustom(
+			"Updating owlcms-tracker",
+			"Please wait...",
+			container.NewVBox(actionMessageLabel, actionProgressBar),
+			w)
+		actionProgressDialog.Show()
 	}
 
-	// Try device-independent name first, then old platform-specific names for backward compatibility
-	assetNames := getAssetNames(targetVersion)
-	var zipURL, assetName string
-
-	// Check each asset name in order until we find one that exists
-	for _, name := range assetNames {
-		testURL := fmt.Sprintf("https://github.com/owlcms/owlcms-tracker/releases/download/%s/%s", targetVersion, name)
-		if checkAssetExists(testURL) {
-			zipURL = testURL
-			assetName = name
-			break
-		}
-	}
-
-	if zipURL == "" {
-		// None of the expected assets exist - fail immediately
-		dialog.ShowError(fmt.Errorf("no tracker release asset found for version %s (tried: %v)", targetVersion, assetNames), w)
-		return
-	}
-
-	extractDir := filepath.Join(installDir, targetInstallVersion)
-	if err := shared.EnsureDir0755(extractDir); err != nil {
-		dialog.ShowError(fmt.Errorf("creating install directory: %w", err), w)
-		return
-	}
-	zipPath := filepath.Join(installDir, assetName)
-
-	progressBar := widget.NewProgressBar()
-	progressBar.SetValue(0.01)
-	messageLabel := widget.NewLabel(fmt.Sprintf("Downloading owlcms-tracker %s...", targetVersion))
-	content := container.NewVBox(messageLabel, progressBar)
-	progressDialog := dialog.NewCustom(
-		"Updating owlcms-tracker",
-		"Please wait...",
-		content,
-		w)
-	progressDialog.Show()
-
-	go func() {
-		defer progressDialog.Hide()
-
-		progressCallback := func(downloaded, total int64) {
-			if total > 0 {
-				progress := float64(downloaded) / float64(total)
-				progressBar.SetValue(progress)
+	runActionUpdate := func() {
+		downloadProgress := func(downloaded, total int64) {
+			if total > 0 && actionProgressBar != nil {
+				actionProgressBar.SetValue(float64(downloaded) / float64(total))
 			}
 		}
-
-		err := downloadutils.DownloadArchive(zipURL, zipPath, progressCallback, nil)
-		if err != nil {
-			dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
-			return
-		}
-
-		messageLabel.SetText("Extracting files...")
-		messageLabel.Refresh()
-
 		extractProgress := func(extracted, total int64) {
-			if total > 0 {
-				progressBar.SetValue(float64(extracted) / float64(total))
+			if total > 0 && actionProgressBar != nil {
+				if actionMessageLabel != nil {
+					actionMessageLabel.SetText("Extracting files...")
+					actionMessageLabel.Refresh()
+				}
+				actionProgressBar.SetValue(float64(extracted) / float64(total))
 			}
 		}
-		err = downloadutils.ExtractZip(zipPath, extractDir, extractProgress)
-		if err != nil {
-			dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
+
+		actionResult, actionErr := UpdateRelease(existingVersion, targetVersion, downloadProgress, extractProgress)
+		if actionProgressDialog != nil {
+			actionProgressDialog.Hide()
+		}
+		if actionErr != nil {
+			if w != nil {
+				dialog.ShowError(actionErr, w)
+			} else {
+				log.Printf("Error: %v", actionErr)
+			}
 			return
 		}
 
-		err = removeCustomBuildMarker(extractDir)
-		if err != nil {
-			dialog.ShowError(fmt.Errorf("failed to remove custom build marker: %w", err), w)
-			return
+		if w != nil {
+			dialog.ShowInformation("Update Complete", fmt.Sprintf("Successfully updated to version %s", actionResult.Version), w)
+			recomputeVersionList(w)
+			latestInstalled = findLatestInstalled()
+			checkForNewerVersion()
+		} else {
+			log.Printf("Successfully updated to version %s\n", actionResult.Version)
+			fmt.Printf("Successfully updated to version %s\n", actionResult.Version)
 		}
-
-		// Copy local files to the new version
-		err = copyFiles(filepath.Join(currentVersionDir, "local"), filepath.Join(extractDir, "local"), true)
-		if err != nil {
-			log.Printf("No local files to copy from %s\n", currentVersionDir)
-		}
-
-		progressBar.SetValue(1.0)
-		dialog.ShowInformation("Update Complete", fmt.Sprintf("Successfully updated to version %s", targetInstallVersion), w)
-
-		recomputeVersionList(w)
-
-		latestInstalled = findLatestInstalled()
-		checkForNewerVersion()
-	}()
+	}
+	if w != nil {
+		go runActionUpdate()
+	} else {
+		runActionUpdate()
+	}
 }
 
 func filterVersions(versions []string, currentVer string) []string {

@@ -9,7 +9,9 @@ The control panel is installed once. It will automatically download the correct 
 
 ## Release Log
 
-- 3.3.8: Presumed to fix intermittent initial layout race condition
+- 3.4.0: Created the command-line option equivalents to the interactive control panel.  Run the program from a terminal with --help to see the options.
+- 3.4.0: More attempts to clean up user interface startup sizing and scaling issues repeatable only on a single computer.
+
 - 3.3.8: Detect that the tracker version is a custom zip with a non-standard set of plugins. Prevent updating with a standard build.
 
 - 3.3.7: build for all versions

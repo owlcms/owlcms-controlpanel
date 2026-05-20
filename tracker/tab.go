@@ -76,13 +76,13 @@ func OnTabSelected() {
 func StopRunningProcess(w fyne.Window) {
 	if currentProcess != nil && currentProcess.Process != nil {
 		log.Println("Stopping Tracker process")
-		stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+		stopProcess(currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
 		return
 	}
 
 	if activeRuntime != nil {
 		log.Println("Stopping attached Tracker process")
-		stopProcess(nil, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+		stopProcess(currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
 	}
 }
 
@@ -166,7 +166,7 @@ func CreateTab(w fyne.Window) *fyne.Container {
 			"Stop the running Tracker process?",
 			func(confirm bool) {
 				if confirm {
-					stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+					stopProcess(currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
 				}
 			},
 			w,

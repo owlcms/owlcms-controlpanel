@@ -154,42 +154,31 @@ func populateReleaseSelect(selectWidget *widget.Select) {
 }
 
 func downloadReleaseWithProgress(downloadVersion, installVersion string, w fyne.Window, isInitialDownload bool) {
-	var urlPrefix string
-	if containsPreReleaseTag(downloadVersion) {
-		urlPrefix = "https://github.com/owlcms/owlcms4-prerelease/releases/download"
+	var progressBar *widget.ProgressBar
+	var messageLabel *widget.Label
+	var progressDialog dialog.Dialog
+
+	if w != nil {
+		progressBar = widget.NewProgressBar()
+		messageLabel = widget.NewLabel(fmt.Sprintf("Downloading OWLCMS %s...", downloadVersion))
+		progressContent := container.NewVBox(messageLabel, progressBar)
+		progressDialog = dialog.NewCustom(
+			"Installing OWLCMS",
+			"Please wait...",
+			progressContent,
+			w)
+		progressDialog.Show()
 	} else {
-		urlPrefix = "https://github.com/owlcms/owlcms4/releases/download"
+		log.Printf("Downloading OWLCMS %s...", downloadVersion)
+		fmt.Printf("Downloading OWLCMS %s...\n", downloadVersion)
 	}
-	fileName := fmt.Sprintf("owlcms_%s.zip", downloadVersion)
-	zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, downloadVersion, fileName)
-
-	owlcmsDir := installDir
-	if _, err := os.Stat(owlcmsDir); os.IsNotExist(err) {
-		if err := shared.EnsureDir0755(owlcmsDir); err != nil {
-			dialog.ShowError(fmt.Errorf("creating owlcms directory: %w", err), w)
-			return
-		}
-	}
-
-	zipPath := filepath.Join(owlcmsDir, fileName)
-	extractPath := filepath.Join(owlcmsDir, installVersion)
-
-	progressBar := widget.NewProgressBar()
-	messageLabel := widget.NewLabel(fmt.Sprintf("Downloading OWLCMS %s...", downloadVersion))
-	progressContent := container.NewVBox(messageLabel, progressBar)
-	progressDialog := dialog.NewCustom(
-		"Installing OWLCMS",
-		"Please wait...",
-		progressContent,
-		w)
-	progressDialog.Show()
 
 	done := make(chan bool)
 
 	go func() {
 		var dialogClosed bool
 		closeDialog := func() {
-			if !dialogClosed {
+			if !dialogClosed && progressDialog != nil {
 				progressDialog.Hide()
 				dialogClosed = true
 			}
@@ -199,63 +188,53 @@ func downloadReleaseWithProgress(downloadVersion, installVersion string, w fyne.
 		progressCallback := func(downloaded, total int64) {
 			if total > 0 {
 				progress := float64(downloaded) / float64(total)
-				progressBar.SetValue(progress)
-				messageLabel.SetText(fmt.Sprintf("Downloading OWLCMS %s... %.1f%%", downloadVersion, progress*100))
-				messageLabel.Refresh()
+				if w != nil {
+					progressBar.SetValue(progress)
+					messageLabel.SetText(fmt.Sprintf("Downloading OWLCMS %s... %.1f%%", downloadVersion, progress*100))
+					messageLabel.Refresh()
+				} else {
+					log.Printf("Downloading OWLCMS %s... %.1f%%", downloadVersion, progress*100)
+					fmt.Printf("\rDownloading OWLCMS %s... %.1f%%", downloadVersion, progress*100)
+				}
 			}
 		}
 
-		err := shared.DownloadArchive(zipURL, zipPath, progressCallback, nil)
+		result, err := InstallRelease(downloadVersion, installVersion, progressCallback)
 		if err != nil {
-			log.Printf("Download failed: %v", err)
-			dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
+			log.Printf("Install failed: %v", err)
+			if w != nil {
+				dialog.ShowError(err, w)
+			} else {
+				log.Printf("Error: %v", err)
+			}
 			done <- false
 			return
 		}
 
-		log.Printf("Download complete, starting extraction to %s", extractPath)
-		messageLabel.SetText("Extracting files...")
-		messageLabel.Refresh()
-
-		err = shared.ExtractZip(zipPath, extractPath)
-		log.Printf("ExtractZip returned, err=%v", err)
-		if err != nil {
-			dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
-			done <- false
-			return
-		}
-
-		if err := normalizeExtractedDir(extractPath); err != nil {
-			dialog.ShowError(fmt.Errorf("failed to finalize install directory: %w", err), w)
-			done <- false
-			return
-		}
-
-		if err := EnsureReleaseEnvFromParent(installVersion); err != nil {
-			dialog.ShowError(fmt.Errorf("failed to create release env.properties: %w", err), w)
-			done <- false
-			return
-		}
-
-		if err := os.Remove(zipPath); err != nil {
-			log.Printf("Warning: Could not delete downloaded zip file: %v", err)
+		if w != nil {
+			messageLabel.SetText("Extracting files...")
+			messageLabel.Refresh()
 		}
 
 		message := fmt.Sprintf(
 			"Successfully installed OWLCMS version %s\n\n"+
 				"Location: %s\n\n"+
 				"The program files have been extracted to the above directory.",
-			installVersion, extractPath)
+			result.Version, result.Path)
 
-		log.Printf("Download and extraction complete for version %s, showing dialog", installVersion)
-		dialog.ShowInformation("Installation Complete", message, w)
+		log.Printf("Download and extraction complete for version %s, showing dialog", result.Version)
+		if w != nil {
+			dialog.ShowInformation("Installation Complete", message, w)
+			_ = isInitialDownload // keep parameter stable even if caller distinguishes paths
+			HideDownloadables()
+			setOwlcmsTabMode(w)
 
-		_ = isInitialDownload // keep parameter stable even if caller distinguishes paths
-		HideDownloadables()
-		setOwlcmsTabMode(w)
-
-		log.Printf("Refreshing window content")
-		w.Content().Refresh()
+			log.Printf("Refreshing window content")
+			w.Content().Refresh()
+		} else {
+			log.Println("Installation Complete:\n" + message)
+			fmt.Println("Installation Complete:\n" + message)
+		}
 		done <- true
 	}()
 

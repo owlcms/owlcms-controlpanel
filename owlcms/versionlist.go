@@ -256,7 +256,6 @@ func createImportButton(versions []string, version string, w fyne.Window, button
 				}
 
 				sourceDir := filepath.Join(installDir, sourceVersion)
-				destDir := filepath.Join(installDir, version)
 
 				if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
 					dialog.ShowError(fmt.Errorf("source version %s does not exist", sourceVersion), w)
@@ -277,23 +276,7 @@ func createImportButton(versions []string, version string, w fyne.Window, button
 							return
 						}
 
-						// Copy database files
-						if err := copyFiles(filepath.Join(sourceDir, "database"), filepath.Join(destDir, "database"), true); err != nil {
-							log.Printf("No database files to copy from %s\n", sourceDir)
-						}
-
-						// Copy version-specific env.properties if it exists
-						srcEnv := filepath.Join(sourceDir, "env.properties")
-						if _, err := os.Stat(srcEnv); err == nil {
-							destEnv := filepath.Join(destDir, "env.properties")
-							if err := copyFile(srcEnv, destEnv); err != nil {
-								log.Printf("Failed to copy env.properties: %v\n", err)
-							}
-						}
-
-						// Use the new logic to restore local files
-						err := restoreLocalFilesFromPreviousVersion(destDir, sourceDir)
-						if err != nil {
+						if _, err := ImportDataAndConfig(sourceVersion, version); err != nil {
 							log.Printf("Error while processing local files: %v\n", err)
 							dialog.ShowError(fmt.Errorf("failed to process local files: %w", err), w)
 							return
@@ -353,8 +336,7 @@ func createRemoveButton(version string, w fyne.Window, buttonContainer *fyne.Con
 					return
 				}
 
-				err := os.RemoveAll(filepath.Join(installDir, version))
-				if err != nil {
+				if err := RemoveInstalledVersion(version); err != nil {
 					dialog.ShowError(fmt.Errorf("failed to remove OWLCMS %s: %w", version, err), w)
 					return
 				}
@@ -477,208 +459,46 @@ func computeUpdateTargetVersion(existingVersion string, targetVersion string) st
 }
 
 func updateVersion(existingVersion string, targetVersion string, w fyne.Window) {
-	// Note the timestamp of the current version's top-level directory
-	currentVersionDir := filepath.Join(installDir, existingVersion)
-	existingVersionDir := currentVersionDir
-	targetInstallVersion := computeUpdateTargetVersion(existingVersion, targetVersion)
-
-	// Download and extract the version given by string
-	var urlPrefix string
-	if containsPreReleaseTag(targetVersion) {
-		urlPrefix = "https://github.com/owlcms/owlcms4-prerelease/releases/download"
-	} else {
-		urlPrefix = "https://github.com/owlcms/owlcms4/releases/download"
-	}
-	fileName := fmt.Sprintf("owlcms_%s.zip", targetVersion)
-	zipURL := fmt.Sprintf("%s/%s/%s", urlPrefix, targetVersion, fileName)
-	zipPath := filepath.Join(installDir, fileName)
-	newVersionDir := filepath.Join(installDir, targetInstallVersion)
-
-	// Create a cancel channel
-	cancel := make(chan bool)
-
-	progressDialog, progressBar := customdialog.NewDownloadDialog(
+	actionCancel := make(chan bool)
+	actionProgressDialog, actionProgressBar := customdialog.NewDownloadDialog(
 		"Updating OWLCMS",
 		w,
-		cancel)
-	progressDialog.Show()
+		actionCancel)
+	actionProgressDialog.Show()
 
-	progressCallback := func(downloaded, total int64) {
+	actionProgressCallback := func(downloaded, total int64) {
 		if total > 0 {
-			percentage := float64(downloaded) / float64(total)
-			progressBar.SetValue(percentage)
+			actionProgressBar.SetValue(float64(downloaded) / float64(total))
 		}
 	}
 
-	err := shared.DownloadArchive(zipURL, zipPath, progressCallback, cancel)
-	if err != nil {
-		if err.Error() == "download cancelled" {
-			// Handle cancellation
-			log.Println("Update cancelled by user")
-
-			// Clean up the incomplete zip file
-			os.Remove(zipPath)
-
-			return
-		}
-		dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
+	actionResult, actionErr := UpdateRelease(existingVersion, targetVersion, actionProgressCallback, actionCancel)
+	if actionErr != nil {
+		actionProgressDialog.Hide()
+		dialog.ShowError(actionErr, w)
 		return
 	}
 
-	// new version is downloaded, now extract it to its own directory
-	err = shared.ExtractZip(zipPath, newVersionDir)
-	if err != nil {
-		dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
-		return
+	actionProgressDialog.Hide()
+	actionSuccessMessage := fmt.Sprintf("Successfully updated to version %s\n", actionResult.Version)
+	if actionResult.DatabaseCopied {
+		actionSuccessMessage += "\n✓ Database files have been copied"
 	}
-
-	// Track what was copied successfully
-	var databaseCopied bool
-	var localFilesCopied bool
-
-	// Check if the old database directory exists before attempting to copy
-	existingDatabaseDir := filepath.Join(existingVersionDir, "database")
-	if _, statErr := os.Stat(existingDatabaseDir); !os.IsNotExist(statErr) {
-		// Copy the database from the old directory to the new version
-		err = copyFiles(existingDatabaseDir, filepath.Join(newVersionDir, "database"), true)
-		if err != nil {
-			// copy failed, log the error
-			log.Printf("could not copy the database from %s to %s: %v\n", existingDatabaseDir, filepath.Join(newVersionDir, "database"), err)
-
-			// Ensure the progress dialog is hidden first
-			progressDialog.Hide()
-
-			// Check if this is likely a file lock issue (platform-independent way)
-			isLockError := false
-			if os.IsPermission(err) {
-				isLockError = true
-			}
-
-			// On Windows, also check for sharing violation
-			if pathErr, ok := err.(*os.PathError); ok {
-				if errno, ok := pathErr.Err.(syscall.Errno); ok {
-					// Windows ERROR_SHARING_VIOLATION (32) and ERROR_LOCK_VIOLATION (33)
-					// Fix the type mismatch by comparing errno to each value separately
-					if errno == 32 || errno == 33 {
-						isLockError = true
-					}
-				}
-			}
-
-			var errorMsg string
-			if isLockError {
-				errorMsg = "Database files are locked and cannot be copied.\n\nPlease make sure OWLCMS is not running before trying to update."
-			} else {
-				errorMsg = fmt.Sprintf("Failed to copy database: %v", err)
-			}
-
-			// Create a custom dialog that will be shown reliably
-			content := container.NewVBox(
-				widget.NewLabel(errorMsg),
-				widget.NewLabel("\nThe update will be cancelled."),
-			)
-
-			modalDialog := dialog.NewCustom(
-				"Database Copy Error",
-				"OK",
-				content,
-				w,
-			)
-
-			// Set callback for when dialog is dismissed
-			modalDialog.SetOnClosed(func() {
-				log.Println("Error dialog closed, cleaning up...")
-
-				// Clean up the downloaded directory since update failed
-				cleanupErr := os.RemoveAll(newVersionDir)
-				if cleanupErr != nil {
-					log.Printf("Failed to clean up directory: %v", cleanupErr)
-				}
-
-				// Update UI
-				recomputeVersionList(w)
-				checkForNewerVersion()
-				w.Content().Refresh()
-			})
-
-			// Show dialog
-			modalDialog.Show()
-			return
-		}
-		// Database copied successfully
-		databaseCopied = true
-		log.Println("Database files copied successfully")
-	} else {
-		log.Printf("Database directory does not exist in %s\n", existingDatabaseDir)
+	if actionResult.LocalFilesCopied {
+		actionSuccessMessage += "\n✓ Local configuration files have been processed"
 	}
-
-	// Copy version-specific env.properties if it exists
-	srcEnv := filepath.Join(existingVersionDir, "env.properties")
-	if _, statErr := os.Stat(srcEnv); statErr == nil {
-		destEnv := filepath.Join(newVersionDir, "env.properties")
-		if copyErr := copyFile(srcEnv, destEnv); copyErr != nil {
-			log.Printf("Failed to copy env.properties: %v\n", copyErr)
-		} else {
-			log.Println("Version-specific env.properties copied successfully")
-		}
-	}
-
-	// Use the new logic to restore local files from previous version
-	err = restoreLocalFilesFromPreviousVersion(newVersionDir, existingVersionDir)
-	if err != nil {
-		log.Printf("Error while restoring local configuration files: %v\n", err)
-		dialog.ShowError(fmt.Errorf("failed to restore local files: %w", err), w)
-		return
-	} else {
-		localFilesCopied = true
-		log.Println("Local configuration files processed successfully")
-	}
-
-	// Hide progress dialog before showing success dialog
-	progressDialog.Hide()
-
-	// Create a detailed success message
-	var successMessage string
-	successMessage = fmt.Sprintf("Successfully updated to version %s\n", targetInstallVersion)
-
-	if databaseCopied && localFilesCopied {
-		successMessage += "\n✓ Database files have been copied\n✓ Local configuration files have been processed"
-	} else if databaseCopied {
-		successMessage += "\n✓ Database files have been copied"
-	} else if localFilesCopied {
-		successMessage += "\n✓ Local configuration files have been processed"
-	}
-
-	// Create a custom modal dialog that won't be dismissed automatically
-	content := container.NewVBox(
-		widget.NewLabel(successMessage),
-	)
-
-	// Create a custom dialog and capture its reference
-	successDialog := dialog.NewCustom(
+	actionSuccessDialog := dialog.NewCustom(
 		"Update Complete",
 		"OK",
-		content,
+		container.NewVBox(widget.NewLabel(actionSuccessMessage)),
 		w,
 	)
-
-	// Set callback for when the dialog is closed
-	successDialog.SetOnClosed(func() {
-		log.Println("Success dialog acknowledged, updating UI...")
-
-		// Recompute the version list
+	actionSuccessDialog.SetOnClosed(func() {
 		recomputeVersionList(w)
-
-		// Recompute the downloadTitle
 		checkForNewerVersion()
-
-		// Refresh UI components
 		w.Content().Refresh()
 	})
-
-	// Show the dialog - it will block until the user dismisses it
-	log.Println("Showing success dialog")
-	successDialog.Show()
+	actionSuccessDialog.Show()
 }
 
 // restoreLocalFilesFromPreviousVersion restores files in newDir/local from oldDir/local

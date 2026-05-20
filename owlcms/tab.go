@@ -66,9 +66,6 @@ func CreateTab(w fyne.Window, app fyne.App) *fyne.Container {
 		dialog.ShowError(fmt.Errorf("failed to initialize environment: %w", err), w)
 	}
 
-	// Check for updates immediately after showing the window
-	go CheckForUpdates(w, false)
-
 	// Create stop button and status label
 	stopButton = widget.NewButton("Stop", nil)
 	stopButton.Importance = widget.HighImportance
@@ -129,7 +126,7 @@ func CreateTab(w fyne.Window, app fyne.App) *fyne.Container {
 			"Stopping OWLCMS will stop the current competition on all platforms. Make sure this is a correct time to stop.",
 			func(confirm bool) {
 				if confirm {
-					stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+					stopProcess(currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
 				}
 			},
 			w,
@@ -989,12 +986,12 @@ func IsRecoveredDaemonRunning() bool {
 func StopRunningProcess(w fyne.Window) {
 	if currentProcess != nil && currentProcess.Process != nil {
 		log.Println("Stopping OWLCMS process")
-		stopProcess(currentProcess, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+		stopProcess(currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
 		return
 	}
 
 	if activeRuntime != nil {
 		log.Println("Stopping attached OWLCMS process")
-		stopProcess(nil, currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+		stopProcess(currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
 	}
 }

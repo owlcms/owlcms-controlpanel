@@ -4,7 +4,6 @@ import (
 	"controlpanel/shared"
 	"fmt"
 	"log"
-	"os/exec"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -44,7 +43,7 @@ func monitorProcess(done <-chan error, port string) chan error {
 	return result
 }
 
-func stopProcess(process *exec.Cmd, version string, stopBtn *widget.Button, downloadGroup, versionCont *fyne.Container, statusLbl *widget.Label, w fyne.Window) {
+func stopProcess(version string, stopBtn *widget.Button, downloadGroup, versionCont *fyne.Container, statusLbl *widget.Label, w fyne.Window) {
 	log.Printf("Stopping OWLCMS %s...\n", version)
 	statusLbl.SetText(fmt.Sprintf("Stopping OWLCMS %s...", version))
 
@@ -55,7 +54,7 @@ func stopProcess(process *exec.Cmd, version string, stopBtn *widget.Button, down
 
 	killedByUs = true
 
-	err := shared.EnsurePortFree(port)
+	err := StopProcessByPort(port)
 	if err != nil {
 		killedByUs = false
 		dialog.ShowError(fmt.Errorf("failed to stop OWLCMS %s on port %s: %w", version, port, err), w)

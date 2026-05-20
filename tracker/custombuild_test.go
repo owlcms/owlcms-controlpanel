@@ -134,3 +134,34 @@ func TestImportBlockMessageDestOnly(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateImportCompatibilityBlocksMismatchedCustomBuildsByDefault(t *testing.T) {
+	sourceDir := t.TempDir()
+	destDir := t.TempDir()
+	if err := os.WriteFile(customBuildMarkerPath(sourceDir), []byte("custom build\nplugins: Plugin A\n"), 0o644); err != nil {
+		t.Fatalf("write source marker: %v", err)
+	}
+	if err := os.WriteFile(customBuildMarkerPath(destDir), []byte("custom build\nplugins: Plugin B\n"), 0o644); err != nil {
+		t.Fatalf("write destination marker: %v", err)
+	}
+
+	err := validateImportCompatibility("1.0.0+source", "1.1.0+dest", sourceDir, destDir, false)
+	if err == nil || !strings.Contains(err.Error(), "custom plugin lists do not match") {
+		t.Fatalf("expected mismatched custom-build error, got %v", err)
+	}
+}
+
+func TestValidateImportCompatibilityCanAllowWarnedMismatchedCustomBuilds(t *testing.T) {
+	sourceDir := t.TempDir()
+	destDir := t.TempDir()
+	if err := os.WriteFile(customBuildMarkerPath(sourceDir), []byte("custom build\nplugins: Plugin A\n"), 0o644); err != nil {
+		t.Fatalf("write source marker: %v", err)
+	}
+	if err := os.WriteFile(customBuildMarkerPath(destDir), []byte("custom build\nplugins: Plugin B\n"), 0o644); err != nil {
+		t.Fatalf("write destination marker: %v", err)
+	}
+
+	if err := validateImportCompatibility("1.0.0+source", "1.1.0+dest", sourceDir, destDir, true); err != nil {
+		t.Fatalf("expected warned custom-build import to be allowed, got %v", err)
+	}
+}

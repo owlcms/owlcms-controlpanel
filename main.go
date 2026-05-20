@@ -23,6 +23,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
@@ -71,23 +72,20 @@ func getInstanceIdentity() (string, string) {
 }
 
 func main() {
-	cliOptions := parseCLIOptions(os.Args[1:])
-	owlcmsFlag, trackerFlag := parseDaemonFlags(os.Args[1:])
+	args := os.Args[1:]
+	cliOptions := parseCLIOptions(args)
+	moduleCommand, moduleCommandFound, moduleCommandErr := parseModuleCommand(args)
 	if cliOptions.help {
 		printUsage()
 		return
 	}
+	if moduleCommandErr != nil {
+		fmt.Fprintf(os.Stderr, "command line: %v\n", moduleCommandErr)
+		os.Exit(1)
+	}
 	if err := applyCLIInstanceOptions(cliOptions); err != nil {
 		fmt.Fprintf(os.Stderr, "instance setup: %v\n", err)
 		os.Exit(1)
-	}
-	if owlcmsFlag != "" || trackerFlag != "" {
-		var err error
-		owlcmsFlag, trackerFlag, err = maybeApplyImplicitInstanceForHeadless(cliOptions, owlcmsFlag, trackerFlag)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "instance setup: %v\n", err)
-			os.Exit(1)
-		}
 	}
 	if cliOptions.init {
 		initializedInstance := strings.TrimSpace(os.Getenv("CONTROLPANEL_INSTANCE"))
@@ -100,20 +98,6 @@ func main() {
 		fmt.Printf("tracker dir:       %s\n", shared.GetTrackerInstallDir())
 		fmt.Printf("runtime dir:       %s\n", shared.GetRuntimeDir())
 		return
-	}
-
-	if owlcmsFlag != "" || trackerFlag != "" {
-		var listed bool
-		owlcmsFlag, trackerFlag, listed = handleHeadlessListRequests(os.Stdout, owlcmsFlag, trackerFlag)
-		if listed {
-			return
-		}
-		owlcmsStop := strings.EqualFold(owlcmsFlag, "stop")
-		trackerStop := strings.EqualFold(trackerFlag, "stop")
-		if owlcmsStop || trackerStop {
-			stopHeadlessDaemons(owlcmsStop, trackerStop)
-			return
-		}
 	}
 
 	javacheck.InitJavaCheck(shared.GetOwlcmsInstallDir(), owlcms.GetTemurinVersion)
@@ -143,8 +127,13 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds | log.Llongfile)
 	log.Printf("Starting OWLCMS Control Panel %s", shared.GetLauncherVersion())
 
-	if owlcmsFlag != "" || trackerFlag != "" {
-		runHeadlessDaemons(owlcmsFlag, trackerFlag, cliOptions.mqtt)
+	if moduleCommandFound {
+		moduleCommand.MQTT = moduleCommand.MQTT || cliOptions.mqtt
+		if err := executeModuleCommand(moduleCommand, os.Stdout); err != nil {
+			log.Printf("ERROR: %v", err)
+			fmt.Fprintf(os.Stderr, "%v\n", err)
+			os.Exit(1)
+		}
 		return
 	}
 
@@ -157,7 +146,16 @@ func main() {
 	a.Settings().SetTheme(newMyTheme())
 	w := a.NewWindow(windowTitle)
 	initialWindowSize := fyne.NewSize(950, 600)
+	if !startControlPanelRuntimeGate(a, w, initialWindowSize, func() {
+		startControlPanelUI(w, a, initialWindowSize)
+	}) {
+		return
+	}
+	defer clearCurrentControlPanelRuntime()
+	a.Run()
+}
 
+func startControlPanelUI(w fyne.Window, a fyne.App, initialWindowSize fyne.Size) {
 	// Create tab contents - owlcms.CreateTab handles its own initialization
 	owlcmsTabContent := owlcms.CreateTab(w, a)
 	trackerTabContent := tracker.CreateTab(w)
@@ -187,10 +185,21 @@ func main() {
 		}
 	}
 
+	// Create dummy/loading content with the correct sizing to anchor window dimensions upfront
+	dummyBackground := canvas.NewRectangle(color.Transparent)
+	dummyBackground.SetMinSize(initialWindowSize)
+	dummyLabel := widget.NewLabelWithStyle("Loading OWLCMS modules...", fyne.TextAlignCenter, fyne.TextStyle{Bold: true})
+	dummyContent := container.NewStack(dummyBackground, dummyLabel)
+
 	// Setup menus before content so Fyne initializes the menu canvas before
 	// the first content layout pass.
 	setupMenus(w)
-	w.SetContent(mainContent)
+
+	// Combine into a stack so that dummyContent is initially visible, layout doesn't break,
+	// and we avoid swapping the root content in a way that causes rendering failures.
+	mainContent.Hide()
+	rootContainer := container.NewStack(dummyContent, mainContent)
+	w.SetContent(rootContainer)
 
 	// Show installed modules popup
 	// Query the actual install directories from each package
@@ -223,9 +232,23 @@ func main() {
 
 	setInitialWindowGeometry(w, initialWindowSize)
 	w.Show()
+	// Re-apply Resize after Show so that GLFW/Fyne can compute window geometry with resolved DPI scaling
+	w.Resize(initialWindowSize)
+
+	// Keep dummy content visible for a brief moment to let OS DPI scaling/framebuffer sync settle,
+	// then transition smoothly to main tab menu without causing layout artifacts
+	time.AfterFunc(150*time.Millisecond, func() {
+		fyne.Do(func() {
+			dummyContent.Hide()
+			mainContent.Show()
+			rootContainer.Refresh()
+		})
+	})
+
+	// Check for updates after the main window is shown and sized
+	go owlcms.CheckForUpdates(w, false)
 	scheduleStartupRepaint(w)
 	scheduleWindowDiagnostics(w)
-	a.Run()
 }
 
 func setInitialWindowGeometry(w fyne.Window, size fyne.Size) {
@@ -610,6 +633,7 @@ func setupSignalHandling() {
 		go func() {
 			time.Sleep(5 * time.Second)
 			log.Println("Cleanup timeout reached, forcing exit...")
+			clearCurrentControlPanelRuntime()
 			os.Exit(1)
 		}()
 
@@ -631,6 +655,7 @@ func setupSignalHandling() {
 		}
 
 		log.Println("Exiting Control Panel...")
+		clearCurrentControlPanelRuntime()
 		os.Exit(0)
 	}()
 }
@@ -826,16 +851,72 @@ func runHeadlessDaemons(owlcmsVersion, trackerVersion string, enableEmbeddedMQTT
 	}
 }
 
-// stopHeadlessDaemons stops running OWLCMS and/or Tracker daemons from the command line.
+type runningModuleProcess struct {
+	Label        string
+	Version      string
+	PID          int
+	Port         string
+	Source       string
+	MetadataPath string
+	PIDFilePath  string
+}
+
+func resolveRunningModuleProcess(label, metadataPath, pidFilePath, port, fallbackVersion string) (*runningModuleProcess, error) {
+	if meta, running := shared.CheckDaemonRunning(metadataPath); running {
+		return &runningModuleProcess{
+			Label:        label,
+			Version:      meta.Version,
+			PID:          meta.PID,
+			Port:         meta.Port,
+			Source:       "runtime metadata",
+			MetadataPath: metadataPath,
+			PIDFilePath:  pidFilePath,
+		}, nil
+	}
+
+	_ = shared.ClearRuntimeMetadata(metadataPath)
+
+	pid, source, err := shared.ResolvePIDFromFileOrPort(pidFilePath, port)
+	if err != nil {
+		return nil, err
+	}
+	if pid == 0 {
+		return nil, nil
+	}
+
+	return &runningModuleProcess{
+		Label:        label,
+		Version:      fallbackVersion,
+		PID:          pid,
+		Port:         port,
+		Source:       source,
+		MetadataPath: metadataPath,
+		PIDFilePath:  pidFilePath,
+	}, nil
+}
+
+// stopHeadlessDaemons stops running OWLCMS and/or Tracker modules from the command line.
 func stopHeadlessDaemons(stopOwlcms, stopTracker bool) {
 	var failed bool
 
 	if stopOwlcms {
-		failed = stopOneDaemon("owlcms", owlcms.RuntimeMetadataPath()) || failed
+		if err := owlcms.InitEnv(); err != nil {
+			log.Printf("ERROR: failed to load owlcms environment: %v", err)
+			fmt.Fprintf(os.Stderr, "owlcms: failed to load environment: %v\n", err)
+			failed = true
+		} else {
+			failed = stopOneModule("owlcms", owlcms.RuntimeMetadataPath(), owlcms.PIDFilePath(), owlcms.GetPort(), owlcms.GetLastRunVersion()) || failed
+		}
 	}
 
 	if stopTracker {
-		failed = stopOneDaemon("tracker", tracker.RuntimeMetadataPath()) || failed
+		if err := tracker.InitEnv(); err != nil {
+			log.Printf("ERROR: failed to load tracker environment: %v", err)
+			fmt.Fprintf(os.Stderr, "tracker: failed to load environment: %v\n", err)
+			failed = true
+		} else {
+			failed = stopOneModule("tracker", tracker.RuntimeMetadataPath(), tracker.PIDFilePath(), tracker.GetPort(), tracker.GetLastRunVersion()) || failed
+		}
 	}
 
 	if failed {
@@ -843,29 +924,44 @@ func stopHeadlessDaemons(stopOwlcms, stopTracker bool) {
 	}
 }
 
-// stopOneDaemon stops a single daemon identified by its runtime metadata file.
+// stopOneModule stops a single module identified by runtime metadata, PID file, or configured port.
 // Returns true on failure.
-func stopOneDaemon(label, metadataPath string) bool {
-	meta, running := shared.CheckDaemonRunning(metadataPath)
-	if !running {
+func stopOneModule(label, metadataPath, pidFilePath, port, fallbackVersion string) bool {
+	running, err := resolveRunningModuleProcess(label, metadataPath, pidFilePath, port, fallbackVersion)
+	if err != nil {
+		log.Printf("ERROR: failed to resolve %s process: %v", label, err)
+		fmt.Fprintf(os.Stderr, "%s: failed to resolve running process: %v\n", label, err)
+		return true
+	}
+	if running == nil {
 		log.Printf("%s is not running", label)
 		fmt.Printf("%s is not running\n", label)
-		// Clean up stale metadata if present
 		_ = shared.ClearRuntimeMetadata(metadataPath)
 		return false
 	}
 
-	log.Printf("Stopping %s %s (PID %d, port %s)...", label, meta.Version, meta.PID, meta.Port)
-	fmt.Printf("Stopping %s %s (PID %d)...\n", label, meta.Version, meta.PID)
+	versionText := strings.TrimSpace(running.Version)
+	if versionText == "" {
+		versionText = "unknown version"
+	}
 
-	if err := shared.EnsurePortFree(meta.Port); err != nil {
-		log.Printf("ERROR: failed to stop %s on port %s: %v", label, meta.Port, err)
-		fmt.Fprintf(os.Stderr, "%s: failed to free port %s: %v\n", label, meta.Port, err)
+	log.Printf("Stopping %s %s (PID %d, port %s, source %s)...", label, versionText, running.PID, running.Port, running.Source)
+	fmt.Printf("Stopping %s %s (PID %d)...\n", label, versionText, running.PID)
+
+	var stopErr error
+	if label == "owlcms" {
+		stopErr = owlcms.StopProcessByPort(running.Port)
+	} else {
+		stopErr = shared.StopPIDFileOrPortProcess(pidFilePath, running.Port)
+	}
+	if stopErr != nil {
+		log.Printf("ERROR: failed to stop %s PID %d on port %s: %v", label, running.PID, running.Port, stopErr)
+		fmt.Fprintf(os.Stderr, "%s: failed to stop PID %d on port %s: %v\n", label, running.PID, running.Port, stopErr)
 		return true
 	}
 
 	_ = shared.ClearRuntimeMetadata(metadataPath)
-	log.Printf("%s %s (PID %d) stopped", label, meta.Version, meta.PID)
-	fmt.Printf("%s %s stopped\n", label, meta.Version)
+	log.Printf("%s %s (PID %d) stopped", label, versionText, running.PID)
+	fmt.Printf("%s %s stopped\n", label, versionText)
 	return false
 }

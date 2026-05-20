@@ -71,6 +71,11 @@ func RuntimeMetadataPath() string {
 	return runtimeMetadataPath()
 }
 
+// PIDFilePath returns the path to the OWLCMS child process PID file.
+func PIDFilePath() string {
+	return pidFilePath
+}
+
 func clearRuntimeState() {
 	activeRuntime = nil
 	if err := shared.ClearRuntimeMetadata(runtimeMetadataPath()); err != nil {
@@ -306,18 +311,34 @@ func LaunchDaemon(version string, enableEmbeddedMQTT bool) error {
 	}
 
 	if shared.IsRunningUnderSystemd() {
-		return launchDaemonForeground(version, params)
+		return launchSupervisedForeground(version, params)
 	}
 	return launchDaemonDetached(version, params)
 }
 
-// launchDaemonForeground starts OWLCMS under systemd (or Docker).
-// Restarts are handled by the external supervisor, so the Go process
-// simply starts Java, waits for the port, blocks on cmd.Wait(), and
-// returns a failure only for restartable exits. Deliberate external TERM/KILL
-// stops are normalized to a clean return so the outer supervisor treats them
-// as intentional stops.
-func launchDaemonForeground(version string, params *owlcmsLaunchParams) error {
+// LaunchForeground starts OWLCMS from the command line and blocks until it exits.
+func LaunchForeground(version string, enableEmbeddedMQTT bool) error {
+	log.Printf("LaunchForeground: starting OWLCMS %s", version)
+	params, err := prepareOwlcmsLaunch(version, &enableEmbeddedMQTT)
+	if err != nil {
+		return err
+	}
+	if shared.CheckPort(params.TargetPort) == nil {
+		log.Printf("LaunchForeground: port %s is in use, attempting to free it...", params.TargetPort)
+		if err := shared.EnsurePortFree(params.TargetPort); err != nil {
+			return fmt.Errorf("port %s is in use and could not be freed: %w", params.TargetPort, err)
+		}
+		if shared.CheckPort(params.TargetPort) == nil {
+			return fmt.Errorf("port %s is still in use after cleanup", params.TargetPort)
+		}
+	}
+	return launchSupervisedForeground(version, params)
+}
+
+// launchSupervisedForeground starts OWLCMS, waits for readiness, then blocks
+// on cmd.Wait(). It is used by command-line foreground launches and by
+// systemd/docker-style foreground supervision.
+func launchSupervisedForeground(version string, params *owlcmsLaunchParams) error {
 	cmd := buildOwlcmsCommand(params, false)
 	shared.ConfigureNoConsoleWindow(cmd)
 	cmd.Env = params.Env
@@ -325,14 +346,14 @@ func launchDaemonForeground(version string, params *owlcmsLaunchParams) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	log.Printf("LaunchDaemon(systemd): command %v in %s", cmd.Args, params.VersionDir)
+	log.Printf("LaunchSupervisedForeground: command %v in %s", cmd.Args, params.VersionDir)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start OWLCMS %s: %w", version, err)
 	}
 
 	pid := cmd.Process.Pid
 	activeRuntime = recordOwlcmsStart(pid, version, params.TargetPort)
-	log.Printf("LaunchDaemon(systemd): OWLCMS %s (PID %d), waiting for port %s...", version, pid, params.TargetPort)
+	log.Printf("LaunchSupervisedForeground: OWLCMS %s (PID %d), waiting for port %s...", version, pid, params.TargetPort)
 
 	// Wait for the port to come up before declaring success.
 	deadline := time.Now().Add(60 * time.Second)
@@ -349,7 +370,7 @@ func launchDaemonForeground(version string, params *owlcmsLaunchParams) error {
 	}
 
 	if ready {
-		log.Printf("LaunchDaemon(systemd): OWLCMS %s ready on port %s (PID %d)", version, params.TargetPort, pid)
+		log.Printf("LaunchSupervisedForeground: OWLCMS %s ready on port %s (PID %d)", version, params.TargetPort, pid)
 		fmt.Printf("owlcms %s started successfully\n", version)
 	}
 
@@ -358,17 +379,17 @@ func launchDaemonForeground(version string, params *owlcmsLaunchParams) error {
 	clearRuntimeState()
 
 	if waitErr == nil {
-		log.Printf("LaunchDaemon(systemd): OWLCMS %s exited normally (code 0)", version)
+		log.Printf("LaunchSupervisedForeground: OWLCMS %s exited normally (code 0)", version)
 		return nil
 	}
 
 	restartable := shared.ShouldRestartProcess(waitErr)
 	if !restartable {
-		log.Printf("LaunchDaemon(systemd): OWLCMS %s (PID %d) exited intentionally: %v", version, pid, waitErr)
+		log.Printf("LaunchSupervisedForeground: OWLCMS %s (PID %d) exited intentionally: %v", version, pid, waitErr)
 		return nil
 	}
 
-	log.Printf("LaunchDaemon(systemd): OWLCMS %s (PID %d) exited with restartable failure: %v", version, pid, waitErr)
+	log.Printf("LaunchSupervisedForeground: OWLCMS %s (PID %d) exited with restartable failure: %v", version, pid, waitErr)
 	return waitErr
 }
 
@@ -432,7 +453,7 @@ func acquireJavaLock() (*flock.Flock, error) {
 	log.Printf("No running PID from PID file, stopping PID %d resolved from %s", pid, source)
 	os.Remove(pidFilePath)
 	os.Remove(lockFilePath)
-	if err := shared.StopPIDFileOrPortProcess(pidFilePath, GetPort()); err != nil {
+	if err := StopProcessByPort(GetPort()); err != nil {
 		log.Printf("Warning: failed to stop process after stale PID cleanup: %v", err)
 	}
 
@@ -452,7 +473,7 @@ func releaseJavaLock() {
 
 func killLockingProcess() error {
 	port := GetPort()
-	if err := shared.StopPIDFileOrPortProcess(pidFilePath, port); err != nil {
+	if err := StopProcessByPort(port); err != nil {
 		releaseJavaLock()
 		return err
 	}
@@ -463,9 +484,9 @@ func killLockingProcess() error {
 }
 
 // launchOwlcms is the interactive (GUI) launcher.  It shares the same
-// supervision contract as launchDaemonForeground — start, wait, restart
+// supervision contract as launchSupervisedForeground — start, wait, restart
 // on non-zero exit — but the wait/restart loop runs inside goroutines so
-// the Fyne UI thread stays responsive.  See launchDaemonForeground for
+// the Fyne UI thread stays responsive.  See launchSupervisedForeground for
 // the synchronous headless equivalent used under systemd.
 func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 	currentVersion = version
@@ -493,24 +514,26 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 
 		go func() {
 			err := shared.EnsurePortFree(targetPort)
-			progressDialog.Hide()
+			fyne.Do(func() {
+				progressDialog.Hide()
 
-			if err != nil {
-				log.Printf("Cannot free port %s: %v", targetPort, err)
-				dialog.ShowError(fmt.Errorf("cannot free port %s: %w", targetPort, err), mainWindow)
-				goBackToMainScreen()
-				return
-			}
-			if shared.CheckPort(targetPort) == nil {
-				log.Printf("Port %s is still in use after cleanup", targetPort)
-				dialog.ShowError(fmt.Errorf("port %s is still in use after cleanup", targetPort), mainWindow)
-				goBackToMainScreen()
-				return
-			}
+				if err != nil {
+					log.Printf("Cannot free port %s: %v", targetPort, err)
+					dialog.ShowError(fmt.Errorf("cannot free port %s: %w", targetPort, err), mainWindow)
+					goBackToMainScreen()
+					return
+				}
+				if shared.CheckPort(targetPort) == nil {
+					log.Printf("Port %s is still in use after cleanup", targetPort)
+					dialog.ShowError(fmt.Errorf("port %s is still in use after cleanup", targetPort), mainWindow)
+					goBackToMainScreen()
+					return
+				}
 
-			log.Printf("Port %s successfully freed", targetPort)
-			dialog.ShowInformation("Port Freed", fmt.Sprintf("Port %s has been freed. Launching OWLCMS %s...", targetPort, version), mainWindow)
-			continueOwlcmsLaunch(version, params, launchButton, stopBtn)
+				log.Printf("Port %s successfully freed", targetPort)
+				dialog.ShowInformation("Port Freed", fmt.Sprintf("Port %s has been freed. Launching OWLCMS %s...", targetPort, version), mainWindow)
+				continueOwlcmsLaunch(version, params, launchButton, stopBtn)
+			})
 		}()
 		return nil
 	}
@@ -605,41 +628,49 @@ func continueOwlcmsLaunch(version string, params *owlcmsLaunchParams, launchButt
 		go func(retryCount int, pid int) {
 			if err := <-monitorChan; err != nil {
 				log.Printf("OWLCMS process %d failed to start properly: %v\n", pid, err)
-				statusLabel.SetText(fmt.Sprintf("OWLCMS process %d failed to start properly", pid))
-				stopBtn.Hide()
-				stopContainer.Hide()
-				launchButton.Show()
 				currentProcess = nil
 				clearRuntimeState()
-				setOwlcmsTabMode(mainWindow)
+				fyne.Do(func() {
+					statusLabel.SetText(fmt.Sprintf("OWLCMS process %d failed to start properly", pid))
+					stopBtn.Hide()
+					stopContainer.Hide()
+					launchButton.Show()
+					setOwlcmsTabMode(mainWindow)
+				})
 
 				releaseJavaLock()
 				return
 			}
 
 			log.Printf("OWLCMS process %d is ready (port %s responding)\n", pid, targetPort)
-			statusLabel.SetText(fmt.Sprintf("OWLCMS running (PID: %d) on port %s", pid, targetPort))
 			url := fmt.Sprintf("http://localhost:%s", targetPort)
-			urlLink.SetURLFromString(url)
-			urlLink.SetText("Open OWLCMS in a browser")
-			urlLink.Show()
+			fyne.Do(func() {
+				statusLabel.SetText(fmt.Sprintf("OWLCMS running (PID: %d) on port %s", pid, targetPort))
+				urlLink.SetURLFromString(url)
+				urlLink.SetText("Open OWLCMS in a browser")
+				urlLink.Show()
+
+				appDir := filepath.Join(installDir, version)
+				appDirLink.SetText(fmt.Sprintf("Open OWLCMS %s directory", version))
+				appDirLink.SetURL(nil)
+				appDirLink.OnTapped = func() {
+					shared.OpenFileExplorer(appDir)
+				}
+				appDirLink.Show()
+				configureTailLogLink(version, appDir)
+			})
 
 			// Close the startup log area now that OWLCMS is ready
 			hideStartupLogArea()
 
-			appDir := filepath.Join(installDir, version)
-			appDirLink.SetText(fmt.Sprintf("Open OWLCMS %s directory", version))
-			appDirLink.SetURL(nil)
-			appDirLink.OnTapped = func() {
-				shared.OpenFileExplorer(appDir)
-			}
-			appDirLink.Show()
-			configureTailLogLink(version, appDir)
-
 			if useDaemonWrapper {
 				log.Printf("OWLCMS %s detached daemon is ready; reattaching UI to runtime metadata", version)
 				currentProcess = nil
-				if !reconnectOwlcmsRuntime() {
+				reconnected := false
+				fyne.DoAndWait(func() {
+					reconnected = reconnectOwlcmsRuntime()
+				})
+				if !reconnected {
 					if activeRuntime == nil {
 						activeRuntime = &shared.RuntimeMetadata{
 							PID:     pid,
@@ -647,7 +678,9 @@ func continueOwlcmsLaunch(version string, params *owlcmsLaunchParams, launchButt
 							Port:    targetPort,
 						}
 					}
-					restoreOwlcmsRunningUI(version, targetPort, activeRuntime.PID)
+					fyne.Do(func() {
+						restoreOwlcmsRunningUI(version, targetPort, activeRuntime.PID)
+					})
 				}
 				return
 			}
@@ -662,47 +695,55 @@ func continueOwlcmsLaunch(version string, params *owlcmsLaunchParams, launchButt
 			if logRestartDecision(version, pid, err, retryCount, maxRestartRetries) {
 				attemptNum := retryCount + 1
 				log.Printf("OWLCMS %s (PID: %d) exited unexpectedly (%v); restarting in %s (attempt %d/%d)\n", version, pid, err, restartDelay, attemptNum, maxRestartRetries)
-				setOwlcmsTabModeRunning()
 				currentProcess = nil
-				stopBtn.Hide()
-				stopContainer.Hide()
-				launchButton.Hide()
-				urlLink.Hide()
-				appDirLink.Hide()
-				if tailLogLink != nil {
-					tailLogLink.Hide()
-				}
+				fyne.Do(func() {
+					setOwlcmsTabModeRunning()
+					stopBtn.Hide()
+					stopContainer.Hide()
+					launchButton.Hide()
+					urlLink.Hide()
+					appDirLink.Hide()
+					if tailLogLink != nil {
+						tailLogLink.Hide()
+					}
+				})
 				showStartupLogArea("Restarting OWLCMS")
 				setStartupLogText("")
 				time.Sleep(restartDelay)
-				launchAttempt(retryCount + 1)
+				fyne.Do(func() {
+					launchAttempt(retryCount + 1)
+				})
 				return
 			}
 
+			exitMessage := ""
 			if killedByUs {
 				log.Printf("OWLCMS %s (PID: %d) was stopped by user\n", version, pid)
-				statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) was stopped by user", version, pid))
+				exitMessage = fmt.Sprintf("OWLCMS %s (PID: %d) was stopped by user", version, pid)
 			} else if err != nil {
 				log.Printf("OWLCMS %s (PID: %d) terminated with error: %v\n", version, pid, err)
-				statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) terminated with error", version, pid))
+				exitMessage = fmt.Sprintf("OWLCMS %s (PID: %d) terminated with error", version, pid)
 			} else {
 				log.Printf("OWLCMS %s (PID: %d) exited normally\n", version, pid)
-				statusLabel.SetText(fmt.Sprintf("OWLCMS %s (PID: %d) exited normally", version, pid))
+				exitMessage = fmt.Sprintf("OWLCMS %s (PID: %d) exited normally", version, pid)
 			}
 
 			currentProcess = nil
 			killedByUs = false
 			clearRuntimeState()
-			stopBtn.Hide()
-			stopContainer.Hide()
-			launchButton.Show()
-			setOwlcmsTabMode(mainWindow)
+			fyne.Do(func() {
+				statusLabel.SetText(exitMessage)
+				stopBtn.Hide()
+				stopContainer.Hide()
+				launchButton.Show()
+				setOwlcmsTabMode(mainWindow)
 
-			urlLink.Hide()
-			appDirLink.Hide()
-			if tailLogLink != nil {
-				tailLogLink.Hide()
-			}
+				urlLink.Hide()
+				appDirLink.Hide()
+				if tailLogLink != nil {
+					tailLogLink.Hide()
+				}
+			})
 			hideStartupLogArea()
 			releaseJavaLock()
 		}(retryCount, javaPID)
@@ -727,53 +768,55 @@ func showStartupLogArea(headerText string) {
 	stopCh := startupLogStopCh
 	startupLogMu.Unlock()
 
-	if startupLogText == nil {
-		startupLogText = widget.NewMultiLineEntry()
-		startupLogText.SetPlaceHolder("Waiting for startup log...")
-		startupLogText.Wrapping = fyne.TextWrapWord
-		startupLogText.OnChanged = func(s string) {
-			// Keep it non-editable while remaining visually enabled.
-			if startupLogUpdating {
-				return
-			}
-			if s != startupLogLastText {
-				startupLogUpdating = true
-				startupLogText.SetText(startupLogLastText)
-				startupLogUpdating = false
+	fyne.Do(func() {
+		if startupLogText == nil {
+			startupLogText = widget.NewMultiLineEntry()
+			startupLogText.SetPlaceHolder("Waiting for startup log...")
+			startupLogText.Wrapping = fyne.TextWrapWord
+			startupLogText.OnChanged = func(s string) {
+				// Keep it non-editable while remaining visually enabled.
+				if startupLogUpdating {
+					return
+				}
+				if s != startupLogLastText {
+					startupLogUpdating = true
+					startupLogText.SetText(startupLogLastText)
+					startupLogUpdating = false
+				}
 			}
 		}
-	}
 
-	if startupLogContainer == nil {
-		startupLogHeader = widget.NewLabel("Startup Progress:")
+		if startupLogContainer == nil {
+			startupLogHeader = widget.NewLabel("Startup Progress:")
 
-		// Use a Border layout so the text area expands to fill remaining space.
-		// VBox would size children to MinSize and leave unused space below.
-		header := container.NewVBox(
-			widget.NewSeparator(),
-			startupLogHeader,
-		)
-		scroller := container.NewScroll(startupLogText)
-		startupLogContainer = container.NewBorder(header, nil, nil, nil, scroller)
-	}
-
-	if startupLogHeader != nil {
-		if headerText == "" {
-			headerText = "Startup Progress"
+			// Use a Border layout so the text area expands to fill remaining space.
+			// VBox would size children to MinSize and leave unused space below.
+			header := container.NewVBox(
+				widget.NewSeparator(),
+				startupLogHeader,
+			)
+			scroller := container.NewScroll(startupLogText)
+			startupLogContainer = container.NewBorder(header, nil, nil, nil, scroller)
 		}
-		startupLogHeader.SetText(headerText)
-		startupLogHeader.Refresh()
-	}
 
-	// Show within the running layout center so it can expand.
-	if startupLogHost != nil {
-		log.Printf("showStartupLogArea: Showing startup log container")
-		startupLogHost.Objects = []fyne.CanvasObject{startupLogContainer}
-		startupLogHost.Show()
-		startupLogHost.Refresh()
-	} else {
-		log.Printf("showStartupLogArea: WARNING - startupLogHost is nil!")
-	}
+		if startupLogHeader != nil {
+			if headerText == "" {
+				headerText = "Startup Progress"
+			}
+			startupLogHeader.SetText(headerText)
+			startupLogHeader.Refresh()
+		}
+
+		// Show within the running layout center so it can expand.
+		if startupLogHost != nil {
+			log.Printf("showStartupLogArea: Showing startup log container")
+			startupLogHost.Objects = []fyne.CanvasObject{startupLogContainer}
+			startupLogHost.Show()
+			startupLogHost.Refresh()
+		} else {
+			log.Printf("showStartupLogArea: WARNING - startupLogHost is nil!")
+		}
+	})
 
 	// Auto-close after 60 seconds unless OWLCMS becomes ready first.
 	go func(stopCh chan struct{}) {
@@ -788,27 +831,31 @@ func showStartupLogArea(headerText string) {
 
 // appendStartupLogText adds text to the startup log display
 func appendStartupLogText(text string) {
-	if startupLogText != nil {
-		startupLogUpdating = true
-		currentText := startupLogText.Text
-		startupLogLastText = currentText + text
-		startupLogText.SetText(startupLogLastText)
-		// Move cursor to end so the latest text is visible
-		startupLogText.CursorRow = len(strings.Split(startupLogLastText, "\n")) - 1
-		startupLogUpdating = false
-	}
+	fyne.Do(func() {
+		if startupLogText != nil {
+			startupLogUpdating = true
+			currentText := startupLogText.Text
+			startupLogLastText = currentText + text
+			startupLogText.SetText(startupLogLastText)
+			// Move cursor to end so the latest text is visible
+			startupLogText.CursorRow = len(strings.Split(startupLogLastText, "\n")) - 1
+			startupLogUpdating = false
+		}
+	})
 }
 
 // setStartupLogText sets the complete text in the startup log display
 func setStartupLogText(text string) {
-	if startupLogText != nil {
-		startupLogUpdating = true
-		startupLogLastText = text
-		startupLogText.SetText(text)
-		// Move cursor to end so the latest text is visible
-		startupLogText.CursorRow = len(strings.Split(startupLogLastText, "\n")) - 1
-		startupLogUpdating = false
-	}
+	fyne.Do(func() {
+		if startupLogText != nil {
+			startupLogUpdating = true
+			startupLogLastText = text
+			startupLogText.SetText(text)
+			// Move cursor to end so the latest text is visible
+			startupLogText.CursorRow = len(strings.Split(startupLogLastText, "\n")) - 1
+			startupLogUpdating = false
+		}
+	})
 }
 
 // hideStartupLogArea removes and hides the startup log display
@@ -825,11 +872,13 @@ func hideStartupLogArea() {
 	}
 	startupLogMu.Unlock()
 
-	if startupLogHost != nil {
-		startupLogHost.Objects = nil
-		startupLogHost.Hide()
-		startupLogHost.Refresh()
-	}
+	fyne.Do(func() {
+		if startupLogHost != nil {
+			startupLogHost.Objects = nil
+			startupLogHost.Hide()
+			startupLogHost.Refresh()
+		}
+	})
 }
 
 func owlcmsSupportsStartupLog(version string) bool {
@@ -983,7 +1032,7 @@ func tailStartupLog(logPath string) {
 	// If we didn't find "OWLCMS Ready." after timeout, show error dialog
 	if !foundReady {
 		logsDir := filepath.Dir(logPath)
-		go func() {
+		fyne.Do(func() {
 			dialog.ShowCustomConfirm("OWLCMS Startup Issue", "Open Logs Folder", "Close",
 				widget.NewLabel("OWLCMS did not report ready status within 60 seconds.\nPlease check the logs and send them to owlcms@jflamy.dev if the issue persists."),
 				func(ok bool) {
@@ -991,7 +1040,7 @@ func tailStartupLog(logPath string) {
 						shared.OpenFileExplorer(logsDir)
 					}
 				}, mainWindow)
-		}()
+		})
 		// Keep the log display visible so user can see what went wrong
 	} else {
 		// Close the startup log display only if startup was successful

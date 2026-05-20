@@ -140,6 +140,53 @@ func SaveProperty(key, value string) error {
 	return nil
 }
 
+// SavePropertyForRelease saves a key-value pair to a version-specific env.properties file.
+func SavePropertyForRelease(releaseVersion, key, value string) error {
+	releaseVersion = strings.TrimSpace(releaseVersion)
+	if releaseVersion == "" {
+		return fmt.Errorf("release version is required")
+	}
+
+	releaseEnvPath := filepath.Join(installDir, releaseVersion, "env.properties")
+	if err := shared.EnsureDir0755(filepath.Dir(releaseEnvPath)); err != nil {
+		return fmt.Errorf("creating release env directory: %w", err)
+	}
+
+	props := properties.NewProperties()
+	if _, err := os.Stat(releaseEnvPath); err == nil {
+		loaded, err := properties.LoadFile(releaseEnvPath, properties.UTF8)
+		if err != nil {
+			return fmt.Errorf("loading %s: %w", releaseEnvPath, err)
+		}
+		props = loaded
+	} else if os.IsNotExist(err) {
+		if environment == nil {
+			if err := InitEnv(); err != nil {
+				return fmt.Errorf("failed to initialize environment: %w", err)
+			}
+		}
+		for _, propKey := range environment.Keys() {
+			propValue, _ := environment.Get(propKey)
+			props.Set(propKey, propValue)
+		}
+	} else {
+		return fmt.Errorf("checking %s: %w", releaseEnvPath, err)
+	}
+
+	props.Set(key, value)
+	file, err := os.Create(releaseEnvPath)
+	if err != nil {
+		return fmt.Errorf("opening %s for writing: %w", releaseEnvPath, err)
+	}
+	defer file.Close()
+	if _, err := props.Write(file, properties.UTF8); err != nil {
+		return fmt.Errorf("writing %s: %w", releaseEnvPath, err)
+	}
+
+	log.Printf("Saved property %s = %s to %s", key, value, releaseEnvPath)
+	return nil
+}
+
 // InitEnv initializes the tracker environment from env.properties
 func InitEnv() error {
 	log.Println("Initializing tracker environment")

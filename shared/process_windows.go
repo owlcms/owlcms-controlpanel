@@ -33,6 +33,9 @@ func ConfigureDetachedDaemonProcess(cmd *exec.Cmd, detach bool) {
 // its exit error.  On Windows, signal deaths do not apply the same way as on
 // Unix — ExitCode() always returns the actual exit code, never -1.
 // Non-zero exit → restart; nil error (exit 0) → don't restart.
+// Standard exit codes representing SIGINT (130), SIGKILL (137), SIGTERM (143)
+// and Windows Control-C / Control-Break exits (0xC000013A, i.e., -1073741510 or 3221225786)
+// are treated as deliberate stops and are not restarted.
 func ShouldRestartProcess(waitErr error) bool {
 	if waitErr == nil {
 		return false
@@ -41,5 +44,9 @@ func ShouldRestartProcess(waitErr error) bool {
 	if !errors.As(waitErr, &exitErr) {
 		return false
 	}
-	return exitErr.ExitCode() > 0
+	code := exitErr.ExitCode()
+	if code == 130 || code == 137 || code == 143 || code == 3221225786 || code == -1073741510 {
+		return false
+	}
+	return code > 0
 }

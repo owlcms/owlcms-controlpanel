@@ -24,18 +24,22 @@ func configureTailLogLink(version, appDir string) {
 	}
 
 	logPath := filepath.Join(appDir, "logs", "tracker.log")
-	tailLogLink.SetText(fmt.Sprintf("Tail tracker %s logs", version))
-	tailLogLink.SetURL(nil)
-	tailLogLink.OnTapped = func() {
-		if err := shared.TailLogFile(logPath); err != nil {
-			log.Printf("Failed to tail tracker logs: %v", err)
-			if statusLabel != nil {
-				statusLabel.SetText("Failed to tail logs")
+	fyne.Do(func() {
+		tailLogLink.SetText(fmt.Sprintf("Tail tracker %s logs", version))
+		tailLogLink.SetURL(nil)
+		tailLogLink.OnTapped = func() {
+			if err := shared.TailLogFile(logPath); err != nil {
+				log.Printf("Failed to tail tracker logs: %v", err)
+				if statusLabel != nil {
+					fyne.Do(func() {
+						statusLabel.SetText("Failed to tail logs")
+					})
+				}
 			}
 		}
-	}
 
-	tailLogLink.Show()
+		tailLogLink.Show()
+	})
 }
 
 var (
@@ -53,6 +57,11 @@ func runtimeMetadataPath() string {
 // RuntimeMetadataPath returns the path to the Tracker runtime metadata file.
 func RuntimeMetadataPath() string {
 	return runtimeMetadataPath()
+}
+
+// PIDFilePath returns the path to the tracker child process PID file.
+func PIDFilePath() string {
+	return pidFilePath
 }
 
 func clearRuntimeState() {
@@ -253,6 +262,79 @@ func LaunchDaemon(version string) error {
 		time.Sleep(500 * time.Millisecond)
 	}
 	return fmt.Errorf("timed out waiting for tracker %s on port %s", version, params.TargetPort)
+}
+
+// LaunchForeground starts Tracker from the command line and blocks until it exits.
+func LaunchForeground(version string) error {
+	log.Printf("LaunchForeground: starting tracker %s", version)
+
+	initConfig()
+	if err := InitEnv(); err != nil {
+		return fmt.Errorf("failed to initialize environment: %w", err)
+	}
+
+	params, err := prepareTrackerLaunch(version)
+	if err != nil {
+		return err
+	}
+	if shared.CheckPort(params.TargetPort) == nil {
+		log.Printf("LaunchForeground: port %s is in use, attempting to free it...", params.TargetPort)
+		if err := shared.EnsurePortFree(params.TargetPort); err != nil {
+			return fmt.Errorf("port %s is in use and could not be freed: %w", params.TargetPort, err)
+		}
+		if shared.CheckPort(params.TargetPort) == nil {
+			return fmt.Errorf("port %s is still in use after cleanup", params.TargetPort)
+		}
+	}
+
+	nodePath, err := shared.FindLocalNodeForVersion(params.RequiredNodeVer, shared.GetGoos)
+	if err != nil {
+		return fmt.Errorf("node.js not found locally: %w", err)
+	}
+	if shared.GetGoos() != "windows" {
+		os.Chmod(nodePath, 0755)
+	}
+
+	cmd := exec.Command(nodePath, params.ScriptToRun)
+	shared.ConfigureNoConsoleWindow(cmd)
+	cmd.Env = params.Env
+	cmd.Dir = params.VersionDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	log.Printf("LaunchForeground: command %v in %s", cmd.Args, params.VersionDir)
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start tracker %s: %w", version, err)
+	}
+
+	pid := cmd.Process.Pid
+	activeRuntime = recordTrackerStart(pid, version, params.TargetPort)
+	log.Printf("LaunchForeground: tracker %s (PID %d), waiting for port %s...", version, pid, params.TargetPort)
+
+	deadline := time.Now().Add(30 * time.Second)
+	ready := false
+	for time.Now().Before(deadline) {
+		if shared.CheckPort(params.TargetPort) == nil {
+			ready = true
+			break
+		}
+		if !shared.IsProcessRunning(pid) {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if ready {
+		log.Printf("LaunchForeground: tracker %s ready on port %s (PID %d)", version, params.TargetPort, pid)
+		fmt.Printf("tracker %s started successfully\n", version)
+	}
+
+	waitErr := cmd.Wait()
+	clearRuntimeState()
+	if waitErr == nil {
+		log.Printf("LaunchForeground: tracker %s exited normally", version)
+		return nil
+	}
+	return waitErr
 }
 
 func restoreTrackerRunningUI(version, port string, pid int) {
@@ -573,38 +655,48 @@ func continueTrackerLaunch(version, targetPort string, launchButton, stopBtn *wi
 	go func() {
 		if err := <-monitorChan; err != nil {
 			log.Printf("owlcms-tracker process %d failed to start properly: %v\n", nodePID, err)
-			statusLabel.SetText(fmt.Sprintf("owlcms-tracker process %d failed to start properly", nodePID))
-			stopBtn.Hide()
-			stopContainer.Hide()
-			launchButton.Show()
 			currentProcess = nil
 			clearRuntimeState()
-			setTrackerTabMode(mainWindow)
+			fyne.Do(func() {
+				statusLabel.SetText(fmt.Sprintf("owlcms-tracker process %d failed to start properly", nodePID))
+				stopBtn.Hide()
+				stopContainer.Hide()
+				launchButton.Show()
+				setTrackerTabMode(mainWindow)
+			})
 			releaseTrackerLock()
 			return
 		}
 
 		log.Printf("owlcms-tracker process %d is ready (port %s responding)\n", nodePID, targetPort)
-		statusLabel.SetText(fmt.Sprintf("owlcms-tracker running (PID: %d) on port %s", nodePID, targetPort))
 		url := fmt.Sprintf("http://localhost:%s", targetPort)
-		urlLink.SetURLFromString(url)
-		urlLink.SetText("Open owlcms-tracker in a browser")
-		urlLink.Show()
+		fyne.Do(func() {
+			statusLabel.SetText(fmt.Sprintf("owlcms-tracker running (PID: %d) on port %s", nodePID, targetPort))
+			urlLink.SetURLFromString(url)
+			urlLink.SetText("Open owlcms-tracker in a browser")
+			urlLink.Show()
 
-		appDirLink.SetText(fmt.Sprintf("Open tracker %s directory", version))
-		appDirLink.SetURL(nil)
-		appDirLink.OnTapped = func() {
-			shared.OpenFileExplorer(appDir)
-		}
-		appDirLink.Show()
+			appDirLink.SetText(fmt.Sprintf("Open tracker %s directory", version))
+			appDirLink.SetURL(nil)
+			appDirLink.OnTapped = func() {
+				shared.OpenFileExplorer(appDir)
+			}
+			appDirLink.Show()
+		})
 		configureTailLogLink(version, appDir)
-		stopContainer.Refresh()
+		fyne.Do(func() {
+			stopContainer.Refresh()
+		})
 
 		detachedDaemon := shared.GetGoos() == "linux" && shared.IsRunAsDaemonEnabled()
 		if detachedDaemon {
 			log.Printf("Tracker %s detached daemon is ready; reattaching UI to runtime metadata", version)
 			currentProcess = nil
-			if !reconnectTrackerRuntime() {
+			reconnected := false
+			fyne.DoAndWait(func() {
+				reconnected = reconnectTrackerRuntime()
+			})
+			if !reconnected {
 				if activeRuntime == nil {
 					activeRuntime = &shared.RuntimeMetadata{
 						PID:     nodePID,
@@ -612,7 +704,9 @@ func continueTrackerLaunch(version, targetPort string, launchButton, stopBtn *wi
 						Port:    targetPort,
 					}
 				}
-				restoreTrackerRunningUI(version, targetPort, activeRuntime.PID)
+				fyne.Do(func() {
+					restoreTrackerRunningUI(version, targetPort, activeRuntime.PID)
+				})
 			}
 			return
 		}
@@ -629,33 +723,37 @@ func continueTrackerLaunch(version, targetPort string, launchButton, stopBtn *wi
 			_ = logFile.Close()
 		}
 
+		exitMessage := ""
 		if killedByUs {
 			// If we killed it, just report normal termination
 			log.Printf("owlcms-tracker %s (PID: %d) was stopped by user\n", version, pid)
-			statusLabel.SetText(fmt.Sprintf("owlcms-tracker %s (PID: %d) was stopped by user", version, pid))
+			exitMessage = fmt.Sprintf("owlcms-tracker %s (PID: %d) was stopped by user", version, pid)
 		} else if err != nil {
 			// Only report error if it wasn't killed by us
 			log.Printf("owlcms-tracker %s (PID: %d) terminated with error: %v\n", version, pid, err)
-			statusLabel.SetText(fmt.Sprintf("owlcms-tracker %s (PID: %d) terminated with error", version, pid))
+			exitMessage = fmt.Sprintf("owlcms-tracker %s (PID: %d) terminated with error", version, pid)
 		} else {
 			log.Printf("owlcms-tracker %s (PID: %d) exited normally\n", version, pid)
-			statusLabel.SetText(fmt.Sprintf("owlcms-tracker %s (PID: %d) exited normally", version, pid))
+			exitMessage = fmt.Sprintf("owlcms-tracker %s (PID: %d) exited normally", version, pid)
 		}
 
 		currentProcess = nil
 		killedByUs = false // Reset flag
 		clearRuntimeState()
-		stopBtn.Hide()
-		stopContainer.Hide()
-		launchButton.Show()
-		setTrackerTabMode(mainWindow)
-		urlLink.Hide()
-		if appDirLink != nil {
-			appDirLink.Hide()
-		}
-		if tailLogLink != nil {
-			tailLogLink.Hide()
-		}
+		fyne.Do(func() {
+			statusLabel.SetText(exitMessage)
+			stopBtn.Hide()
+			stopContainer.Hide()
+			launchButton.Show()
+			setTrackerTabMode(mainWindow)
+			urlLink.Hide()
+			if appDirLink != nil {
+				appDirLink.Hide()
+			}
+			if tailLogLink != nil {
+				tailLogLink.Hide()
+			}
+		})
 		releaseTrackerLock()
 	}()
 }

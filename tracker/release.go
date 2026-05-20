@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
 	"sort"
 	"time"
 
@@ -208,107 +207,110 @@ func confirmAndDownloadVersion(version string, w fyne.Window) {
 }
 
 func downloadAndInstallVersion(downloadVersion, installVersion string, w fyne.Window) {
-	// Create a progress dialog
-	progressBar := widget.NewProgressBar()
-	progressBar.SetValue(0.01)
-	messageLabel := widget.NewLabel(fmt.Sprintf("Preparing to download Tracker %s...", downloadVersion))
-	content := container.NewVBox(messageLabel, progressBar)
-	progressDialog := dialog.NewCustom(
-		"Installing Tracker",
-		"Please wait...",
-		content,
-		w)
-	progressDialog.Show()
+	var progressBar *widget.ProgressBar
+	var messageLabel *widget.Label
+	var progressDialog dialog.Dialog
 
-	// Try device-independent name first, then old platform-specific names for backward compatibility
-	assetNames := getAssetNames(downloadVersion)
-	var zipURL, assetName string
+	if w != nil {
+		progressBar = widget.NewProgressBar()
+		progressBar.SetValue(0.01)
+		messageLabel = widget.NewLabel(fmt.Sprintf("Preparing to download Tracker %s...", downloadVersion))
+		content := container.NewVBox(messageLabel, progressBar)
+		progressDialog = dialog.NewCustom(
+			"Installing Tracker",
+			"Please wait...",
+			content,
+			w)
+		progressDialog.Show()
+	} else {
+		log.Printf("Preparing to download Tracker %s...\n", downloadVersion)
+		fmt.Printf("Preparing to download Tracker %s...\n", downloadVersion)
+	}
 
-	// Check each asset name in order until we find one that exists
-	for _, name := range assetNames {
-		testURL := fmt.Sprintf("https://github.com/owlcms/owlcms-tracker/releases/download/%s/%s", downloadVersion, name)
-		if checkAssetExists(testURL) {
-			zipURL = testURL
-			assetName = name
-			break
+	runInstall := func() {
+		if w != nil {
+			messageLabel.SetText(fmt.Sprintf("Downloading Tracker %s...", downloadVersion))
+			messageLabel.Refresh()
+		} else {
+			log.Printf("Downloading Tracker %s...\n", downloadVersion)
+			fmt.Printf("Downloading Tracker %s...\n", downloadVersion)
 		}
-	}
-
-	if zipURL == "" {
-		// None of the expected assets exist - fail immediately
-		progressDialog.Hide()
-		dialog.ShowError(fmt.Errorf("no tracker release asset found for version %s (tried: %v)", downloadVersion, assetNames), w)
-		return
-	}
-
-	// Ensure the tracker directory exists
-	trackerDir := installDir
-	if _, err := os.Stat(trackerDir); os.IsNotExist(err) {
-		if err := shared.EnsureDir0755(trackerDir); err != nil {
-			progressDialog.Hide()
-			dialog.ShowError(fmt.Errorf("creating tracker directory: %w", err), w)
-			return
-		}
-	}
-
-	zipPath := filepath.Join(trackerDir, assetName)
-	extractPath := filepath.Join(trackerDir, installVersion)
-
-	go func() {
-		log.Printf("Starting download from URL: %s\n", zipURL)
-		messageLabel.SetText(fmt.Sprintf("Downloading Tracker %s...", downloadVersion))
-		messageLabel.Refresh()
 
 		progressCallback := func(downloaded, total int64) {
 			if total > 0 {
 				progress := float64(downloaded) / float64(total)
-				progressBar.SetValue(progress)
+				if w != nil {
+					progressBar.SetValue(progress)
+				} else {
+					log.Printf("Downloading Tracker %s... %.1f%%", downloadVersion, progress*100)
+					fmt.Printf("\rDownloading Tracker %s... %.1f%%", downloadVersion, progress*100)
+				}
 			}
 		}
 
-		err := downloadutils.DownloadArchive(zipURL, zipPath, progressCallback, nil)
-		if err != nil {
-			progressDialog.Hide()
-			dialog.ShowError(fmt.Errorf("download failed: %w", err), w)
-			return
+		if w != nil {
+			messageLabel.SetText("Extracting files...")
+			messageLabel.Refresh()
+		} else {
+			log.Println("\nExtracting files...")
+			fmt.Println("Extracting files...")
 		}
 
-		messageLabel.SetText("Extracting files...")
-		messageLabel.Refresh()
-
-		log.Printf("Extracting ZIP file to: %s\n", extractPath)
 		extractProgress := func(extracted, total int64) {
 			if total > 0 {
-				progressBar.SetValue(float64(extracted) / float64(total))
+				if w != nil {
+					progressBar.SetValue(float64(extracted) / float64(total))
+				} else {
+					log.Printf("Extracted: %d/%d bytes", extracted, total)
+				}
 			}
 		}
-		err = downloadutils.ExtractZip(zipPath, extractPath, extractProgress)
+		result, err := InstallRelease(downloadVersion, installVersion, progressCallback, extractProgress)
 		if err != nil {
-			progressDialog.Hide()
-			dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
+			if w != nil {
+				progressDialog.Hide()
+				dialog.ShowError(err, w)
+			} else {
+				log.Printf("Error: %v", err)
+			}
 			return
 		}
 
-		progressBar.SetValue(1.0)
+		if w != nil {
+			progressBar.SetValue(1.0)
+		}
 		log.Println("Extraction completed")
-		// Ensure the tab UI is initialized so download UI widgets exist
-		initializeTab(w)
-		updateExplanation()
 
-		progressDialog.Hide()
+		if w != nil {
+			// Ensure the tab UI is initialized so download UI widgets exist
+			initializeTab(w)
+			updateExplanation()
+
+			progressDialog.Hide()
+		}
 
 		message := fmt.Sprintf(
 			"Successfully installed Tracker version %s\n\n"+
 				"Location: %s\n\n"+
 				"The program files have been extracted to the above directory.",
-			installVersion, extractPath)
+			result.Version, result.Path)
 
-		dialog.ShowInformation("Installation Complete", message, w)
-		HideDownloadables()
+		if w != nil {
+			dialog.ShowInformation("Installation Complete", message, w)
+			HideDownloadables()
 
-		recomputeVersionList(w)
-		checkForNewerVersion()
-	}()
+			recomputeVersionList(w)
+			checkForNewerVersion()
+		} else {
+			log.Println("Installation Complete:\n" + message)
+			fmt.Println("Installation Complete:\n" + message)
+		}
+	}
+	if w != nil {
+		go runInstall()
+	} else {
+		runInstall()
+	}
 }
 
 // getAssetNames returns possible asset names to try, starting with device-independent

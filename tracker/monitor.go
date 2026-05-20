@@ -3,7 +3,6 @@ package tracker
 import (
 	"fmt"
 	"log"
-	"os/exec"
 	"time"
 
 	"controlpanel/shared"
@@ -45,7 +44,7 @@ func monitorProcess(done <-chan error, port string) chan error {
 	return result
 }
 
-func stopProcess(proc *exec.Cmd, version string, stopBtn *widget.Button, downloadGroup, versionCont *fyne.Container, statusLbl *widget.Label, w fyne.Window) {
+func stopProcess(version string, stopBtn *widget.Button, downloadGroup, versionCont *fyne.Container, statusLbl *widget.Label, w fyne.Window) {
 	log.Printf("Stopping owlcms-tracker %s...\n", version)
 	statusLbl.SetText(fmt.Sprintf("Stopping owlcms-tracker %s...", version))
 
