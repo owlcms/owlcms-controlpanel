@@ -8,14 +8,16 @@ on:
         required: true
         type: string
 
+env:
+  BUILD_MAC: true
+  BUILD_WINDOWS: true
+  BUILD_RASPBERRY: true
+  BUILD_LINUX: true
+
 jobs:
   build_mac:
     runs-on: macos-15-intel
     env:
-      BUILD_MAC: false
-      BUILD_WINDOWS: true
-      BUILD_RASPBERRY: false
-      BUILD_LINUX: false
       MACOSX_DEPLOYMENT_TARGET: "13.0"
       CGO_CFLAGS: "-mmacosx-version-min=13.0"
       CGO_LDFLAGS: "-mmacosx-version-min=13.0"
@@ -123,11 +125,6 @@ jobs:
 
   build_crosscompile:
     runs-on: ubuntu-latest
-    env:
-      BUILD_MAC: false
-      BUILD_WINDOWS: true
-      BUILD_RASPBERRY: false
-      BUILD_LINUX: false
 
     steps:
     - name: Checkout code
@@ -298,11 +295,6 @@ jobs:
   package_windows:
     runs-on: windows-latest
     needs: build_crosscompile
-    env:
-      BUILD_MAC: false
-      BUILD_WINDOWS: true
-      BUILD_RASPBERRY: false
-      BUILD_LINUX: false
 
     steps:
     - name: Checkout code
@@ -432,11 +424,6 @@ jobs:
   create_release:
     runs-on: ubuntu-latest
     needs: [build_mac, build_crosscompile, package_windows]
-    env:
-      BUILD_MAC: false
-      BUILD_WINDOWS: true
-      BUILD_RASPBERRY: false
-      BUILD_LINUX: false
 
     steps:
     - name: Checkout code

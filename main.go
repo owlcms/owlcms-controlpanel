@@ -187,10 +187,10 @@ func main() {
 		}
 	}
 
-	w.SetContent(mainContent)
-
-	// Setup menus
+	// Setup menus before content so Fyne initializes the menu canvas before
+	// the first content layout pass.
 	setupMenus(w)
+	w.SetContent(mainContent)
 
 	// Show installed modules popup
 	// Query the actual install directories from each package
@@ -221,12 +221,75 @@ func main() {
 	// Setup cleanup on exit
 	setupCleanupOnExit(w)
 
+	setInitialWindowGeometry(w, initialWindowSize)
 	w.Show()
-	// Resize after Show so the GL framebuffer matches the painted canvas on
-	// Windows; resizing before Show leaves an unpainted band at the bottom of
-	// the window with Fyne v2.5 on Windows.
-	w.Resize(initialWindowSize)
+	scheduleStartupRepaint(w)
+	scheduleWindowDiagnostics(w)
 	a.Run()
+}
+
+func setInitialWindowGeometry(w fyne.Window, size fyne.Size) {
+	// This is the earliest point where Fyne has both the real main menu and
+	// the real root content, so Resize can record the intended canvas geometry
+	// before Show starts GLFW native window creation.
+	logFyneWindowDiagnostics("before-initial-geometry", w)
+	w.Resize(size)
+	logFyneWindowDiagnostics("after-initial-geometry", w)
+}
+
+func scheduleStartupRepaint(w fyne.Window) {
+	for _, delay := range []time.Duration{250 * time.Millisecond, time.Second} {
+		delay := delay
+		time.AfterFunc(delay, func() {
+			fyne.Do(func() {
+				log.Printf("window diagnostics [startup-repaint-%s]: refreshing Fyne content and native window", delay)
+				if content := w.Content(); content != nil {
+					content.Refresh()
+					w.Canvas().Refresh(content)
+				}
+				forceNativeWindowRedraw(w)
+				logWindowDiagnostics(fmt.Sprintf("startup-repaint-%s", delay), w)
+			})
+		})
+	}
+}
+
+func logFyneWindowDiagnostics(label string, w fyne.Window) {
+	canvasSize := w.Canvas().Size()
+	contentSize := fyne.Size{}
+	contentPos := fyne.Position{}
+	if content := w.Content(); content != nil {
+		contentSize = content.Size()
+		contentPos = content.Position()
+	}
+	menuCount := 0
+	if menu := w.MainMenu(); menu != nil {
+		menuCount = len(menu.Items)
+	}
+	log.Printf(
+		"window diagnostics [%s]: fyne canvas=%0.2fx%0.2f contentPos=%0.2f,%0.2f content=%0.2fx%0.2f contentBR=%0.2f,%0.2f mainMenuItems=%d",
+		label,
+		canvasSize.Width,
+		canvasSize.Height,
+		contentPos.X,
+		contentPos.Y,
+		contentSize.Width,
+		contentSize.Height,
+		contentPos.X+contentSize.Width,
+		contentPos.Y+contentSize.Height,
+		menuCount,
+	)
+}
+
+func scheduleWindowDiagnostics(w fyne.Window) {
+	for _, delay := range []time.Duration{250 * time.Millisecond, time.Second, 3 * time.Second} {
+		delay := delay
+		time.AfterFunc(delay, func() {
+			fyne.Do(func() {
+				logWindowDiagnostics(fmt.Sprintf("post-show-%s", delay), w)
+			})
+		})
+	}
 }
 
 func anyProgramRunning() bool {
