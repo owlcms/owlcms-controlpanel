@@ -308,22 +308,25 @@ func createUpdateButton(version string, w fyne.Window, buttonContainer *fyne.Con
 	}
 
 	// Check if the current version is stable or a prerelease
+	shouldShow := false
 	if !containsPreReleaseTag(version) {
 		mostRecent, err = getMostRecentStableRelease()
 		if err == nil {
-			adjustUpdateButton(mostRecent, version, updateButton, buttonContainer, w)
+			shouldShow = adjustUpdateButton(mostRecent, version, updateButton, buttonContainer, w)
 		} else {
 			log.Printf("failed to get most recent stable release: %v", err)
 		}
 	} else {
 		mostRecent, err = getMostRecentPrerelease()
 		if err == nil {
-			adjustUpdateButton(mostRecent, version, updateButton, buttonContainer, w)
+			shouldShow = adjustUpdateButton(mostRecent, version, updateButton, buttonContainer, w)
 		} else {
 			log.Printf("failed to get most recent prerelease: %v", err)
 		}
 	}
-	buttonContainer.Add(container.NewPadded(updateButton))
+	if shouldShow {
+		buttonContainer.Add(container.NewPadded(updateButton))
+	}
 }
 
 func createRemoveButton(version string, w fyne.Window, buttonContainer *fyne.Container) {
@@ -407,8 +410,20 @@ func createLaunchButton(w fyne.Window, version string, stopBtn *widget.Button, b
 	buttonContainer.Add(container.NewPadded(launchButton))
 }
 
-func adjustUpdateButton(mostRecent string, version string, updateButton *widget.Button, buttonContainer *fyne.Container, w fyne.Window) {
+func adjustUpdateButton(mostRecent string, version string, updateButton *widget.Button, buttonContainer *fyne.Container, w fyne.Window) bool {
 	if shared.CompareVersions(mostRecent, version) {
+		// If the natural update target (same build suffix on the new base version)
+		// is already installed, the update has effectively been done; don't propose it.
+		targetBaseVersion, _ := shared.ParseVersionWithBuild(mostRecent)
+		existingBuild := shared.GetCurrentBuildString(version)
+		naturalTarget := targetBaseVersion
+		if existingBuild != "" {
+			naturalTarget = fmt.Sprintf("%s+%s", targetBaseVersion, existingBuild)
+		}
+		if _, err := os.Stat(filepath.Join(installDir, naturalTarget)); err == nil {
+			return false
+		}
+
 		targetInstallVersion := computeUpdateTargetVersion(version, mostRecent)
 		updateButton.SetText(fmt.Sprintf("Update to %s", targetInstallVersion))
 		updateButton.OnTapped = func() {
@@ -442,9 +457,10 @@ func adjustUpdateButton(mostRecent string, version string, updateButton *widget.
 			confirmDialog.Show()
 		}
 		updateButton.Refresh()
-	} else {
-		buttonContainer.Refresh()
+		return true
 	}
+	buttonContainer.Refresh()
+	return false
 }
 
 func computeUpdateTargetVersion(existingVersion string, targetVersion string) string {
