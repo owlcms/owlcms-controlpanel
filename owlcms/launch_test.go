@@ -10,6 +10,7 @@ import (
 func TestShouldUseOwlcmsDaemonWrapperForDetachedDaemonMode(t *testing.T) {
 	t.Setenv("CONTROLPANEL_RUN_AS_DAEMON", "true")
 	t.Setenv("INVOCATION_ID", "")
+	withOwlcmsGoos(t, "linux")
 
 	if !shouldUseOwlcmsDaemonWrapper() {
 		t.Fatalf("expected detached daemon launches to use MainWrapper")
@@ -19,10 +20,20 @@ func TestShouldUseOwlcmsDaemonWrapperForDetachedDaemonMode(t *testing.T) {
 func TestShouldUseOwlcmsDaemonWrapperDisabledUnderSystemd(t *testing.T) {
 	t.Setenv("CONTROLPANEL_RUN_AS_DAEMON", "true")
 	t.Setenv("INVOCATION_ID", "systemd-123")
+	withOwlcmsGoos(t, "linux")
 
 	if shouldUseOwlcmsDaemonWrapper() {
 		t.Fatalf("expected systemd launches to skip MainWrapper")
 	}
+}
+
+func withOwlcmsGoos(t *testing.T, goos string) {
+	t.Helper()
+	previousGoos := owlcmsGoos
+	owlcmsGoos = func() string { return goos }
+	t.Cleanup(func() {
+		owlcmsGoos = previousGoos
+	})
 }
 
 func TestBuildOwlcmsCommandUsesMainWrapperForDaemonMode(t *testing.T) {

@@ -134,8 +134,10 @@ type owlcmsLaunchParams struct {
 const daemonMainClass = "app.owlcms.MainWrapper"
 const embeddedMQTTEnv = "OWLCMS_ENABLEEMBEDDEDMQTT"
 
+var owlcmsGoos = shared.GetGoos
+
 func shouldUseOwlcmsDaemonWrapper() bool {
-	return shared.GetGoos() == "linux" && shared.IsRunAsDaemonEnabled() && !shared.IsRunningUnderSystemd()
+	return owlcmsGoos() == "linux" && shared.IsRunAsDaemonEnabled() && !shared.IsRunningUnderSystemd()
 }
 
 func setEnvValue(env []string, key, value string) []string {
