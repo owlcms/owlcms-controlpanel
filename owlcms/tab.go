@@ -120,13 +120,20 @@ func CreateTab(w fyne.Window, app fyne.App) *fyne.Container {
 
 	// Configure stop button behavior (confirm before stopping)
 	stopButton.OnTapped = func() {
+		if stopInProgress.Load() {
+			log.Println("Stop button tapped while OWLCMS stop is already in progress")
+			return
+		}
 		log.Println("Stop button tapped")
+		stopButton.Disable()
 		confirmDialog := dialog.NewConfirm(
 			"Confirm Stop",
 			"Stopping OWLCMS will stop the current competition on all platforms. Make sure this is a correct time to stop.",
 			func(confirm bool) {
 				if confirm {
 					stopProcess(currentVersion, stopButton, downloadContainer, versionContainer, statusLabel, w)
+				} else {
+					stopButton.Enable()
 				}
 			},
 			w,
@@ -515,45 +522,52 @@ func showPortNumberDialog(w fyne.Window) {
 }
 
 func refreshAvailableVersions(w fyne.Window) {
-	go func() {
-		// Reset release-related state to mirror a fresh app start.
-		showPrereleases = false
-		allReleases = nil
-		if prereleaseCheckbox != nil {
-			prereleaseCheckbox.SetChecked(false)
-		}
+	// Reset release-related state to mirror a fresh app start.
+	showPrereleases = false
+	allReleases = nil
+	if prereleaseCheckbox != nil {
+		prereleaseCheckbox.Checked = false
+		prereleaseCheckbox.Refresh()
+	}
 
+	go func() {
 		releases, err := fetchReleases()
 		if err != nil {
-			dialog.ShowError(fmt.Errorf("failed to refresh available versions: %w", err), w)
+			fyne.Do(func() {
+				dialog.ShowError(fmt.Errorf("failed to refresh available versions: %w", err), w)
+			})
 			return
 		}
-		allReleases = releases
 
-		// Rebuild the download UI as if the app just started.
-		setupReleaseDropdown(w)
-		recomputeVersionList(w)
-		checkForNewerVersion()
-		if downloadContainer != nil {
-			downloadContainer.Refresh()
-		}
+		fyne.Do(func() {
+			allReleases = releases
+			// Rebuild the download UI as if the app just started.
+			setupReleaseDropdown(w)
+			recomputeVersionList(w)
+			checkForNewerVersion()
+			if downloadContainer != nil {
+				downloadContainer.Refresh()
+			}
+		})
 	}()
 }
 
 // initializeOwlcmsTab handles the async initialization of the OWLCMS tab
 func initializeOwlcmsTab(w fyne.Window) {
-	if reconnectOwlcmsRuntime() {
-		log.Println("OWLCMS tab reattached to existing runtime")
-		return
-	}
+	fyne.Do(func() {
+		if reconnectOwlcmsRuntime() {
+			log.Println("OWLCMS tab reattached to existing runtime")
+			return
+		}
 
-	// Set the appropriate mode based on installed versions
-	if len(getAllInstalledVersions()) == 0 {
-		setOwlcmsTabModeUninstalled(w)
-	} else {
-		setOwlcmsTabModeInstalled(w)
-	}
-	log.Println("OWLCMS tab setup done.")
+		// Set the appropriate mode based on installed versions
+		if len(getAllInstalledVersions()) == 0 {
+			setOwlcmsTabModeUninstalled(w)
+		} else {
+			setOwlcmsTabModeInstalled(w)
+		}
+		log.Println("OWLCMS tab setup done.")
+	})
 }
 
 // HideDownloadables hides the download dropdown

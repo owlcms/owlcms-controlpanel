@@ -553,13 +553,15 @@ func refreshAvailableVersions(w fyne.Window) {
 
 // initializeFirmataTab handles the async initialization of the Firmata tab
 func initializeFirmataTab(w fyne.Window) {
-	// Set the appropriate mode based on installed versions
-	if len(getAllInstalledVersions()) == 0 {
-		setFirmataTabModeUninstalled(w)
-	} else {
-		setFirmataTabModeInstalled(w)
-	}
-	log.Println("Firmata tab setup done.")
+	fyne.Do(func() {
+		// Set the appropriate mode based on installed versions
+		if len(getAllInstalledVersions()) == 0 {
+			setFirmataTabModeUninstalled(w)
+		} else {
+			setFirmataTabModeInstalled(w)
+		}
+		log.Println("Firmata tab setup done.")
+	})
 }
 
 // setFirmataTabModeUninstalled shows the install prompt for when no versions are installed.

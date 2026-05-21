@@ -173,14 +173,14 @@ func downloadReleaseWithProgress(downloadVersion, installVersion string, w fyne.
 		fmt.Printf("Downloading OWLCMS %s...\n", downloadVersion)
 	}
 
-	done := make(chan bool)
-
 	go func() {
 		var dialogClosed bool
 		closeDialog := func() {
 			if !dialogClosed && progressDialog != nil {
-				progressDialog.Hide()
 				dialogClosed = true
+				fyne.Do(func() {
+					progressDialog.Hide()
+				})
 			}
 		}
 		defer closeDialog()
@@ -189,9 +189,11 @@ func downloadReleaseWithProgress(downloadVersion, installVersion string, w fyne.
 			if total > 0 {
 				progress := float64(downloaded) / float64(total)
 				if w != nil {
-					progressBar.SetValue(progress)
-					messageLabel.SetText(fmt.Sprintf("Downloading OWLCMS %s... %.1f%%", downloadVersion, progress*100))
-					messageLabel.Refresh()
+					fyne.Do(func() {
+						progressBar.SetValue(progress)
+						messageLabel.SetText(fmt.Sprintf("Downloading OWLCMS %s... %.1f%%", downloadVersion, progress*100))
+						messageLabel.Refresh()
+					})
 				} else {
 					log.Printf("Downloading OWLCMS %s... %.1f%%", downloadVersion, progress*100)
 					fmt.Printf("\rDownloading OWLCMS %s... %.1f%%", downloadVersion, progress*100)
@@ -203,17 +205,21 @@ func downloadReleaseWithProgress(downloadVersion, installVersion string, w fyne.
 		if err != nil {
 			log.Printf("Install failed: %v", err)
 			if w != nil {
-				dialog.ShowError(err, w)
+				installErr := err
+				fyne.Do(func() {
+					dialog.ShowError(installErr, w)
+				})
 			} else {
 				log.Printf("Error: %v", err)
 			}
-			done <- false
 			return
 		}
 
 		if w != nil {
-			messageLabel.SetText("Extracting files...")
-			messageLabel.Refresh()
+			fyne.Do(func() {
+				messageLabel.SetText("Extracting files...")
+				messageLabel.Refresh()
+			})
 		}
 
 		message := fmt.Sprintf(
@@ -224,21 +230,20 @@ func downloadReleaseWithProgress(downloadVersion, installVersion string, w fyne.
 
 		log.Printf("Download and extraction complete for version %s, showing dialog", result.Version)
 		if w != nil {
-			dialog.ShowInformation("Installation Complete", message, w)
-			_ = isInitialDownload // keep parameter stable even if caller distinguishes paths
-			HideDownloadables()
-			setOwlcmsTabMode(w)
+			fyne.Do(func() {
+				dialog.ShowInformation("Installation Complete", message, w)
+				_ = isInitialDownload // keep parameter stable even if caller distinguishes paths
+				HideDownloadables()
+				setOwlcmsTabMode(w)
 
-			log.Printf("Refreshing window content")
-			w.Content().Refresh()
+				log.Printf("Refreshing window content")
+				w.Content().Refresh()
+			})
 		} else {
 			log.Println("Installation Complete:\n" + message)
 			fmt.Println("Installation Complete:\n" + message)
 		}
-		done <- true
 	}()
-
-	<-done
 }
 
 // normalizeExtractedDir flattens a single top-level directory if the archive contained one.
@@ -323,15 +328,16 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 				log.Printf("failed to fetch releases after prerelease toggle: %v", err)
 				return
 			}
-			// Fyne widget methods are thread-safe for basic updates.
-			allReleases = releases
-			populateReleaseSelect(selectWidget)
-			checkForNewerVersion()
-			// Keep the dropdown visible while the user is toggling prereleases.
-			ShowDownloadables()
-			if downloadContainer != nil {
-				downloadContainer.Refresh()
-			}
+			fyne.Do(func() {
+				allReleases = releases
+				populateReleaseSelect(selectWidget)
+				checkForNewerVersion()
+				// Keep the dropdown visible while the user is toggling prereleases.
+				ShowDownloadables()
+				if downloadContainer != nil {
+					downloadContainer.Refresh()
+				}
+			})
 		}()
 	})
 	prereleaseCheckbox.Hide()

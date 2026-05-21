@@ -5,8 +5,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"strconv"
-	"syscall"
+	"time"
 
 	"controlpanel/shared"
 
@@ -27,22 +26,10 @@ func stopCamerasProcess(curProcess *exec.Cmd, curVersion string, stopBtn *widget
 	pid := curProcess.Process.Pid
 	killedByUs = true
 
-	var err error
-	if shared.GetGoos() == "windows" {
-		cmd := exec.Command("taskkill", "/PID", strconv.Itoa(pid))
-		err = cmd.Run()
-	} else {
-		err = curProcess.Process.Signal(syscall.SIGINT)
-	}
-
-	if err != nil {
-		log.Printf("Failed to gracefully stop cameras %s (PID: %d): %v\n", curVersion, pid, err)
-		err = curProcess.Process.Kill()
-		if err != nil {
-			killedByUs = false
-			dialog.ShowError(fmt.Errorf("failed to stop cameras %s (PID: %d): %w", curVersion, pid, err), w)
-			return
-		}
+	if err := shared.StopOwnedProcess(curProcess, 10*time.Second); err != nil {
+		killedByUs = false
+		dialog.ShowError(fmt.Errorf("failed to stop cameras %s (PID: %d): %w", curVersion, pid, err), w)
+		return
 	}
 
 	log.Printf("Cameras %s (PID: %d) stopped\n", curVersion, pid)
@@ -61,7 +48,7 @@ func stopCamerasProcess(curProcess *exec.Cmd, curVersion string, stopBtn *widget
 	hideAllRunLinks()
 }
 
-func stopReplaysProcess(_ *exec.Cmd, curVersion string, stopBtn *widget.Button, w fyne.Window) {
+func stopReplaysProcess(curProcess *exec.Cmd, curVersion string, stopBtn *widget.Button, w fyne.Window) {
 	log.Printf("Stopping replays %s...\n", curVersion)
 	if statusLabel != nil {
 		statusLabel.SetText(fmt.Sprintf("Stopping replays %s...", curVersion))
@@ -72,7 +59,15 @@ func stopReplaysProcess(_ *exec.Cmd, curVersion string, stopBtn *widget.Button, 
 	}
 	killedByUs = true
 
-	if err := shared.StopPIDFileOrPortProcess(replaysPIDFile, port); err != nil {
+	var err error
+	if curProcess != nil && curProcess.Process != nil {
+		pid := curProcess.Process.Pid
+		log.Printf("Stopping owned replays process with Go process handle (PID: %d)", pid)
+		err = shared.StopOwnedProcess(curProcess, 10*time.Second)
+	} else {
+		err = shared.StopPIDFileOrPortProcess(replaysPIDFile, port)
+	}
+	if err != nil {
 		killedByUs = false
 		dialog.ShowError(fmt.Errorf("failed to stop replays %s: %w", curVersion, err), w)
 		return

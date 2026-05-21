@@ -4,6 +4,7 @@ import (
 	"controlpanel/shared"
 	"fmt"
 	"log"
+	"sync/atomic"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -12,6 +13,7 @@ import (
 )
 
 var killedByUs bool
+var stopInProgress atomic.Bool
 
 func monitorProcess(done <-chan error, port string) chan error {
 	result := make(chan error, 1)
@@ -44,8 +46,14 @@ func monitorProcess(done <-chan error, port string) chan error {
 }
 
 func stopProcess(version string, stopBtn *widget.Button, downloadGroup, versionCont *fyne.Container, statusLbl *widget.Label, w fyne.Window) {
+	if !stopInProgress.CompareAndSwap(false, true) {
+		log.Printf("OWLCMS stop already in progress")
+		return
+	}
+
 	log.Printf("Stopping OWLCMS %s...\n", version)
 	statusLbl.SetText(fmt.Sprintf("Stopping OWLCMS %s...", version))
+	stopBtn.Disable()
 
 	port := GetPort()
 	if activeRuntime != nil && activeRuntime.Port != "" {
@@ -54,30 +62,49 @@ func stopProcess(version string, stopBtn *widget.Button, downloadGroup, versionC
 
 	killedByUs = true
 
-	err := StopProcessByPort(port)
-	if err != nil {
-		killedByUs = false
-		dialog.ShowError(fmt.Errorf("failed to stop OWLCMS %s on port %s: %w", version, port, err), w)
-		return
-	}
+	go func() {
+		var err error
+		if currentProcess != nil && currentProcess.Process != nil {
+			pid := currentProcess.Process.Pid
+			log.Printf("Stopping owned OWLCMS process with Go process handle (PID: %d)", pid)
+			err = shared.StopOwnedProcess(currentProcess, 10*time.Second)
+		} else {
+			err = StopProcessByPort(port)
+		}
+		if err == nil {
+			time.Sleep(300 * time.Millisecond)
+		}
+		fyne.Do(func() {
+			if err != nil {
+				stopInProgress.Store(false)
+				killedByUs = false
+				stopBtn.Enable()
+				statusLbl.SetText(fmt.Sprintf("OWLCMS %s is still running", version))
+				dialog.ShowError(fmt.Errorf("failed to stop OWLCMS on port %s: %w", port, err), w)
+				return
+			}
 
-	log.Printf("OWLCMS %s has been stopped (port %s freed)\n", version, port)
-	statusLbl.SetText(fmt.Sprintf("OWLCMS %s has been stopped", version))
-	currentProcess = nil
-	clearRuntimeState()
+			log.Printf("OWLCMS %s has been stopped (port %s freed)\n", version, port)
+			statusLbl.SetText(fmt.Sprintf("OWLCMS %s has been stopped", version))
+			currentProcess = nil
+			clearRuntimeState()
 
-	stopBtn.Hide()
-	stopContainer.Hide()
+			stopBtn.Enable()
+			stopBtn.Hide()
+			stopContainer.Hide()
 
-	// Restore UI using centralized mode switching (prevents desync).
-	_ = downloadGroup
-	_ = versionCont
-	setOwlcmsTabMode(w)
+			// Restore UI using centralized mode switching (prevents desync).
+			_ = downloadGroup
+			_ = versionCont
+			setOwlcmsTabMode(w)
 
-	urlLink.Hide()
-	appDirLink.Hide()
-	if tailLogLink != nil {
-		tailLogLink.Hide()
-	}
-	releaseJavaLock()
+			urlLink.Hide()
+			appDirLink.Hide()
+			if tailLogLink != nil {
+				tailLogLink.Hide()
+			}
+			stopInProgress.Store(false)
+			releaseJavaLock()
+		})
+	}()
 }

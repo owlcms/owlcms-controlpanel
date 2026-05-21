@@ -13,15 +13,32 @@ import (
 
 const controlPanelStopPath = "/controlpanel/stop"
 
-// StopProcessByPort asks OWLCMS to stop itself before falling back to OS process termination.
+// StopProcessByPort asks an externally/reclaimed OWLCMS process to stop itself
+// before falling back to signal-style OS termination. It does not force-kill:
+// explicit in-app restart exits 1, while external stops must remain clean.
 func StopProcessByPort(port string) error {
 	if err := requestOwlcmsStop(port); err == nil {
 		return nil
 	} else {
-		log.Printf("OWLCMS in-process stop failed on port %s; falling back to PID/port stop: %v", port, err)
+		log.Printf("OWLCMS in-process stop failed on port %s; falling back to signal stop: %v", port, err)
 	}
 
-	return shared.StopPIDFileOrPortProcess(pidFilePath, port)
+	pid, source, err := shared.ResolvePIDFromFileOrPort(pidFilePath, port)
+	if err != nil {
+		return err
+	}
+	if pid == 0 {
+		return nil
+	}
+
+	log.Printf("Signaling OWLCMS PID %d resolved from %s", pid, source)
+	if err := shared.SignalStopPID(pid, 20*time.Second); err != nil {
+		return err
+	}
+	if strings.TrimSpace(port) != "" && shared.CheckPort(port) == nil {
+		return fmt.Errorf("OWLCMS PID %d exited but port %s is still in use", pid, port)
+	}
+	return nil
 }
 
 func requestOwlcmsStop(port string) error {
@@ -30,7 +47,7 @@ func requestOwlcmsStop(port string) error {
 		return fmt.Errorf("missing port")
 	}
 
-	client := &http.Client{Timeout: 2 * time.Second}
+	client := &http.Client{Timeout: 10 * time.Second}
 	url := fmt.Sprintf("http://127.0.0.1:%s%s", trimmedPort, controlPanelStopPath)
 	req, err := http.NewRequest(http.MethodPost, url, nil)
 	if err != nil {
@@ -45,6 +62,12 @@ func requestOwlcmsStop(port string) error {
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if resp.StatusCode == http.StatusNotFound {
+			return fmt.Errorf("clean stop endpoint %s is not available in this OWLCMS version", controlPanelStopPath)
+		}
+		if resp.StatusCode == http.StatusForbidden {
+			return fmt.Errorf("OWLCMS refused the clean stop request from this host")
+		}
 		return fmt.Errorf("%s returned %s: %s", controlPanelStopPath, resp.Status, strings.TrimSpace(string(body)))
 	}
 

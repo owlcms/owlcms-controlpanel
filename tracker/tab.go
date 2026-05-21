@@ -440,18 +440,20 @@ func refreshAvailableVersions(w fyne.Window) {
 
 // initializeTab handles the async initialization of the Tracker tab
 func initializeTab(w fyne.Window) {
-	if reconnectTrackerRuntime() {
-		log.Println("Tracker tab reattached to existing runtime")
-		return
-	}
+	fyne.Do(func() {
+		if reconnectTrackerRuntime() {
+			log.Println("Tracker tab reattached to existing runtime")
+			return
+		}
 
-	// Set the appropriate mode based on installed versions
-	if len(getAllInstalledVersions()) == 0 {
-		setTrackerTabModeUninstalled(w)
-	} else {
-		setTrackerTabModeInstalled(w)
-	}
-	log.Println("Tracker tab setup done.")
+		// Set the appropriate mode based on installed versions
+		if len(getAllInstalledVersions()) == 0 {
+			setTrackerTabModeUninstalled(w)
+		} else {
+			setTrackerTabModeInstalled(w)
+		}
+		log.Println("Tracker tab setup done.")
+	})
 }
 
 // setTrackerTabModeUninstalled shows the install prompt for when no versions are installed.

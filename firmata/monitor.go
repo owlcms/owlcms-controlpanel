@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"os/exec"
-	"syscall"
 	"time"
 
 	"controlpanel/shared"
@@ -71,21 +69,10 @@ func stopProcess(curProcess *exec.Cmd, curVersion string, stopBtn *widget.Button
 	pid := curProcess.Process.Pid
 	killedByUs = true
 
-	var err error
-	if shared.GetGoos() == "windows" {
-		err = curProcess.Process.Signal(os.Interrupt)
-	} else {
-		err = curProcess.Process.Signal(syscall.SIGINT)
-	}
-
-	if err != nil {
-		log.Printf("Failed to send interrupt signal to owlcms-firmata %s (PID: %d): %v\n", curVersion, pid, err)
-		err = curProcess.Process.Kill()
-		if err != nil {
-			killedByUs = false
-			dialog.ShowError(fmt.Errorf("failed to stop owlcms-firmata %s (PID: %d): %w", curVersion, pid, err), w)
-			return
-		}
+	if err := shared.StopOwnedProcess(curProcess, 10*time.Second); err != nil {
+		killedByUs = false
+		dialog.ShowError(fmt.Errorf("failed to stop owlcms-firmata %s (PID: %d): %w", curVersion, pid, err), w)
+		return
 	}
 
 	log.Printf("owlcms-firmata %s (PID: %d) has been stopped\n", curVersion, pid)

@@ -237,6 +237,80 @@ func waitForProcessExit(pid int, timeout time.Duration) bool {
 	return !IsProcessRunning(pid)
 }
 
+// SignalStopPID asks a process to exit using only catchable or non-forced
+// mechanisms. It deliberately does not escalate to force-kill because a forced
+// kill prevents the child from choosing its own clean exit code.
+func SignalStopPID(pid int, timeout time.Duration) error {
+	if pid <= 0 {
+		return fmt.Errorf("invalid PID %d", pid)
+	}
+
+	if GetGoos() == "windows" {
+		process, err := os.FindProcess(pid)
+		if err == nil {
+			if err := process.Signal(os.Interrupt); err == nil {
+				if waitForProcessExit(pid, timeout) {
+					return nil
+				}
+			} else {
+				log.Printf("SignalStopPID(%d): os.Interrupt not available or not accepted: %v", pid, err)
+			}
+		} else {
+			log.Printf("SignalStopPID(%d): cannot open handle for os.Interrupt: %v", pid, err)
+		}
+
+		if err := windowsGentleTaskkill(pid); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return fmt.Errorf("find process %d: %w", pid, err)
+	}
+	if err := process.Signal(syscall.SIGTERM); err != nil {
+		return fmt.Errorf("signal SIGTERM to pid %d: %w", pid, err)
+	}
+	if timeout > 0 && !waitForProcessExit(pid, timeout) {
+		return fmt.Errorf("pid %d did not exit within %s after SIGTERM", pid, timeout)
+	}
+	return nil
+}
+
+// StopOwnedProcess stops a child process that this control panel instance
+// started and still owns through exec.Cmd. Use this before PID-file or port
+// lookup so interactive stops target the exact child process handle.
+func StopOwnedProcess(cmd *exec.Cmd, timeout time.Duration) error {
+	if cmd == nil || cmd.Process == nil {
+		return fmt.Errorf("missing owned process handle")
+	}
+
+	pid := cmd.Process.Pid
+	if pid <= 0 {
+		return fmt.Errorf("invalid owned process PID %d", pid)
+	}
+
+	if GetGoos() == "windows" {
+		if err := cmd.Process.Kill(); err != nil {
+			return fmt.Errorf("kill owned process %d: %w", pid, err)
+		}
+	} else {
+		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+			log.Printf("StopOwnedProcess(%d): SIGTERM failed: %v", pid, err)
+			if err := cmd.Process.Kill(); err != nil {
+				return fmt.Errorf("kill owned process %d after SIGTERM failed: %w", pid, err)
+			}
+		}
+	}
+
+	if timeout > 0 && !waitForProcessExit(pid, timeout) {
+		return fmt.Errorf("owned process %d did not exit within %s", pid, timeout)
+	}
+
+	return nil
+}
+
 func windowsGracefullyStopPID(pid int) error {
 	process, err := os.FindProcess(pid)
 	if err == nil {

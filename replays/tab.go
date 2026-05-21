@@ -321,12 +321,14 @@ func refreshAvailableVersions(w fyne.Window) {
 }
 
 func initializeTab(w fyne.Window) {
-	if len(getAllInstalledVersions()) == 0 {
-		setVideoTabModeUninstalled(w)
-	} else {
-		setVideoTabModeInstalled(w)
-	}
-	log.Println("Video tab setup done.")
+	fyne.Do(func() {
+		if len(getAllInstalledVersions()) == 0 {
+			setVideoTabModeUninstalled(w)
+		} else {
+			setVideoTabModeInstalled(w)
+		}
+		log.Println("Video tab setup done.")
+	})
 }
 
 func setVideoTabModeUninstalled(w fyne.Window) {

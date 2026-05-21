@@ -55,7 +55,14 @@ func stopProcess(version string, stopBtn *widget.Button, downloadGroup, versionC
 
 	killedByUs = true
 
-	err := shared.EnsurePortFree(port)
+	var err error
+	if currentProcess != nil && currentProcess.Process != nil {
+		pid := currentProcess.Process.Pid
+		log.Printf("Stopping owned owlcms-tracker process with Go process handle (PID: %d)", pid)
+		err = shared.StopOwnedProcess(currentProcess, 10*time.Second)
+	} else {
+		err = shared.EnsurePortFree(port)
+	}
 	if err != nil {
 		killedByUs = false
 		dialog.ShowError(fmt.Errorf("failed to stop owlcms-tracker %s on port %s: %w", version, port, err), w)

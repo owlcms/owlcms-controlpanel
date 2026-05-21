@@ -600,6 +600,7 @@ func continueOwlcmsLaunch(version string, params *owlcmsLaunchParams, launchButt
 		statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s (PID: %d), waiting for port %s.\nFull startup can take up to 30 seconds.", version, javaPID, targetPort))
 		currentProcess = cmd
 		stopBtn.SetText(fmt.Sprintf("Stop OWLCMS %s", version))
+		stopBtn.Enable()
 		stopBtn.Show()
 		stopContainer.Show()
 		downloadContainer.Hide()
@@ -627,6 +628,11 @@ func continueOwlcmsLaunch(version string, params *owlcmsLaunchParams, launchButt
 
 		go func(retryCount int, pid int) {
 			if err := <-monitorChan; err != nil {
+				if killedByUs || stopInProgress.Load() {
+					log.Printf("OWLCMS process %d stopped before readiness during intentional stop: %v", pid, err)
+					return
+				}
+
 				log.Printf("OWLCMS process %d failed to start properly: %v\n", pid, err)
 				currentProcess = nil
 				clearRuntimeState()
@@ -730,6 +736,7 @@ func continueOwlcmsLaunch(version string, params *owlcmsLaunchParams, launchButt
 
 			currentProcess = nil
 			killedByUs = false
+			stopInProgress.Store(false)
 			clearRuntimeState()
 			fyne.Do(func() {
 				statusLabel.SetText(exitMessage)
