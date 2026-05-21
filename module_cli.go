@@ -34,6 +34,10 @@ type moduleCLICommand struct {
 	MQTT             bool
 }
 
+func moduleCommandRequiresExclusiveControlPanel(cmd moduleCLICommand) bool {
+	return cmd.Action != "list" && cmd.Action != "stop" && cmd.Action != "launch"
+}
+
 func parseModuleCommand(args []string) (moduleCLICommand, bool, error) {
 	var cmd moduleCLICommand
 	var sawModule bool

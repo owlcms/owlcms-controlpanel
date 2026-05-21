@@ -133,6 +133,21 @@ func TestExecuteModuleDuplicateRequiresFromVersion(t *testing.T) {
 	}
 }
 
+func TestModuleCommandRequiresExclusiveControlPanel(t *testing.T) {
+	if moduleCommandRequiresExclusiveControlPanel(moduleCLICommand{Module: "owlcms", Action: "list"}) {
+		t.Fatal("expected list command to be allowed while a control panel is running")
+	}
+	if moduleCommandRequiresExclusiveControlPanel(moduleCLICommand{Module: "owlcms", Action: "stop"}) {
+		t.Fatal("expected stop command to be allowed while a control panel is running")
+	}
+	if moduleCommandRequiresExclusiveControlPanel(moduleCLICommand{Module: "owlcms", Action: "launch"}) {
+		t.Fatal("expected launch command to be allowed while a control panel is running")
+	}
+	if !moduleCommandRequiresExclusiveControlPanel(moduleCLICommand{Module: "tracker", Action: "update"}) {
+		t.Fatal("expected update command to require exclusive control panel ownership")
+	}
+}
+
 func TestResolveLocalVersionSelectorPreviousUsesPenultimateInstalledVersion(t *testing.T) {
 	base := t.TempDir()
 	mustMkdir(t, base, "65.0.0")

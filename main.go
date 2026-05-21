@@ -129,6 +129,14 @@ func main() {
 
 	if moduleCommandFound {
 		moduleCommand.MQTT = moduleCommand.MQTT || cliOptions.mqtt
+		if moduleCommandRequiresExclusiveControlPanel(moduleCommand) {
+			if running, ok := runningControlPanelMetadata(); ok {
+				err := fmt.Errorf("another OWLCMS Control Panel is already running (%s); use that UI or close it before running module commands", describeControlPanelRuntime(running))
+				log.Printf("ERROR: %v", err)
+				fmt.Fprintf(os.Stderr, "%v\n", err)
+				os.Exit(1)
+			}
+		}
 		if err := executeModuleCommand(moduleCommand, os.Stdout); err != nil {
 			log.Printf("ERROR: %v", err)
 			fmt.Fprintf(os.Stderr, "%v\n", err)

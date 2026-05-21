@@ -83,6 +83,42 @@ func clearRuntimeState() {
 	}
 }
 
+func restoreOwlcmsStoppedUI(version string, stopBtn, launchButton *widget.Button, message string) {
+	currentProcess = nil
+	killedByUs = false
+	stopInProgress.Store(false)
+	clearRuntimeState()
+	releaseJavaLock()
+	hideStartupLogArea()
+
+	fyne.Do(func() {
+		if statusLabel != nil {
+			statusLabel.SetText(message)
+		}
+		if stopBtn != nil {
+			stopBtn.Enable()
+			stopBtn.Hide()
+		}
+		if stopContainer != nil {
+			stopContainer.Hide()
+		}
+		if launchButton != nil {
+			launchButton.Show()
+		}
+		setOwlcmsTabMode(mainWindow)
+
+		if urlLink != nil {
+			urlLink.Hide()
+		}
+		if appDirLink != nil {
+			appDirLink.Hide()
+		}
+		if tailLogLink != nil {
+			tailLogLink.Hide()
+		}
+	})
+}
+
 func logRestartDecision(version string, pid int, waitErr error, retryCount, maxRestartRetries int) bool {
 	restartable := shared.ShouldRestartProcess(waitErr)
 	willRestart := !killedByUs && restartable && retryCount < maxRestartRetries
@@ -632,6 +668,7 @@ func continueOwlcmsLaunch(version string, params *owlcmsLaunchParams, launchButt
 			if err := <-monitorChan; err != nil {
 				if killedByUs || stopInProgress.Load() {
 					log.Printf("OWLCMS process %d stopped before readiness during intentional stop: %v", pid, err)
+					restoreOwlcmsStoppedUI(version, stopBtn, launchButton, fmt.Sprintf("OWLCMS %s (PID: %d) was stopped before becoming ready", version, pid))
 					return
 				}
 

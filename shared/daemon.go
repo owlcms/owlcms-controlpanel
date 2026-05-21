@@ -293,12 +293,21 @@ func StopOwnedProcess(cmd *exec.Cmd, timeout time.Duration) error {
 
 	if GetGoos() == "windows" {
 		if err := cmd.Process.Kill(); err != nil {
+			if !IsProcessRunning(pid) {
+				return nil
+			}
 			return fmt.Errorf("kill owned process %d: %w", pid, err)
 		}
 	} else {
 		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
+			if !IsProcessRunning(pid) {
+				return nil
+			}
 			log.Printf("StopOwnedProcess(%d): SIGTERM failed: %v", pid, err)
 			if err := cmd.Process.Kill(); err != nil {
+				if !IsProcessRunning(pid) {
+					return nil
+				}
 				return fmt.Errorf("kill owned process %d after SIGTERM failed: %w", pid, err)
 			}
 		}
