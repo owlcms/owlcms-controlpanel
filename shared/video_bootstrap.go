@@ -18,13 +18,6 @@ func VideoConfigDir(versionDir string) string {
 	return filepath.Join(GetControlPanelInstallDir(), videoConfigSubdir, "ffmpeg")
 }
 
-func fileMissing(path string) bool {
-	if _, err := os.Stat(path); err != nil {
-		return true
-	}
-	return false
-}
-
 // BuildVideoLaunchEnv builds the shared env passed to replays/cameras child processes.
 func BuildVideoLaunchEnv(versionDir string) []string {
 	configDir := VideoConfigDir(versionDir)
@@ -62,16 +55,13 @@ func BuildVideoLaunchEnv(versionDir string) []string {
 // ShouldRunVideoExtract determines whether launchers should run --extractConfig preflight.
 // app must be "replays" or "cameras".
 // FFmpeg availability is handled separately by EnsureFFmpegPrerequisite.
-// Checks for the shared ffmpeg.toml in video_config and per-instance config.toml
-// in the version directory.
+// Always runs extract so that shared ffmpeg.toml is updated to the current embedded version on upgrade.
+// Each app's extractor is idempotent and only creates per-instance config.toml when missing.
 func ShouldRunVideoExtract(versionDir, app string) bool {
-	sharedDir := VideoConfigDir(versionDir)
-	// Shared encoder config
-	if fileMissing(filepath.Join(sharedDir, "ffmpeg.toml")) {
-		return true
-	}
-	// Per-instance config in the version directory
-	return fileMissing(filepath.Join(versionDir, "config.toml"))
+	// Always extract: ffmpeg.toml is refreshed when embedded content changes.
+	// Per-instance config.toml remains app-owned and is written only if missing.
+	_ = app
+	return true
 }
 
 // RunVideoExtractBootstrap runs the app once with --extractConfig and shared launcher env.
