@@ -7,6 +7,7 @@ __debug*
 owlcms*.zip
 owlcms*.tar.gz
 owlcms*.tar.xz
+/build/
 java17
 controlpanel
 owlcms-launcher
@@ -18,6 +19,7 @@ tmp-pkg/usr/local/share/pixmaps/controlpanel.png
 *.deb
 dist/ReleaseNotes.md
 dist/darwin-amd64
+dist/darwin-arm64
 /owlcms.app
 
 controlpanel.exe

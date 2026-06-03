@@ -57,37 +57,6 @@ jobs:
       if: ${{ env.BUILD_MAC == 'true' }}
       run: npm install -g appdmg
 
-    # - name: Build for macOS arm64
-    #   if: ${{ env.BUILD_MAC == 'true' }}
-    #   run: |
-    #     export GOOS=darwin
-    #     export GOARCH=arm64
-    #     export CGO_ENABLED=1
-    #     go build -o owlcms .
-
-    # - name: Package for macOS arm64
-    #   if: ${{ env.BUILD_MAC == 'true' }}
-    #   run: |
-    #     export GOOS=darwin
-    #     export GOARCH=arm64
-    #     export CGO_ENABLED=1
-    #     rm -rf owlcms.app
-    #     fyne package -os darwin -icon Icon.png -name owlcms -executable owlcms
-
-    # - name: Move macOS arm64 app to dist directory
-    #   if: ${{ env.BUILD_MAC == 'true' }}
-    #   run: |
-    #     rm -rf dist/darwin-arm64
-    #     mkdir -p dist/darwin-arm64
-    #     mv owlcms.app dist/darwin-arm64/
-    #     ls -l dist/darwin-arm64
-
-    # - name: Create DMG for macOS arm64
-    #   if: ${{ env.BUILD_MAC == 'true' }}
-    #   run: |
-    #     mkdir -p artifacts
-    #     appdmg dist/appdmg_arm64.json artifacts/macOS_Apple_M-series_Control_Panel_Installer.dmg
-
     - name: Build for macOS amd64
       if: ${{ env.BUILD_MAC == 'true' }}
       run: |
@@ -114,13 +83,85 @@ jobs:
       if: ${{ env.BUILD_MAC == 'true' }}
       run: |
         mkdir -p artifacts
-        appdmg dist/appdmg_amd64.json artifacts/macOS_Control_Panel_Installer.dmg
+        appdmg dist/appdmg_amd64.json artifacts/macOS_Intel_OWLCMS.dmg
 
     - name: Upload macOS amd64 DMG
       if: ${{ env.BUILD_MAC == 'true' }}
       uses: actions/upload-artifact@v6
       with:
         name: build_mac_artifacts
+        path: artifacts/*
+
+  build_mac_arm64:
+    runs-on: macos-latest
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "13.0"
+      CGO_CFLAGS: "-mmacosx-version-min=13.0"
+      CGO_LDFLAGS: "-mmacosx-version-min=13.0"
+
+    steps:
+    - name: Checkout code
+      if: ${{ env.BUILD_MAC == 'true' }}
+      uses: actions/checkout@v6
+
+    - name: Set up Go
+      if: ${{ env.BUILD_MAC == 'true' }}
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.25.5'
+
+    - name: Extract tag
+      id: extract_tag
+      run: |
+        echo "TAG=${{ inputs.tag }}" >> $GITHUB_ENV
+
+    - name: Substitute tag in config.go
+      if: ${{ env.BUILD_MAC == 'true' }}
+      run: |
+        # use this approach because we can't easily set ldflags in fyne-cross
+        sed -i '' "s/_TAG_/${TAG}/g" shared/version.go
+
+    - name: Install fyne
+      if: ${{ env.BUILD_MAC == 'true' }}
+      run: go install fyne.io/fyne/v2/cmd/fyne@latest
+
+    - name: Install appdmg
+      if: ${{ env.BUILD_MAC == 'true' }}
+      run: npm install -g appdmg
+
+    - name: Build for macOS arm64
+      if: ${{ env.BUILD_MAC == 'true' }}
+      run: |
+        export GOOS=darwin
+        export GOARCH=arm64
+        export CGO_ENABLED=1
+        mkdir -p build
+        go build -o build/owlcms .
+
+    - name: Package for macOS arm64
+      if: ${{ env.BUILD_MAC == 'true' }}
+      run: |
+        rm -rf owlcms.app
+        fyne package -os darwin -icon Icon.png -name owlcms -executable build/owlcms
+
+    - name: Move macOS arm64 app to dist directory
+      if: ${{ env.BUILD_MAC == 'true' }}
+      run: |
+        rm -rf dist/darwin-arm64
+        mkdir -p dist/darwin-arm64
+        mv owlcms.app dist/darwin-arm64/
+
+    - name: Create DMG for macOS arm64
+      if: ${{ env.BUILD_MAC == 'true' }}
+      run: |
+        mkdir -p artifacts
+        appdmg dist/appdmg_arm64.json artifacts/macOS_OWLCMS.dmg
+
+    - name: Upload macOS arm64 DMG
+      if: ${{ env.BUILD_MAC == 'true' }}
+      uses: actions/upload-artifact@v6
+      with:
+        name: build_mac_arm64_artifacts
         path: artifacts/*
 
   build_crosscompile:
@@ -423,7 +464,7 @@ jobs:
 
   create_release:
     runs-on: ubuntu-latest
-    needs: [build_mac, build_crosscompile, package_windows]
+    needs: [build_mac, build_mac_arm64, build_crosscompile, package_windows]
 
     steps:
     - name: Checkout code
@@ -456,6 +497,13 @@ jobs:
         name: build_mac_artifacts
         path: ./dist
 
+    - name: Download build_mac_arm64_artifacts
+      if: ${{ env.BUILD_MAC == 'true' }}
+      uses: actions/download-artifact@v7
+      with:
+        name: build_mac_arm64_artifacts
+        path: ./dist
+
     - name: Download build_crosscompile_artifacts
       if: ${{ env.BUILD_LINUX == 'true' || env.BUILD_RASPBERRY == 'true' }}
       uses: actions/download-artifact@v7
@@ -486,19 +534,19 @@ jobs:
             --notes-file ./dist/ReleaseNotes.md
         fi
 
-    # - name: Release macOS arm64 DMG
-    #   if: ${{ env.BUILD_MAC == 'true' }}
-    #   env:
-    #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    #   run: |
-    #     gh release upload ${{ env.TAG }} dist/macOS_Apple_M-series_Control_Panel_Installer.dmg
+    - name: Release macOS arm64 DMG
+      if: ${{ env.BUILD_MAC == 'true' }}
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release upload ${{ env.TAG }} dist/macOS_OWLCMS.dmg
 
     - name: Release macOS amd64 DMG
       if: ${{ env.BUILD_MAC == 'true' }}
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh release upload ${{ env.TAG }} dist/macOS_Control_Panel_Installer.dmg
+        gh release upload ${{ env.TAG }} dist/macOS_Intel_OWLCMS.dmg
 
     - name: Release Raspberry Pi DEB package
       if: ${{ env.BUILD_RASPBERRY == 'true' }}

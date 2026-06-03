@@ -21,6 +21,26 @@
   go build -o owlcms .
   ```
 
+- macOS local builds
+  - A plain local build uses the host architecture. On Apple Silicon this creates an arm64 binary:
+    ```
+    go build .
+    ```
+  - The Apple linker may print this warning during Fyne/cgo builds:
+    ```
+    ld: warning: ignoring duplicate libraries: '-lobjc'
+    ```
+    This warning is harmless when `go build` exits successfully; the duplicate Objective-C library is ignored by the linker.
+  - To build the same Intel binary currently produced by GitHub Actions:
+    ```
+    GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build -o build/owlcms .
+    ```
+  - To inspect the architecture of the resulting binary:
+    ```
+    file controlpanel
+    file build/owlcms
+    ```
+
 - VS Code target settings
   - The default [.vscode/settings.json](.vscode/settings.json) in this repo is set up for Linux arm64 analysis.
   - When switching development targets, copy the matching section into [.vscode/settings.json](.vscode/settings.json).
