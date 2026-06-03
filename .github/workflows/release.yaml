@@ -79,6 +79,11 @@ jobs:
         mkdir -p dist/darwin-amd64
         mv owlcms.app dist/darwin-amd64/
 
+    - name: Hide macOS DMG shortcut extension for amd64
+      if: ${{ env.BUILD_MAC == 'true' }}
+      run: |
+        SetFile -a E "dist/Double-click if you get an error message when starting.webloc"
+
     - name: Create DMG for macOS amd64
       if: ${{ env.BUILD_MAC == 'true' }}
       run: |
@@ -150,6 +155,11 @@ jobs:
         rm -rf dist/darwin-arm64
         mkdir -p dist/darwin-arm64
         mv owlcms.app dist/darwin-arm64/
+
+    - name: Hide macOS DMG shortcut extension for arm64
+      if: ${{ env.BUILD_MAC == 'true' }}
+      run: |
+        SetFile -a E "dist/Double-click if you get an error message when starting.webloc"
 
     - name: Create DMG for macOS arm64
       if: ${{ env.BUILD_MAC == 'true' }}
