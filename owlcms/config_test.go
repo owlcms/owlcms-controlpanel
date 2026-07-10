@@ -7,7 +7,9 @@ import (
 	"testing"
 )
 
-func TestGetPortForReleaseUsesReleaseOverride(t *testing.T) {
+func TestGetPortForReleaseUsesLocalPort(t *testing.T) {
+	t.Setenv("OWLCMS_PORT", "19090")
+	t.Setenv("CONTROLPANEL_RUN_AS_DAEMON", "true")
 	installDir := t.TempDir()
 	previousDir := GetInstallDir()
 	SetInstallDir(installDir)
@@ -25,24 +27,70 @@ func TestGetPortForReleaseUsesReleaseOverride(t *testing.T) {
 		t.Fatalf("write release env: %v", err)
 	}
 
-	if got := GetPortForRelease("65.0.0"); got != "18080" {
-		t.Fatalf("expected release port 18080, got %q", got)
+	if got := GetPortForRelease("65.0.0"); got != "19090" {
+		t.Fatalf("expected environment port 19090, got %q", got)
 	}
-	if got := GetPortForRelease("missing"); got != "8080" {
-		t.Fatalf("expected fallback shared port 8080, got %q", got)
+	if got := GetPortForRelease("missing"); got != "19090" {
+		t.Fatalf("expected environment port 19090, got %q", got)
 	}
 
+	t.Setenv("CONTROLPANEL_RUN_AS_DAEMON", "true")
 	if err := LoadEnvironmentForRelease("65.0.0"); err != nil {
 		t.Fatalf("load release environment: %v", err)
 	}
-	if got := GetPort(); got != "18080" {
-		t.Fatalf("expected loaded environment to use release port 18080, got %q", got)
+	if got := GetPort(); got != "19090" {
+		t.Fatalf("expected loaded environment to use environment port 19090, got %q", got)
 	}
 	if !GetRunAsDaemon() {
 		t.Fatal("expected loaded environment to use release daemon override")
 	}
 	if got, ok := GetEnvironment().Get("OWLCMS_INITIALDATA"); !ok || got != "TESTDATA" {
 		t.Fatalf("expected release-only property to be preserved, got value=%q ok=%v", got, ok)
+	}
+}
+
+func TestEnsureReleaseEnvDoesNotCreatePortWithoutMenuOverride(t *testing.T) {
+	installDir := t.TempDir()
+	previousDir := GetInstallDir()
+	SetInstallDir(installDir)
+	t.Cleanup(func() {
+		SetInstallDir(previousDir)
+	})
+
+	if err := EnsureReleaseEnvFromParent("65.0.0"); err != nil {
+		t.Fatalf("create release environment: %v", err)
+	}
+
+	releaseProps, err := loadReleaseProperties("65.0.0")
+	if err != nil {
+		t.Fatalf("load release environment: %v", err)
+	}
+	if _, ok := releaseProps.Get("OWLCMS_PORT"); ok {
+		t.Fatalf("expected no release port without a menu override")
+	}
+}
+
+func TestEnsureReleaseEnvCopiesPortAfterMenuOverride(t *testing.T) {
+	installDir := t.TempDir()
+	previousDir := GetInstallDir()
+	SetInstallDir(installDir)
+	t.Cleanup(func() {
+		SetInstallDir(previousDir)
+	})
+
+	if err := SaveProperty("OWLCMS_PORT", "19090"); err != nil {
+		t.Fatalf("save menu port: %v", err)
+	}
+	if err := EnsureReleaseEnvFromParent("65.0.0"); err != nil {
+		t.Fatalf("create release environment: %v", err)
+	}
+
+	releaseProps, err := loadReleaseProperties("65.0.0")
+	if err != nil {
+		t.Fatalf("load release environment: %v", err)
+	}
+	if got, ok := releaseProps.Get("OWLCMS_PORT"); !ok || got != "19090" {
+		t.Fatalf("expected menu port in release environment, got %q (present=%v)", got, ok)
 	}
 }
 
@@ -129,8 +177,11 @@ func TestDisableTrackerConnectionForReleaseWritesBlankOverride(t *testing.T) {
 	}
 }
 
-func TestTrackerConnectionPortRejectsNonLocalTrackerURL(t *testing.T) {
-	if port, ok := trackerConnectionPort("ws://example.com:18123/ws"); ok || port != "" {
-		t.Fatalf("expected non-local URL to be rejected, got port=%q ok=%v", port, ok)
+func TestTrackerConnectionPortAcceptsExternalTrackerURL(t *testing.T) {
+	if port, ok := trackerConnectionPort("ws://example.com:18123/ws"); !ok || port != "18123" {
+		t.Fatalf("expected external URL to be accepted, got port=%q ok=%v", port, ok)
+	}
+	if port, ok := trackerConnectionPort("wss://tracker.example.com:443/ws"); !ok || port != "443" {
+		t.Fatalf("expected secure external URL to be accepted, got port=%q ok=%v", port, ok)
 	}
 }

@@ -38,10 +38,10 @@ func IsValidSemVer(version string) bool {
 func ParseVersionWithBuild(version string) (string, string) {
 	v, err := semver.NewVersion(version)
 	if err != nil {
-		// If parsing fails, try simple split as fallback
-		parts := strings.Split(version, "+")
-		if len(parts) == 2 {
-			return parts[0], parts[1]
+		// Metadata is an opaque extension and may contain characters such as
+		// underscores or accented Unicode that strict SemVer rejects.
+		if plusIndex := strings.Index(version, "+"); plusIndex >= 0 {
+			return version[:plusIndex], version[plusIndex+1:]
 		}
 		return version, ""
 	}
@@ -79,7 +79,8 @@ func normalizeForComparison(version string) string {
 
 // NewVersionForComparison creates a semver.Version with SNAPSHOT normalized for proper ordering.
 func NewVersionForComparison(version string) (*semver.Version, error) {
-	return semver.NewVersion(normalizeForComparison(version))
+	baseVersion, _ := ParseVersionWithBuild(version)
+	return semver.NewVersion(normalizeForComparison(baseVersion))
 }
 
 // CompareVersions compares two version strings and returns true if v1 > v2.
@@ -109,6 +110,11 @@ func CompareVersions(v1Str, v2Str string) bool {
 // semverRegex extracts the semver portion from a tag string, handling prefixes
 // like "v", "firmata-v", "owlcms-", etc.
 var semverRegex = regexp.MustCompile(`(v?\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+)?)$`)
+
+// filenameVersionRegex finds a version suffix in a ZIP filename. Metadata is
+// intentionally opaque here because the application allows Unicode and other
+// filename-safe extension characters beyond strict SemVer metadata.
+var filenameVersionRegex = regexp.MustCompile(`(?:^|_)(v?\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[^/]*)?)$`)
 
 // ExtractSemver extracts the semantic version from a tag string, stripping any
 // prefix (e.g. "firmata-v1.2.3" → "1.2.3", "v1.9.0-beta06" → "1.9.0-beta06").
@@ -184,12 +190,11 @@ func ExtractVersionFromFilename(fileName string) (string, error) {
 	// Remove .zip extension
 	nameWithoutExt := strings.TrimSuffix(fileName, ".zip")
 
-	// Remove everything up to and including the LAST underscore
-	// (e.g., "owlcms-tracker_2.8.0" -> "2.8.0")
-	if idx := strings.LastIndex(nameWithoutExt, "_"); idx >= 0 {
-		prefix := nameWithoutExt[:idx]
-		nameWithoutExt = nameWithoutExt[idx+1:]
-		log.Printf("ExtractVersionFromFilename: stripped prefix '%s', extracted '%s' from '%s'", prefix, nameWithoutExt, fileName)
+	// Extract the version suffix without treating underscores in metadata as a
+	// filename separator (e.g. "..._2.20.2+beta09_PanAm").
+	if match := filenameVersionRegex.FindStringSubmatch(nameWithoutExt); len(match) == 2 {
+		nameWithoutExt = match[1]
+		log.Printf("ExtractVersionFromFilename: extracted '%s' from '%s'", nameWithoutExt, fileName)
 	}
 
 	// Strip metadata (everything after +) before semver validation.

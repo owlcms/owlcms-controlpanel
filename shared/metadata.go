@@ -126,6 +126,25 @@ func NormalizeVersionName(versionName string) string {
 	return baseVersion + "+" + sanitized
 }
 
+// NormalizeVersionMetadata preserves Unicode letters and digits while
+// converting unsupported metadata separators to dots.
+func NormalizeVersionMetadata(metadata string) string {
+	var result strings.Builder
+	for _, r := range metadata {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '.' || r == '-' {
+			result.WriteRune(r)
+		} else {
+			result.WriteRune('.')
+		}
+	}
+
+	normalized := strings.Trim(result.String(), ".-")
+	for strings.Contains(normalized, "..") {
+		normalized = strings.ReplaceAll(normalized, "..", ".")
+	}
+	return normalized
+}
+
 // StripMetadata removes metadata (everything after +) from a version string.
 func StripMetadata(version string) string {
 	if plusIndex := strings.Index(version, "+"); plusIndex != -1 {

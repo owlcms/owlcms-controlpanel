@@ -27,6 +27,11 @@ var (
 
 const trackerConnectionEnv = "OWLCMS_VIDEODATA"
 
+const (
+	defaultTrackerConnectionURL  = "ws://localhost/ws"
+	defaultTrackerConnectionPort = "8096"
+)
+
 // SetInstallDir overrides the OWLCMS installation directory for this process.
 func SetInstallDir(dir string) {
 	dir = strings.TrimSpace(dir)
@@ -110,33 +115,48 @@ func GetReleaseEnvPath(releaseVersion string) string {
 	return filepath.Join(installDir, strings.TrimSpace(releaseVersion), "env.properties")
 }
 
-func trackerConnectionURL(port string) string {
-	return fmt.Sprintf("ws://127.0.0.1:%s/ws", strings.TrimSpace(port))
+func trackerConnectionURL(baseURL, port string) string {
+	parsed, err := url.Parse(strings.TrimSpace(baseURL))
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf("%s://%s:%s/ws", parsed.Scheme, parsed.Hostname(), strings.TrimSpace(port))
 }
 
-func trackerConnectionPort(value string) (string, bool) {
+func trackerConnectionSettings(value string) (string, string, bool) {
 	parsed, err := url.Parse(strings.TrimSpace(value))
-	if err != nil {
-		return "", false
-	}
-	if parsed.Scheme != "ws" || parsed.Hostname() != "127.0.0.1" || parsed.Path != "/ws" {
-		return "", false
+	if err != nil || (parsed.Scheme != "ws" && parsed.Scheme != "wss") || parsed.Hostname() == "" || parsed.Path != "/ws" {
+		return "", "", false
 	}
 	port := strings.TrimSpace(parsed.Port())
 	if port == "" {
-		return "", false
+		return "", "", false
 	}
-	return port, true
+	return fmt.Sprintf("%s://%s%s", parsed.Scheme, parsed.Hostname(), parsed.Path), port, true
+}
+
+func trackerConnectionPort(value string) (string, bool) {
+	_, port, ok := trackerConnectionSettings(value)
+	return port, ok
 }
 
 // ConfigureTrackerConnectionForRelease stores the local tracker websocket URL in
 // the same version-specific env.properties used by the interactive options menu.
 func ConfigureTrackerConnectionForRelease(releaseVersion, trackerPort string) error {
+	return ConfigureTrackerConnectionForReleaseURL(releaseVersion, defaultTrackerConnectionURL, trackerPort)
+}
+
+func ConfigureTrackerConnectionForReleaseURL(releaseVersion, baseURL, trackerPort string) error {
 	trackerPort = strings.TrimSpace(trackerPort)
 	if trackerPort == "" {
 		return fmt.Errorf("tracker port is required")
 	}
-	return SavePropertyForRelease(releaseVersion, trackerConnectionEnv, trackerConnectionURL(trackerPort))
+	baseURL = strings.TrimSpace(baseURL)
+	parsed, err := url.Parse(baseURL)
+	if err != nil || (parsed.Scheme != "ws" && parsed.Scheme != "wss") || parsed.Hostname() == "" || parsed.Path != "/ws" {
+		return fmt.Errorf("tracker connection URL must be a ws or wss URL ending in /ws")
+	}
+	return SavePropertyForRelease(releaseVersion, trackerConnectionEnv, trackerConnectionURL(baseURL, trackerPort))
 }
 
 // DisableTrackerConnectionForRelease writes an explicit blank release override so
@@ -338,6 +358,7 @@ func cloneProperties(src *properties.Properties) *properties.Properties {
 }
 
 func loadEnvironmentForReleaseProps(releaseVersion string) (*properties.Properties, error) {
+	processEnv := os.Environ()
 	if err := EnsureParentEnvDefaults(); err != nil {
 		return nil, err
 	}
@@ -351,6 +372,14 @@ func loadEnvironmentForReleaseProps(releaseVersion string) (*properties.Properti
 		for _, key := range releaseProps.Keys() {
 			value, _ := releaseProps.Get(key)
 			merged.Set(key, value)
+		}
+	}
+	for _, entry := range processEnv {
+		key, value, ok := strings.Cut(entry, "=")
+		if ok {
+			if _, exists := merged.Get(key); exists {
+				merged.Set(key, value)
+			}
 		}
 	}
 
@@ -389,7 +418,6 @@ func GetTemurinVersionForRelease(releaseVersion string) string {
 
 func defaultOwlcmsProperties() (*properties.Properties, string) {
 	props := properties.NewProperties()
-	props.Set("OWLCMS_PORT", "8080")
 	props.Set("TEMURIN_VERSION", "jdk-25")
 	props.Set(shared.RunAsDaemonEnv, "false")
 
@@ -525,7 +553,6 @@ func InitEnv() error {
 		}
 
 		props := properties.NewProperties()
-		props.Set("OWLCMS_PORT", "8080")
 		props.Set("TEMURIN_VERSION", "jdk-25")
 		props.Set(shared.RunAsDaemonEnv, "false")
 
@@ -715,15 +742,29 @@ func DeleteProperty(key string) error {
 
 // GetTrackerConnectionEnabled returns true if OWLCMS_VIDEODATA is set to a local tracker URL
 func GetTrackerConnectionEnabled() bool {
+	return GetTrackerConnectionPort() != ""
+}
+
+// GetTrackerConnectionPort returns the shared default local tracker port,
+// or empty when the default tracker connection is disabled.
+func GetTrackerConnectionPort() string {
+	_, port, ok := GetTrackerConnectionSettings()
+	if !ok {
+		return ""
+	}
+	return port
+}
+
+// GetTrackerConnectionSettings returns the shared default tracker URL and port.
+func GetTrackerConnectionSettings() (string, string, bool) {
 	if environment == nil {
-		return false
+		return "", "", false
 	}
 	value, ok := environment.Get(trackerConnectionEnv)
 	if !ok {
-		return false
+		return "", "", false
 	}
-	_, enabled := trackerConnectionPort(value)
-	return enabled
+	return trackerConnectionSettings(value)
 }
 
 // GetTrackerConnectionEnabledForRelease returns true if the version-specific

@@ -98,7 +98,7 @@ func shouldShowOwlcmsVersionWarning() bool {
 func findLatestStableInstalledVersion() string {
 	var latestStable *semver.Version
 	for _, dir := range getAllInstalledVersions() {
-		version := extractSemverTag(dir)
+		version, _ := shared.ParseVersionWithBuild(dir)
 		v, err := semver.NewVersion(version)
 		if err == nil && !containsPreReleaseTag(version) {
 			if latestStable == nil || v.GreaterThan(latestStable) {
@@ -112,25 +112,13 @@ func findLatestStableInstalledVersion() string {
 	return ""
 }
 
-func extractSemverTag(tag string) string {
-	// Already a valid semver, just return it
-	return tag
-}
-
 func findLatestPrereleaseInstalledVersion() string {
-	trackerDir := installDir
-	entries, err := os.ReadDir(trackerDir)
-	if err != nil {
-		return ""
-	}
-
 	var versions []*semver.Version
-	for _, entry := range entries {
-		if entry.IsDir() {
-			v, err := semver.NewVersion(entry.Name())
-			if err == nil && v.Prerelease() != "" {
-				versions = append(versions, v)
-			}
+	for _, dir := range getAllInstalledVersions() {
+		version, _ := shared.ParseVersionWithBuild(dir)
+		v, err := semver.NewVersion(version)
+		if err == nil && v.Prerelease() != "" {
+			versions = append(versions, v)
 		}
 	}
 
@@ -303,6 +291,7 @@ func createUpdateButton(version string, w fyne.Window, buttonContainer *fyne.Con
 	updateButton := widget.NewButton("Update", nil)
 	var mostRecent string
 	var err error
+	showUpdate := false
 
 	latestStable, stableErr := getMostRecentStableRelease()
 	latestPrerelease, preErr := getMostRecentPrerelease()
@@ -317,17 +306,19 @@ func createUpdateButton(version string, w fyne.Window, buttonContainer *fyne.Con
 	if !containsPreReleaseTag(version) {
 		mostRecent, err = getMostRecentStableRelease()
 		if err == nil {
-			adjustUpdateButton(mostRecent, version, updateButton, buttonContainer, w)
+			showUpdate = adjustUpdateButton(mostRecent, version, updateButton, buttonContainer, w)
 		}
 	} else {
 		mostRecent, err = getMostRecentPrerelease()
 		if err == nil {
-			adjustUpdateButton(mostRecent, version, updateButton, buttonContainer, w)
+			showUpdate = adjustUpdateButton(mostRecent, version, updateButton, buttonContainer, w)
 		} else {
 			log.Printf("failed to get most recent prerelease: %v", err)
 		}
 	}
-	buttonContainer.Add(container.NewPadded(updateButton))
+	if showUpdate {
+		buttonContainer.Add(container.NewPadded(updateButton))
+	}
 }
 
 func createRemoveButton(version string, w fyne.Window, buttonContainer *fyne.Container) {
@@ -398,15 +389,17 @@ func createLaunchButton(w fyne.Window, version string, stopBtn *widget.Button, b
 	buttonContainer.Add(container.NewPadded(launchButton))
 }
 
-func adjustUpdateButton(mostRecent string, version string, updateButton *widget.Button, buttonContainer *fyne.Container, w fyne.Window) {
+func adjustUpdateButton(mostRecent string, version string, updateButton *widget.Button, buttonContainer *fyne.Container, w fyne.Window) bool {
 	if shared.CompareVersions(mostRecent, version) {
 		updateButton.SetText(fmt.Sprintf("Update to %s", mostRecent))
 		updateButton.OnTapped = func() {
 			confirmUpdateVersion(version, mostRecent, w)
 		}
 		updateButton.Refresh()
+		return true
 	} else {
 		buttonContainer.Refresh()
+		return false
 	}
 }
 
@@ -629,7 +622,8 @@ func removeAllVersions() {
 
 	for _, entry := range entries {
 		if entry.IsDir() {
-			if _, err := semver.NewVersion(entry.Name()); err == nil {
+			baseVersion, _ := shared.ParseVersionWithBuild(entry.Name())
+			if _, err := semver.NewVersion(baseVersion); err == nil {
 				versionDir := filepath.Join(installDir, entry.Name())
 				log.Printf("Removing version directory: %s\n", versionDir)
 				os.RemoveAll(versionDir)

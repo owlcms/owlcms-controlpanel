@@ -42,6 +42,7 @@ func ZipCurrentSetup(w fyne.Window, trackerInstallDir string,
 
 	// Create a dialog to select which version to zip
 	versionSelect := widget.NewSelect(versions, func(selected string) {})
+	versionSelectContainer := container.NewGridWrap(fyne.NewSize(360, versionSelect.MinSize().Height), versionSelect)
 	if len(versions) == 1 {
 		versionSelect.Selected = versions[0]
 	}
@@ -50,7 +51,7 @@ func ZipCurrentSetup(w fyne.Window, trackerInstallDir string,
 		"Create ZIP",
 		"Cancel",
 		[]*widget.FormItem{
-			widget.NewFormItem("Select version to zip", versionSelect),
+			widget.NewFormItem("Select version to zip", versionSelectContainer),
 		},
 		func(ok bool) {
 			if !ok || versionSelect.Selected == "" {
@@ -72,12 +73,16 @@ func ZipCurrentSetup(w fyne.Window, trackerInstallDir string,
 				return
 			}
 
-			// Strip any existing metadata (anything after +) before adding new timestamp
-			baseVersion := shared.StripMetadata(version)
+			baseVersion, existingMetadata := shared.ParseVersionWithBuild(version)
+			existingMetadata = shared.NormalizeVersionMetadata(existingMetadata)
 
-			// Create filename with version and timestamp as metadata
+			// Preserve existing metadata and append the export timestamp.
 			timestamp := time.Now().Format("2006-01-02T150405")
-			zipFileName := fmt.Sprintf("owlcms-tracker_%s+%s.zip", baseVersion, timestamp)
+			metadata := timestamp
+			if existingMetadata != "" {
+				metadata = existingMetadata + "." + timestamp
+			}
+			zipFileName := fmt.Sprintf("owlcms-tracker_%s+%s.zip", baseVersion, metadata)
 
 			// Ask user where to save the zip file using platform-specific dialog
 			selectSaveZip(w, zipFileName, func(zipPath string, err error) {
@@ -102,20 +107,26 @@ func ZipCurrentSetup(w fyne.Window, trackerInstallDir string,
 				progressDialog.Show()
 
 				go func() {
-					defer progressDialog.Hide()
+					defer fyne.Do(progressDialog.Hide)
 
 					// Create the zip file
 					err := CreateZipArchive(sourceDir, zipPath, func(progress float64) {
-						progressBar.SetValue(progress)
+						fyne.Do(func() {
+							progressBar.SetValue(progress)
+						})
 					})
 
 					if err != nil {
-						dialog.ShowError(fmt.Errorf("failed to create ZIP file: %w", err), w)
+						fyne.Do(func() {
+							dialog.ShowError(fmt.Errorf("failed to create ZIP file: %w", err), w)
+						})
 						return
 					}
 
-					dialog.ShowInformation("Success",
-						fmt.Sprintf("Successfully created ZIP file:\n%s", zipPath), w)
+					fyne.Do(func() {
+						dialog.ShowInformation("Success",
+							fmt.Sprintf("Successfully created ZIP file:\n%s", zipPath), w)
+					})
 				}()
 			})
 		}, w)
@@ -233,30 +244,33 @@ func InstallLocalZipFile(zipPath, version string, w fyne.Window, trackerInstallD
 		go func() {
 			finalExtractPath := filepath.Join(trackerDir, finalVersionName)
 
-			messageLabel.SetText("Extracting files...")
-			messageLabel.Refresh()
+			fyne.Do(func() {
+				messageLabel.SetText("Extracting files...")
+				messageLabel.Refresh()
+			})
 
 			log.Printf("Extracting ZIP file to: %s\n", finalExtractPath)
 			extractProgress := func(extracted, total int64) {
 				if total > 0 {
-					progressBar.SetValue(float64(extracted) / float64(total))
+					progress := float64(extracted) / float64(total)
+					fyne.Do(func() {
+						progressBar.SetValue(progress)
+					})
 				}
 			}
 			err := downloadutils.ExtractZip(destOriginalPath, finalExtractPath, extractProgress)
 			if err != nil {
-				progressDialog.Hide()
-				dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
+				fyne.Do(func() {
+					progressDialog.Hide()
+					dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
+				})
 				return
 			}
 
-			progressBar.SetValue(1.0)
+			fyne.Do(func() {
+				progressBar.SetValue(1.0)
+			})
 			log.Println("Extraction completed")
-
-			// Ensure the tab UI is initialized so download UI widgets exist
-			initializeTab(w)
-			updateExplanation()
-
-			progressDialog.Hide()
 
 			message := fmt.Sprintf(
 				"Successfully installed Tracker version %s\n\n"+
@@ -264,10 +278,15 @@ func InstallLocalZipFile(zipPath, version string, w fyne.Window, trackerInstallD
 					"The program files have been extracted to the above directory.",
 				finalVersionName, finalExtractPath)
 
-			dialog.ShowInformation("Installation Complete", message, w)
-
-			recomputeVersionList(w)
-			checkForNewerVersion()
+			fyne.Do(func() {
+				// Ensure the tab UI is initialized so download UI widgets exist
+				initializeTab(w)
+				updateExplanation()
+				progressDialog.Hide()
+				dialog.ShowInformation("Installation Complete", message, w)
+				recomputeVersionList(w)
+				checkForNewerVersion()
+			})
 		}()
 	})
 }

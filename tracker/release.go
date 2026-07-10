@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"sort"
 	"time"
 
@@ -399,7 +398,8 @@ func checkForNewerVersion() {
 	updateExplanation()
 
 	if latestInstalled != "" {
-		latestInstalledVersion, err := shared.NewVersionForComparison(latestInstalled)
+		latestInstalledBase, _ := shared.ParseVersionWithBuild(latestInstalled)
+		latestInstalledVersion, err := shared.NewVersionForComparison(latestInstalledBase)
 		if err == nil {
 			log.Printf("Tracker - Latest installed version: %s\n", latestInstalled)
 
@@ -476,28 +476,11 @@ func checkForNewerVersion() {
 }
 
 func findLatestInstalled() string {
-	trackerDir := installDir
-	entries, err := os.ReadDir(trackerDir)
-	if err != nil {
-		return ""
-	}
-
-	var versions []*semver.Version
-	for _, entry := range entries {
-		if entry.IsDir() {
-			v, err := semver.NewVersion(entry.Name())
-			if err == nil {
-				versions = append(versions, v)
-			}
-		}
-	}
-
+	versions := getAllInstalledVersions()
 	if len(versions) == 0 {
 		return ""
 	}
-
-	sort.Sort(sort.Reverse(semver.Collection(versions)))
-	return versions[0].String()
+	return versions[0]
 }
 
 func updateExplanation() {
@@ -525,7 +508,7 @@ func updateExplanation() {
 		downloadContainer.Remove(singleOrMultiVersionLabel)
 
 		if containsPreReleaseTag(x[0]) {
-			if preErr == nil && x[0] == latestPrerelease {
+			if preErr == nil && !shared.CompareVersions(latestPrerelease, x[0]) {
 				// Latest prerelease installed
 			} else {
 				if len(downloadContainer.Objects) > 0 {
@@ -536,7 +519,7 @@ func updateExplanation() {
 				singleOrMultiVersionLabel.SetText("Use the Update button above to install the latest version.")
 			}
 		} else {
-			if stableErr == nil && x[0] == latestStable {
+			if stableErr == nil && !shared.CompareVersions(latestStable, x[0]) {
 				// Latest stable installed
 			} else {
 				if len(downloadContainer.Objects) > 0 {

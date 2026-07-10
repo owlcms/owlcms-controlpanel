@@ -9,6 +9,11 @@ The control panel is installed once. It will automatically download the correct 
 
 ## Release Log
 
+- 3.5.0: Processing of default values
+  - separated global defaults from versin defaults in OWLCMS
+  - local versions override the global default
+  - the global default is kept unless explicitly overridden (previously the global was always hidden)
+  - added capability to reach an external tracker without having to change the database
 - 3.4.0: Fixed the update behavior for the camera and replay modules available for Windows and Linux.
 - 3.4.0: AppleSilicon (M-Series) dmg available; separate dmg for Intel Macs
 - 3.4.0: Created the command-line option equivalents to the interactive control panel.  Run the program from a terminal with --help to see the options.

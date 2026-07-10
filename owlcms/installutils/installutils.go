@@ -170,28 +170,25 @@ func InstallLocalZipFile(zipPath, version string, w fyne.Window, owlcmsInstallDi
 		finalVersionName := GetInstallationDirectoryName(version, owlcmsInstallDir)
 		finalExtractPath := filepath.Join(owlcmsDir, finalVersionName)
 
-		progressBar.SetValue(0.5)
-		messageLabel.SetText("Extracting files...")
-		messageLabel.Refresh()
+		fyne.Do(func() {
+			progressBar.SetValue(0.5)
+			messageLabel.SetText("Extracting files...")
+			messageLabel.Refresh()
+		})
 
 		// Use the original copied file for extraction
 		log.Printf("Extracting ZIP file to: %s\n", finalExtractPath)
 		err := shared.ExtractZip(destOriginalPath, finalExtractPath)
 		if err != nil {
-			progressDialog.Hide()
-			dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
+			fyne.Do(func() {
+				progressDialog.Hide()
+				dialog.ShowError(fmt.Errorf("extraction failed: %w", err), w)
+			})
 			return
 		}
 
-		// Set to complete
-		progressBar.SetValue(1.0)
-
 		// Log when extraction is done
 		log.Println("Extraction completed")
-		updateExplanation()
-
-		// Hide progress dialog
-		progressDialog.Hide()
 
 		// Show success panel with installation details
 		message := fmt.Sprintf(
@@ -200,13 +197,14 @@ func InstallLocalZipFile(zipPath, version string, w fyne.Window, owlcmsInstallDi
 				"The program files have been extracted to the above directory.\n\n",
 			finalVersionName, finalExtractPath)
 
-		dialog.ShowInformation("Installation Complete", message, w)
-
-		// Recompute the version list
-		recomputeVersionList(w)
-
-		// Recompute the downloadTitle
-		checkForNewerVersion()
+		fyne.Do(func() {
+			progressBar.SetValue(1.0)
+			updateExplanation()
+			progressDialog.Hide()
+			dialog.ShowInformation("Installation Complete", message, w)
+			recomputeVersionList(w)
+			checkForNewerVersion()
+		})
 	}()
 }
 
@@ -222,6 +220,7 @@ func ZipCurrentSetup(w fyne.Window, owlcmsInstallDir string,
 
 	// Create a dialog to select which version to zip
 	versionSelect := widget.NewSelect(versions, func(selected string) {})
+	versionSelectContainer := container.NewGridWrap(fyne.NewSize(360, versionSelect.MinSize().Height), versionSelect)
 	if len(versions) == 1 {
 		versionSelect.Selected = versions[0]
 	}
@@ -230,7 +229,7 @@ func ZipCurrentSetup(w fyne.Window, owlcmsInstallDir string,
 		"Create ZIP",
 		"Cancel",
 		[]*widget.FormItem{
-			widget.NewFormItem("Select version to zip", versionSelect),
+			widget.NewFormItem("Select version to zip", versionSelectContainer),
 		},
 		func(ok bool) {
 			if !ok || versionSelect.Selected == "" {
@@ -252,12 +251,16 @@ func ZipCurrentSetup(w fyne.Window, owlcmsInstallDir string,
 				return
 			}
 
-			// Strip any existing metadata (anything after +) before adding new timestamp
-			baseVersion := shared.StripMetadata(version)
+			baseVersion, existingMetadata := shared.ParseVersionWithBuild(version)
+			existingMetadata = shared.NormalizeVersionMetadata(existingMetadata)
 
-			// Create filename with version and timestamp as metadata
+			// Preserve existing metadata and append the export timestamp.
 			timestamp := time.Now().Format("2006-01-02T150405")
-			zipFileName := fmt.Sprintf("owlcms_%s+%s.zip", baseVersion, timestamp)
+			metadata := timestamp
+			if existingMetadata != "" {
+				metadata = existingMetadata + "." + timestamp
+			}
+			zipFileName := fmt.Sprintf("owlcms_%s+%s.zip", baseVersion, metadata)
 
 			// Ask user where to save the zip file using platform-specific dialog
 			selectSaveZip(w, zipFileName, func(zipPath string, err error) {
@@ -282,20 +285,26 @@ func ZipCurrentSetup(w fyne.Window, owlcmsInstallDir string,
 				progressDialog.Show()
 
 				go func() {
-					defer progressDialog.Hide()
+					defer fyne.Do(progressDialog.Hide)
 
 					// Create the zip file
 					err := CreateZipArchive(sourceDir, zipPath, func(progress float64) {
-						progressBar.SetValue(progress)
+						fyne.Do(func() {
+							progressBar.SetValue(progress)
+						})
 					})
 
 					if err != nil {
-						dialog.ShowError(fmt.Errorf("failed to create ZIP file: %w", err), w)
+						fyne.Do(func() {
+							dialog.ShowError(fmt.Errorf("failed to create ZIP file: %w", err), w)
+						})
 						return
 					}
 
-					dialog.ShowInformation("Success",
-						fmt.Sprintf("Successfully created ZIP file:\n%s", zipPath), w)
+					fyne.Do(func() {
+						dialog.ShowInformation("Success",
+							fmt.Sprintf("Successfully created ZIP file:\n%s", zipPath), w)
+					})
 				}()
 			})
 		}, w)

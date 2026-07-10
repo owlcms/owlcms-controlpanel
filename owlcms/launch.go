@@ -202,7 +202,25 @@ func applyOwlcmsPropertiesToEnv(env []string, props *properties.Properties) []st
 		skipKeys[trackerConnectionEnv] = struct{}{}
 	}
 
-	return shared.ApplyPropertiesToEnv(env, props, skipKeys)
+	existingKeys := make(map[string]struct{}, len(env))
+	for _, entry := range env {
+		if key, _, ok := strings.Cut(entry, "="); ok {
+			existingKeys[key] = struct{}{}
+		}
+	}
+
+	for _, key := range props.Keys() {
+		if _, skip := skipKeys[key]; skip {
+			continue
+		}
+		if _, exists := existingKeys[key]; exists {
+			continue
+		}
+		value, _ := props.Get(key)
+		env = setEnvValue(env, key, value)
+	}
+
+	return env
 }
 
 func logEffectiveOwlcmsEnvironment(version string, props *properties.Properties) {

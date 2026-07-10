@@ -143,6 +143,41 @@ func TestNormalizeVersionName(t *testing.T) {
 	}
 }
 
+func TestVersionComparisonIgnoresInvalidBuildMetadata(t *testing.T) {
+	base, metadata := ParseVersionWithBuild("2.20.2+beta09_PanAm")
+	if base != "2.20.2" || metadata != "beta09_PanAm" {
+		t.Fatalf("ParseVersionWithBuild() = (%q, %q), want (%q, %q)", base, metadata, "2.20.2", "beta09_PanAm")
+	}
+
+	if CompareVersions("2.20.2+beta09_PanAm", "2.20.2") {
+		t.Error("build metadata must not make an otherwise equal version newer")
+	}
+	if CompareVersions("2.20.3", "2.20.2+beta09_PanAm") == false {
+		t.Error("a newer base version must still compare as newer")
+	}
+
+	base, metadata = ParseVersionWithBuild("2.20.2+équipes")
+	if base != "2.20.2" || metadata != "équipes" {
+		t.Fatalf("ParseVersionWithBuild() with accented metadata = (%q, %q), want (%q, %q)", base, metadata, "2.20.2", "équipes")
+	}
+}
+
+func TestNormalizeVersionMetadata(t *testing.T) {
+	tests := []struct {
+		input, expected string
+	}{
+		{"beta09_PanAm", "beta09.PanAm"},
+		{"équipes_日本語", "équipes.日本語"},
+		{"a  b", "a.b"},
+		{"..-build-..", "build"},
+	}
+	for _, tt := range tests {
+		if result := NormalizeVersionMetadata(tt.input); result != tt.expected {
+			t.Errorf("NormalizeVersionMetadata(%q) = %q, want %q", tt.input, result, tt.expected)
+		}
+	}
+}
+
 func TestStripMetadata(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -201,6 +236,7 @@ func TestExtractVersionFromFilename(t *testing.T) {
 	}{
 		{"plain version", "owlcms_5.0.0.zip", "5.0.0", false},
 		{"ascii metadata", "owlcms_5.0.0+build123.zip", "5.0.0+build123", false},
+		{"underscore metadata", "owlcms-tracker_2.20.2+beta09_PanAm.zip", "2.20.2+beta09_PanAm", false},
 		{"accented metadata preserved", "owlcms_5.0.0+équipes.zip", "5.0.0+équipes", false},
 		{"japanese metadata preserved", "owlcms_5.0.0+日本語版.zip", "5.0.0+日本語版", false},
 		{"accented base normalized", "owlcms_5.0.0+TEST.zip", "5.0.0+TEST", false},
