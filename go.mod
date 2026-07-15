@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.11
 
 require (
-	fyne.io/fyne/v2 v2.7.4
+	fyne.io/fyne/v2 v2.8.0
 	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/gofrs/flock v0.12.1
 	github.com/magiconair/properties v1.8.9
