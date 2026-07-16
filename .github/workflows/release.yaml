@@ -10,9 +10,9 @@ on:
 
 env:
   BUILD_MAC: true
-  BUILD_WINDOWS: false
-  BUILD_RASPBERRY: false
-  BUILD_LINUX: false
+  BUILD_WINDOWS: true
+  BUILD_RASPBERRY: true
+  BUILD_LINUX: true
 
 jobs:
   build_mac:
