@@ -1,0 +1,25 @@
+name: Verify Homebrew Tap Access
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify-tap-write-access:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify dry-run push to Homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.OWLCMS_ORG_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          temp_dir="$(mktemp -d)"
+          trap 'rm -rf "$temp_dir"' EXIT
+
+          git -C "$temp_dir" init -q -b verify-homebrew-tap-access
+          git -C "$temp_dir" config user.name "github-actions[bot]"
+          git -C "$temp_dir" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$temp_dir" commit --allow-empty -qm "Verify Homebrew tap access"
+          git -C "$temp_dir" remote add origin "https://x-access-token:${GH_TOKEN}@github.com/owlcms/homebrew-brew.git"
+
+          git -C "$temp_dir" push --dry-run origin HEAD:main
