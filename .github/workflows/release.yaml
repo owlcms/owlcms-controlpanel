@@ -10,9 +10,9 @@ on:
 
 env:
   BUILD_MAC: true
-  BUILD_WINDOWS: true
-  BUILD_RASPBERRY: true
-  BUILD_LINUX: true
+  BUILD_WINDOWS: false
+  BUILD_RASPBERRY: false
+  BUILD_LINUX: false
 
 jobs:
   build_mac:
@@ -338,6 +338,7 @@ jobs:
 
     # Save artifacts for later steps
     - name: Upload build_crosscompile_artifacts
+      if: ${{ env.BUILD_WINDOWS == 'true' || env.BUILD_LINUX == 'true' || env.BUILD_RASPBERRY == 'true' }}
       uses: actions/upload-artifact@v6
       with:
         name: build_crosscompile_artifacts
@@ -557,6 +558,86 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         gh release upload ${{ env.TAG }} dist/macOS_Intel_OWLCMS.dmg
+
+    - name: Checkout Homebrew tap
+      if: ${{ env.BUILD_MAC == 'true' }}
+      uses: actions/checkout@v6
+      with:
+        repository: owlcms/homebrew-brew
+        ref: main
+        path: homebrew-brew
+        token: ${{ secrets.OWLCMS_ORG_TOKEN }}
+
+    - name: Update Homebrew cask metadata
+      id: update_homebrew_cask
+      if: ${{ env.BUILD_MAC == 'true' }}
+      shell: bash
+      env:
+        TAP_DIR: ${{ github.workspace }}/homebrew-brew
+      run: |
+        set -euo pipefail
+
+        if [[ ! "${TAG}" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-alpha[0-9]*|-beta[0-9]*|-rc[0-9]*)?$ ]]; then
+          echo "Invalid release tag: ${TAG}" >&2
+          exit 1
+        fi
+
+        if [[ "${TAG}" == *"-"* ]]; then
+          cask_name="controlpanel-prerelease"
+        else
+          cask_name="controlpanel"
+        fi
+        cask_path="Casks/${cask_name}.rb"
+        cask_file="${TAP_DIR}/${cask_path}"
+
+        test -f "${cask_file}"
+        test -f "${GITHUB_WORKSPACE}/dist/macOS_OWLCMS.dmg"
+        test -f "${GITHUB_WORKSPACE}/dist/macOS_Intel_OWLCMS.dmg"
+
+        arm_sha="$(sha256sum "${GITHUB_WORKSPACE}/dist/macOS_OWLCMS.dmg" | awk '{print $1}')"
+        intel_sha="$(sha256sum "${GITHUB_WORKSPACE}/dist/macOS_Intel_OWLCMS.dmg" | awk '{print $1}')"
+
+        sed -i -E "s|^  version \".*\"$|  version \"${TAG}\"|" "${cask_file}"
+        sed -i -E "/^  on_arm do$/,/^  end$/ s|^    sha256 \".*\"$|    sha256 \"${arm_sha}\"|" "${cask_file}"
+        sed -i -E "/^  on_intel do$/,/^  end$/ s|^    sha256 \".*\"$|    sha256 \"${intel_sha}\"|" "${cask_file}"
+
+        grep -Fqx "  version \"${TAG}\"" "${cask_file}"
+        sed -n '/^  on_arm do$/,/^  end$/p' "${cask_file}" | grep -Fqx "    sha256 \"${arm_sha}\""
+        sed -n '/^  on_intel do$/,/^  end$/p' "${cask_file}" | grep -Fqx "    sha256 \"${intel_sha}\""
+
+        echo "cask_name=${cask_name}" >> "${GITHUB_OUTPUT}"
+        echo "cask_path=${cask_path}" >> "${GITHUB_OUTPUT}"
+        if git -C "${TAP_DIR}" diff --quiet -- "${cask_path}"; then
+          echo "changed=false" >> "${GITHUB_OUTPUT}"
+        else
+          echo "changed=true" >> "${GITHUB_OUTPUT}"
+        fi
+
+    - name: Validate Homebrew cask
+      if: ${{ env.BUILD_MAC == 'true' }}
+      shell: bash
+      env:
+        TAP_DIR: ${{ github.workspace }}/homebrew-brew
+        CASK_PATH: ${{ steps.update_homebrew_cask.outputs.cask_path }}
+      run: |
+        set -euo pipefail
+        git -C "${TAP_DIR}" diff --check
+        ruby -c "${TAP_DIR}/${CASK_PATH}"
+
+    - name: Commit Homebrew cask update
+      if: ${{ env.BUILD_MAC == 'true' && steps.update_homebrew_cask.outputs.changed == 'true' }}
+      shell: bash
+      env:
+        TAP_DIR: ${{ github.workspace }}/homebrew-brew
+        CASK_NAME: ${{ steps.update_homebrew_cask.outputs.cask_name }}
+        CASK_PATH: ${{ steps.update_homebrew_cask.outputs.cask_path }}
+      run: |
+        set -euo pipefail
+        git -C "${TAP_DIR}" config user.name "github-actions[bot]"
+        git -C "${TAP_DIR}" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git -C "${TAP_DIR}" add -- "${CASK_PATH}"
+        git -C "${TAP_DIR}" commit -m "Update ${CASK_NAME} to ${TAG}"
+        git -C "${TAP_DIR}" push origin HEAD:main
 
     - name: Release Raspberry Pi DEB package
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
