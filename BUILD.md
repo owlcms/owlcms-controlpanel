@@ -8,6 +8,13 @@
   - install the go environment for your platform
   - run `go mod download` to get the dependencies
 
+- Linux native builds also need the Fyne/GLFW development libraries installed on the host.
+  On Debian/Ubuntu/Raspberry Pi OS, install them with:
+  ```bash
+  sudo apt install build-essential pkg-config libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
+  ```
+  If the build fails with `wayland-client-core.h: No such file or directory`, `libwayland-dev` is the missing package.
+
 - VS Code works fine
   - Standard Go extensions
   - GitHub Free CoPilot works fine

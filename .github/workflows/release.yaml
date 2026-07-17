@@ -181,6 +181,13 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v6
 
+    # Required by native Fyne/GLFW builds. Keep this in sync with BUILD.md.
+    # In particular, libwayland-dev provides wayland-client-core.h.
+    - name: Install Linux GUI build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential pkg-config libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
+
     - name: Install GitHub CLI
       run: |
         wget https://github.com/cli/cli/releases/download/v2.32.0/gh_2.32.0_linux_amd64.deb
