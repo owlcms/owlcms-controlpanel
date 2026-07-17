@@ -605,9 +605,21 @@ jobs:
         sed -n '/^  on_arm do$/,/^  end$/p' "${cask_file}" | grep -Fqx "    sha256 \"${arm_sha}\""
         sed -n '/^  on_intel do$/,/^  end$/p' "${cask_file}" | grep -Fqx "    sha256 \"${intel_sha}\""
 
+        versioned_cask_name="controlpanel@${TAG#v}"
+        versioned_cask_path="Casks/${versioned_cask_name}.rb"
+        versioned_cask_file="${TAP_DIR}/${versioned_cask_path}"
+        cp "${cask_file}" "${versioned_cask_file}"
+        sed -i -E "s|^cask \".*\" do$|cask \"${versioned_cask_name}\" do|" "${versioned_cask_file}"
+        sed -i -E "s|^  name \".*\"$|  name \"OWLCMS Control Panel ${TAG}\"|" "${versioned_cask_file}"
+        sed -i -E "s|^  desc \".*\"$|  desc \"Control panel for OWLCMS weightlifting competitions\"|" "${versioned_cask_file}"
+
+        grep -Fqx "cask \"${versioned_cask_name}\" do" "${versioned_cask_file}"
+        grep -Fqx "  version \"${TAG}\"" "${versioned_cask_file}"
+
         echo "cask_name=${cask_name}" >> "${GITHUB_OUTPUT}"
         echo "cask_path=${cask_path}" >> "${GITHUB_OUTPUT}"
-        if git -C "${TAP_DIR}" diff --quiet -- "${cask_path}"; then
+        echo "versioned_cask_path=${versioned_cask_path}" >> "${GITHUB_OUTPUT}"
+        if git -C "${TAP_DIR}" diff --quiet -- "${cask_path}" "${versioned_cask_path}"; then
           echo "changed=false" >> "${GITHUB_OUTPUT}"
         else
           echo "changed=true" >> "${GITHUB_OUTPUT}"
@@ -619,10 +631,12 @@ jobs:
       env:
         TAP_DIR: ${{ github.workspace }}/homebrew-brew
         CASK_PATH: ${{ steps.update_homebrew_cask.outputs.cask_path }}
+        VERSIONED_CASK_PATH: ${{ steps.update_homebrew_cask.outputs.versioned_cask_path }}
       run: |
         set -euo pipefail
         git -C "${TAP_DIR}" diff --check
         ruby -c "${TAP_DIR}/${CASK_PATH}"
+        ruby -c "${TAP_DIR}/${VERSIONED_CASK_PATH}"
 
     - name: Commit Homebrew cask update
       if: ${{ env.BUILD_MAC == 'true' && steps.update_homebrew_cask.outputs.changed == 'true' }}
@@ -631,11 +645,12 @@ jobs:
         TAP_DIR: ${{ github.workspace }}/homebrew-brew
         CASK_NAME: ${{ steps.update_homebrew_cask.outputs.cask_name }}
         CASK_PATH: ${{ steps.update_homebrew_cask.outputs.cask_path }}
+        VERSIONED_CASK_PATH: ${{ steps.update_homebrew_cask.outputs.versioned_cask_path }}
       run: |
         set -euo pipefail
         git -C "${TAP_DIR}" config user.name "github-actions[bot]"
         git -C "${TAP_DIR}" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        git -C "${TAP_DIR}" add -- "${CASK_PATH}"
+        git -C "${TAP_DIR}" add -- "${CASK_PATH}" "${VERSIONED_CASK_PATH}"
         git -C "${TAP_DIR}" commit -m "Update ${CASK_NAME} to ${TAG}"
         git -C "${TAP_DIR}" push origin HEAD:main
 
