@@ -174,51 +174,36 @@ jobs:
         name: build_mac_arm64_artifacts
         path: artifacts/*
 
-  build_crosscompile:
+  build_windows_crosscompile:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
+      if: ${{ env.BUILD_WINDOWS == 'true' }}
       uses: actions/checkout@v6
 
-    # Required by native Fyne/GLFW builds. Keep this in sync with BUILD.md.
-    # In particular, libwayland-dev provides wayland-client-core.h.
-    - name: Install Linux GUI build dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential pkg-config libgl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev
-
-    - name: Install GitHub CLI
-      run: |
-        wget https://github.com/cli/cli/releases/download/v2.32.0/gh_2.32.0_linux_amd64.deb
-        sudo dpkg -i gh_2.32.0_linux_amd64.deb
-
     - name: Set up Go
+      if: ${{ env.BUILD_WINDOWS == 'true' }}
       uses: actions/setup-go@v6
       with:
         go-version: '1.25.5'
 
     - name: Install fyne-cross
+      if: ${{ env.BUILD_WINDOWS == 'true' }}
       run: |
-        go install github.com/fyne-io/fyne-cross@latest
+        go install github.com/fyne-io/fyne-cross@v1.6.2
         echo "${HOME}/go/bin" >> $GITHUB_PATH
 
     - name: Extract tag
-      id: extract_tag
+      if: ${{ env.BUILD_WINDOWS == 'true' }}
       run: |
         echo "TAG=${{ inputs.tag }}" >> $GITHUB_ENV
-        VERSION="${{ inputs.tag }}"
-        VERSION="${VERSION#v}"
-        DEB_VERSION="${VERSION/-alpha/~alpha}"
-        DEB_VERSION="${DEB_VERSION/-beta/~beta}"
-        DEB_VERSION="${DEB_VERSION/-rc/~rc}"
-        echo "DEB_TAG=${DEB_VERSION}" >> $GITHUB_ENV
 
     - name: Substitute tag in config.go
+      if: ${{ env.BUILD_WINDOWS == 'true' }}
       run: |
         sed -i "s/_TAG_/${TAG}/g" shared/version.go
 
-    # Windows build steps
     - name: Build for Windows
       if: ${{ env.BUILD_WINDOWS == 'true' }}
       run: |
@@ -226,38 +211,66 @@ jobs:
         mkdir -p artifacts
         mv fyne-cross/bin/windows-amd64/owlcms.exe artifacts/owlcms.exe
 
-    # Linux and Raspberry Pi preparation
-    - name: Install Ruby
-      if: ${{ env.BUILD_LINUX == 'true' }}
-      run: sudo apt-get install -y ruby-full
+    - name: Upload Windows build artifact
+      if: ${{ env.BUILD_WINDOWS == 'true' }}
+      uses: actions/upload-artifact@v6
+      with:
+        name: build_windows_artifacts
+        path: artifacts/*
 
-    - name: Install fpm
+  build_linux_amd64:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - name: Checkout code
+      if: ${{ env.BUILD_LINUX == 'true' }}
+      uses: actions/checkout@v6
+
+    - name: Set up Go
+      if: ${{ env.BUILD_LINUX == 'true' }}
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.25.5'
+
+    - name: Install build dependencies
       if: ${{ env.BUILD_LINUX == 'true' }}
       run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential pkg-config libgl1-mesa-dev libegl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev ruby-full
         sudo gem install --no-document fpm
+        go install fyne.io/fyne/v2/cmd/fyne@v2.8.0
+        echo "${HOME}/go/bin" >> $GITHUB_PATH
         echo "$(gem environment gemdir)/bin" >> $GITHUB_PATH
 
-    # Linux Intel steps
-    - name: Build for Linux amd64
+    - name: Extract tag
       if: ${{ env.BUILD_LINUX == 'true' }}
-      run: fyne-cross linux -arch amd64 -app-id app.owlcms.controlpanel -icon Icon.png -name owlcms
+      run: |
+        echo "TAG=${{ inputs.tag }}" >> $GITHUB_ENV
+        version="${{ inputs.tag }}"
+        version="${version#v}"
+        version="${version/-alpha/~alpha}"
+        version="${version/-beta/~beta}"
+        version="${version/-rc/~rc}"
+        echo "DEB_TAG=${version}" >> $GITHUB_ENV
 
-    - name: Copy Linux binary
+    - name: Substitute tag in config.go
       if: ${{ env.BUILD_LINUX == 'true' }}
-      run: cp fyne-cross/bin/linux-amd64/controlpanel fyne-cross/bin/linux-amd64/owlcms-linux
+      run: sed -i "s/_TAG_/${TAG}/g" shared/version.go
 
-    - name: Fix Linux amd64 package paths
+    - name: Build native Linux amd64 package
+      if: ${{ env.BUILD_LINUX == 'true' }}
+      run: fyne package -os linux -app-id app.owlcms.controlpanel -icon Icon.png -name owlcms
+
+    - name: Normalize Linux package paths
       if: ${{ env.BUILD_LINUX == 'true' }}
       run: |
         mkdir -p /tmp/fix-amd64
         cd /tmp/fix-amd64
-        tar -xf $GITHUB_WORKSPACE/fyne-cross/dist/linux-amd64/owlcms.tar.xz
-        # Move icon and desktop file from /usr/local/share to /usr/share (FreeDesktop standard)
+        tar -xf "${GITHUB_WORKSPACE}/owlcms.tar.xz"
         mkdir -p usr/share/pixmaps usr/share/applications
         mv usr/local/share/pixmaps/owlcms.png usr/share/pixmaps/
         mv usr/local/share/applications/owlcms.desktop usr/share/applications/
         rm -rf usr/local/share/pixmaps usr/local/share/applications
-        # Ensure both owlcms and controlpanel commands exist on PATH.
         for bindir in usr/local/bin usr/bin; do
           primary=""
           for candidate in owlcms-launcher owlcms controlpanel; do
@@ -275,42 +288,79 @@ jobs:
             fi
           fi
         done
-        # Remove unwanted Makefile if present
         rm -f Makefile
-        # Repackage
-        tar -cJf $GITHUB_WORKSPACE/fyne-cross/dist/linux-amd64/owlcms.tar.xz .
+        tar -cJf "${GITHUB_WORKSPACE}/owlcms.tar.xz" .
 
     - name: Create Linux Intel DEB package
       if: ${{ env.BUILD_LINUX == 'true' }}
       run: |
-        fpm -s tar -t deb -n owlcms-launcher -v ${DEB_TAG} -a amd64 --prefix / \
+        fpm -s tar -t deb -n owlcms-launcher -v "${DEB_TAG}" -a amd64 --prefix / \
           --after-install ./dist/after_install_amd64.sh \
           --after-remove ./dist/after_remove.sh \
-          ./fyne-cross/dist/linux-amd64/owlcms.tar.xz
+          ./owlcms.tar.xz
         mkdir -p artifacts
-        mv owlcms-launcher_${DEB_TAG}_amd64.deb artifacts/Linux_Control_Panel_Installer.deb
+        mv "owlcms-launcher_${DEB_TAG}_amd64.deb" artifacts/Linux_Control_Panel_Installer.deb
 
-    # Raspberry Pi steps
-    - name: Build for Linux arm64
+    - name: Upload Linux amd64 artifact
+      if: ${{ env.BUILD_LINUX == 'true' }}
+      uses: actions/upload-artifact@v6
+      with:
+        name: build_linux_amd64_artifacts
+        path: artifacts/*
+
+  build_linux_arm64:
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+    - name: Checkout code
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
-      run: fyne-cross linux -arch arm64 -app-id app.owlcms.controlpanel -icon Icon.png -name owlcms
+      uses: actions/checkout@v6
 
-    - name: Copy Raspberry Pi binary
+    - name: Set up Go
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
-      run: cp fyne-cross/bin/linux-arm64/controlpanel fyne-cross/bin/linux-arm64/owlcms-pi
+      uses: actions/setup-go@v6
+      with:
+        go-version: '1.25.5'
 
-    - name: Fix Linux arm64 package paths
+    - name: Install build dependencies
+      if: ${{ env.BUILD_RASPBERRY == 'true' }}
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential pkg-config libgl1-mesa-dev libegl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev ruby-full
+        sudo gem install --no-document fpm
+        go install fyne.io/fyne/v2/cmd/fyne@v2.8.0
+        echo "${HOME}/go/bin" >> $GITHUB_PATH
+        echo "$(gem environment gemdir)/bin" >> $GITHUB_PATH
+
+    - name: Extract tag
+      if: ${{ env.BUILD_RASPBERRY == 'true' }}
+      run: |
+        echo "TAG=${{ inputs.tag }}" >> $GITHUB_ENV
+        version="${{ inputs.tag }}"
+        version="${version#v}"
+        version="${version/-alpha/~alpha}"
+        version="${version/-beta/~beta}"
+        version="${version/-rc/~rc}"
+        echo "DEB_TAG=${version}" >> $GITHUB_ENV
+
+    - name: Substitute tag in config.go
+      if: ${{ env.BUILD_RASPBERRY == 'true' }}
+      run: sed -i "s/_TAG_/${TAG}/g" shared/version.go
+
+    - name: Build native Linux arm64 package
+      if: ${{ env.BUILD_RASPBERRY == 'true' }}
+      run: fyne package -os linux -app-id app.owlcms.controlpanel -icon Icon.png -name owlcms
+
+    - name: Normalize Linux package paths
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
       run: |
         mkdir -p /tmp/fix-arm64
         cd /tmp/fix-arm64
-        tar -xf $GITHUB_WORKSPACE/fyne-cross/dist/linux-arm64/owlcms.tar.xz
-        # Move icon and desktop file from /usr/local/share to /usr/share (FreeDesktop standard)
+        tar -xf "${GITHUB_WORKSPACE}/owlcms.tar.xz"
         mkdir -p usr/share/pixmaps usr/share/applications
         mv usr/local/share/pixmaps/owlcms.png usr/share/pixmaps/
         mv usr/local/share/applications/owlcms.desktop usr/share/applications/
         rm -rf usr/local/share/pixmaps usr/local/share/applications
-        # Ensure both owlcms and controlpanel commands exist on PATH.
         for bindir in usr/local/bin usr/bin; do
           primary=""
           for candidate in owlcms-launcher owlcms controlpanel; do
@@ -328,32 +378,29 @@ jobs:
             fi
           fi
         done
-        # Remove unwanted Makefile if present
         rm -f Makefile
-        # Repackage
-        tar -cJf $GITHUB_WORKSPACE/fyne-cross/dist/linux-arm64/owlcms.tar.xz .
+        tar -cJf "${GITHUB_WORKSPACE}/owlcms.tar.xz" .
 
     - name: Create Raspberry Pi DEB package
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
       run: |
-        fpm -s tar -t deb -n owlcms-launcher -v ${DEB_TAG} -a arm64 --prefix / \
+        fpm -s tar -t deb -n owlcms-launcher -v "${DEB_TAG}" -a arm64 --prefix / \
           --after-install ./dist/after_install.sh \
           --after-remove ./dist/after_remove.sh \
-          ./fyne-cross/dist/linux-arm64/owlcms.tar.xz
+          ./owlcms.tar.xz
         mkdir -p artifacts
-        mv owlcms-launcher_${DEB_TAG}_arm64.deb artifacts/Raspberry_Pi_arm64_Control_Panel_Installer.deb
+        mv "owlcms-launcher_${DEB_TAG}_arm64.deb" artifacts/Raspberry_Pi_arm64_Control_Panel_Installer.deb
 
-    # Save artifacts for later steps
-    - name: Upload build_crosscompile_artifacts
-      if: ${{ env.BUILD_WINDOWS == 'true' || env.BUILD_LINUX == 'true' || env.BUILD_RASPBERRY == 'true' }}
+    - name: Upload Linux arm64 artifact
+      if: ${{ env.BUILD_RASPBERRY == 'true' }}
       uses: actions/upload-artifact@v6
       with:
-        name: build_crosscompile_artifacts
+        name: build_linux_arm64_artifacts
         path: artifacts/*
 
   package_windows:
     runs-on: windows-latest
-    needs: build_crosscompile
+    needs: build_windows_crosscompile
 
     steps:
     - name: Checkout code
@@ -378,11 +425,11 @@ jobs:
       if: ${{ env.BUILD_WINDOWS == 'true' }}
       run: gh --version
 
-    - name: Download build_crosscompile_artifacts
+    - name: Download Windows build artifact
       if: ${{ env.BUILD_WINDOWS == 'true' }}
       uses: actions/download-artifact@v7
       with:
-        name: build_crosscompile_artifacts
+        name: build_windows_artifacts
         path: ./dist
 
     # - name: Install MakeAppx
@@ -482,7 +529,7 @@ jobs:
 
   create_release:
     runs-on: ubuntu-latest
-    needs: [build_mac, build_mac_arm64, build_crosscompile, package_windows]
+    needs: [build_mac, build_mac_arm64, build_linux_amd64, build_linux_arm64, package_windows]
 
     steps:
     - name: Checkout code
@@ -522,11 +569,18 @@ jobs:
         name: build_mac_arm64_artifacts
         path: ./dist
 
-    - name: Download build_crosscompile_artifacts
-      if: ${{ env.BUILD_LINUX == 'true' || env.BUILD_RASPBERRY == 'true' }}
+    - name: Download Linux amd64 artifacts
+      if: ${{ env.BUILD_LINUX == 'true' }}
       uses: actions/download-artifact@v7
       with:
-        name: build_crosscompile_artifacts
+        name: build_linux_amd64_artifacts
+        path: ./dist
+
+    - name: Download Linux arm64 artifacts
+      if: ${{ env.BUILD_RASPBERRY == 'true' }}
+      uses: actions/download-artifact@v7
+      with:
+        name: build_linux_arm64_artifacts
         path: ./dist
 
     - name: Download package_windows_artifacts
