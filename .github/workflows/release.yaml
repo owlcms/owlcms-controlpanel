@@ -238,7 +238,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential pkg-config libgl1-mesa-dev libegl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev ruby-full
         sudo gem install --no-document fpm
-        go install fyne.io/tools/cmd/fyne@v1.7.2
+        go install fyne.io/fyne/v2/cmd/fyne@v2.8.0
         echo "${HOME}/go/bin" >> $GITHUB_PATH
         echo "$(gem environment gemdir)/bin" >> $GITHUB_PATH
 
@@ -268,8 +268,12 @@ jobs:
         cd /tmp/fix-amd64
         tar -xf "${GITHUB_WORKSPACE}/owlcms.tar.xz" --strip-components=1
         mkdir -p usr/share/pixmaps usr/share/applications
-        mv usr/local/share/pixmaps/owlcms.png usr/share/pixmaps/
-        mv usr/local/share/applications/owlcms.desktop usr/share/applications/
+        if [ -f usr/local/share/pixmaps/owlcms.png ]; then
+          mv usr/local/share/pixmaps/owlcms.png usr/share/pixmaps/
+        fi
+        if [ -f usr/local/share/applications/owlcms.desktop ]; then
+          mv usr/local/share/applications/owlcms.desktop usr/share/applications/
+        fi
         rm -rf usr/local/share/pixmaps usr/local/share/applications
         for bindir in usr/local/bin usr/bin; do
           primary=""
@@ -328,7 +332,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential pkg-config libgl1-mesa-dev libegl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev ruby-full
         sudo gem install --no-document fpm
-        go install fyne.io/tools/cmd/fyne@v1.7.2
+        go install fyne.io/fyne/v2/cmd/fyne@v2.8.0
         echo "${HOME}/go/bin" >> $GITHUB_PATH
         echo "$(gem environment gemdir)/bin" >> $GITHUB_PATH
 
@@ -358,8 +362,12 @@ jobs:
         cd /tmp/fix-arm64
         tar -xf "${GITHUB_WORKSPACE}/owlcms.tar.xz" --strip-components=1
         mkdir -p usr/share/pixmaps usr/share/applications
-        mv usr/local/share/pixmaps/owlcms.png usr/share/pixmaps/
-        mv usr/local/share/applications/owlcms.desktop usr/share/applications/
+        if [ -f usr/local/share/pixmaps/owlcms.png ]; then
+          mv usr/local/share/pixmaps/owlcms.png usr/share/pixmaps/
+        fi
+        if [ -f usr/local/share/applications/owlcms.desktop ]; then
+          mv usr/local/share/applications/owlcms.desktop usr/share/applications/
+        fi
         rm -rf usr/local/share/pixmaps usr/local/share/applications
         for bindir in usr/local/bin usr/bin; do
           primary=""
