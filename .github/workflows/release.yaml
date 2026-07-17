@@ -238,7 +238,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential pkg-config libgl1-mesa-dev libegl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev ruby-full
         sudo gem install --no-document fpm
-        go install fyne.io/fyne/v2/cmd/fyne@v2.8.0
+        go install fyne.io/tools/cmd/fyne@v1.7.2
         echo "${HOME}/go/bin" >> $GITHUB_PATH
         echo "$(gem environment gemdir)/bin" >> $GITHUB_PATH
 
@@ -259,7 +259,7 @@ jobs:
 
     - name: Build native Linux amd64 package
       if: ${{ env.BUILD_LINUX == 'true' }}
-      run: fyne package -os linux -app-id app.owlcms.controlpanel -icon Icon.png -name owlcms
+      run: fyne package --os linux --app-id app.owlcms.controlpanel --icon Icon.png --name owlcms
 
     - name: Normalize Linux package paths
       if: ${{ env.BUILD_LINUX == 'true' }}
@@ -328,7 +328,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install -y build-essential pkg-config libgl1-mesa-dev libegl1-mesa-dev xorg-dev libwayland-dev libxkbcommon-dev ruby-full
         sudo gem install --no-document fpm
-        go install fyne.io/fyne/v2/cmd/fyne@v2.8.0
+        go install fyne.io/tools/cmd/fyne@v1.7.2
         echo "${HOME}/go/bin" >> $GITHUB_PATH
         echo "$(gem environment gemdir)/bin" >> $GITHUB_PATH
 
@@ -349,7 +349,7 @@ jobs:
 
     - name: Build native Linux arm64 package
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
-      run: fyne package -os linux -app-id app.owlcms.controlpanel -icon Icon.png -name owlcms
+      run: fyne package --os linux --app-id app.owlcms.controlpanel --icon Icon.png --name owlcms
 
     - name: Normalize Linux package paths
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
