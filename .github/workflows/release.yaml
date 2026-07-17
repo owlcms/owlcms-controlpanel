@@ -259,7 +259,7 @@ jobs:
 
     - name: Build native Linux amd64 package
       if: ${{ env.BUILD_LINUX == 'true' }}
-      run: fyne package --os linux --app-id app.owlcms.controlpanel --icon Icon.png --name owlcms
+      run: fyne package --os linux --icon Icon.png --name owlcms
 
     - name: Normalize Linux package paths
       if: ${{ env.BUILD_LINUX == 'true' }}
@@ -353,7 +353,7 @@ jobs:
 
     - name: Build native Linux arm64 package
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
-      run: fyne package --os linux --app-id app.owlcms.controlpanel --icon Icon.png --name owlcms
+      run: fyne package --os linux --icon Icon.png --name owlcms
 
     - name: Normalize Linux package paths
       if: ${{ env.BUILD_RASPBERRY == 'true' }}
