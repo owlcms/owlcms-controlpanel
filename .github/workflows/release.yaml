@@ -266,7 +266,7 @@ jobs:
       run: |
         mkdir -p /tmp/fix-amd64
         cd /tmp/fix-amd64
-        tar -xf "${GITHUB_WORKSPACE}/owlcms.tar.xz"
+        tar -xf "${GITHUB_WORKSPACE}/owlcms.tar.xz" --strip-components=1
         mkdir -p usr/share/pixmaps usr/share/applications
         mv usr/local/share/pixmaps/owlcms.png usr/share/pixmaps/
         mv usr/local/share/applications/owlcms.desktop usr/share/applications/
@@ -356,7 +356,7 @@ jobs:
       run: |
         mkdir -p /tmp/fix-arm64
         cd /tmp/fix-arm64
-        tar -xf "${GITHUB_WORKSPACE}/owlcms.tar.xz"
+        tar -xf "${GITHUB_WORKSPACE}/owlcms.tar.xz" --strip-components=1
         mkdir -p usr/share/pixmaps usr/share/applications
         mv usr/local/share/pixmaps/owlcms.png usr/share/pixmaps/
         mv usr/local/share/applications/owlcms.desktop usr/share/applications/
