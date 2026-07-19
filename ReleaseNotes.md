@@ -9,6 +9,9 @@ The control panel is installed once. It will automatically download the correct 
 
 ## Release Log
 
+- 3.5.0: macOS notarization
+  - allow normal DMG installs for Terminal-fearful crowd
+
 - 3.5.0: on macOS support brew for install and updates
   - to install stable
     ```
