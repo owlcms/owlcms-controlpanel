@@ -57,9 +57,16 @@ layout_file="$workspace/install-cloudpanel.appdmg.json"
 mkdir -p "$stage_dir"
 ditto "$template_app" "$launcher_app"
 
-# Re-sign ad hoc: editing Info.plist/resources invalidates the existing signature,
-# which makes macOS refuse to launch the app ("damaged").
-codesign --force --deep --sign - "$launcher_app"
+# Editing Info.plist/resources invalidates the bundle signature, so re-sign.
+# Prefer Developer ID (required for notarization); fall back to ad hoc when the
+# identity is not installed (e.g. CI without the cert).
+signing_identity="${APPLE_SIGNING_IDENTITY:-Developer ID Application: Jean-François Lamy (YABVW9SA37)}"
+if security find-identity -v -p codesigning 2>/dev/null | grep -qF "$signing_identity"; then
+  codesign --force --deep --options runtime --timestamp --sign "$signing_identity" "$launcher_app"
+else
+  printf 'warning: signing identity not found (%s); signing ad hoc (not notarizable)\n' "$signing_identity" >&2
+  codesign --force --deep --sign - "$launcher_app"
+fi
 
 sed "s|__APP_PATH__|$launcher_app|g" "$layout_template" > "$layout_file"
 
