@@ -113,12 +113,7 @@ START_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 echo "Previous run ID: $PREV_RUN_ID, Start time: $START_ISO"
 
 # Trigger the workflow
-# Notarize for release candidates and final releases; skip for alpha/beta to save time.
-if [[ "$TAG" != *"-"* || "$TAG" == *"-rc"* ]]; then
-    NOTARIZE=true
-else
-    NOTARIZE=false
-fi
+NOTARIZE=false
 echo "Triggering workflow dispatch with tag=$TAG (notarize=$NOTARIZE) on branch $BRANCH..."
 gh workflow run "$WORKFLOW_FILE" --repo "$REPO" --ref "$BRANCH" --field tag="$TAG" --field notarize="$NOTARIZE"
 
