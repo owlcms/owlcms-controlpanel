@@ -5,28 +5,21 @@
     "window": {
         "size": {
             "width": 400,
-            "height": 380
+            "height": 300
         }
     },
     "contents": [
         {
-            "x": 268,
+            "x": 300,
             "y": 110,
             "type": "link",
             "path": "/Applications"
         },
         {
-            "x": 68,
+            "x": 100,
             "y": 110, 
             "type": "file",
             "path": "darwin-amd64/owlcms.app"
-        },
-        {
-            "x": 168,
-            "y": 260,
-            "type": "file",
-            "path": "Double-click if you get an error message when starting.webloc",
-            "hide-extension": true
         }
     ]
 }

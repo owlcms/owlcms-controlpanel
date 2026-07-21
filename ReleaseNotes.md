@@ -9,7 +9,7 @@ The control panel is installed once. It will automatically download the correct 
 
 ## Release Log
 
-- 3.5.0-rc05: Notarization of macOS .dmg files
+- 3.5.0-rc06: Notarization of macOS .dmg files to allow direct DMG install
 
 - 3.5.0: on macOS support brew for install and updates
   - to install stable
