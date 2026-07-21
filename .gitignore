@@ -20,6 +20,7 @@ tmp-pkg/usr/local/share/pixmaps/controlpanel.png
 dist/ReleaseNotes.md
 dist/darwin-amd64
 dist/darwin-arm64
+dist/notarized/
 /owlcms.app
 
 controlpanel.exe
