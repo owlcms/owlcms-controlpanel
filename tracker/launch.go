@@ -157,7 +157,7 @@ func prepareTrackerLaunch(version string) (*trackerLaunchParams, error) {
 }
 
 // recordTrackerStart writes the PID file and runtime metadata after a successful cmd.Start().
-func recordTrackerStart(pid int, version, port string) *shared.RuntimeMetadata {
+func recordTrackerStart(pid int, version, port string, daemon bool) *shared.RuntimeMetadata {
 	if err := os.WriteFile(pidFilePath, []byte(fmt.Sprintf("%d\n", pid)), 0644); err != nil {
 		log.Printf("Failed to write PID to PID file: %v\n", err)
 	} else {
@@ -166,7 +166,7 @@ func recordTrackerStart(pid int, version, port string) *shared.RuntimeMetadata {
 
 	SaveLastRunVersion(version)
 
-	metadata, err := shared.WriteRuntimeMetadata(runtimeMetadataPath(), pid, version, port)
+	metadata, err := shared.WriteRuntimeMetadata(runtimeMetadataPath(), pid, version, port, daemon)
 	if err != nil {
 		log.Printf("Failed to write tracker runtime metadata: %v", err)
 		return nil
@@ -247,7 +247,7 @@ func LaunchDaemon(version string) error {
 	}
 
 	pid := cmd.Process.Pid
-	activeRuntime = recordTrackerStart(pid, version, params.TargetPort)
+	activeRuntime = recordTrackerStart(pid, version, params.TargetPort, true)
 
 	log.Printf("LaunchDaemon: tracker %s (PID %d), waiting for port %s...", version, pid, params.TargetPort)
 	deadline := time.Now().Add(30 * time.Second)
@@ -308,7 +308,7 @@ func LaunchForeground(version string) error {
 	}
 
 	pid := cmd.Process.Pid
-	activeRuntime = recordTrackerStart(pid, version, params.TargetPort)
+	activeRuntime = recordTrackerStart(pid, version, params.TargetPort, false)
 	log.Printf("LaunchForeground: tracker %s (PID %d), waiting for port %s...", version, pid, params.TargetPort)
 
 	deadline := time.Now().Add(30 * time.Second)
@@ -584,7 +584,6 @@ func continueTrackerLaunch(version, targetPort string, launchButton, stopBtn *wi
 
 	cmd := exec.Command(nodeExe, params.ScriptToRun)
 	shared.ConfigureNoConsoleWindow(cmd)
-	shared.ConfigureDetachedDaemonProcess(cmd, shared.GetGoos() == "linux" && shared.IsRunAsDaemonEnabled())
 
 	cmd.Env = params.Env
 	cmd.Dir = params.VersionDir
@@ -625,7 +624,7 @@ func continueTrackerLaunch(version, targetPort string, launchButton, stopBtn *wi
 
 	// Store the PID in the PID file and globally (after Start() succeeds)
 	nodePID = cmd.Process.Pid
-	activeRuntime = recordTrackerStart(nodePID, version, targetPort)
+	activeRuntime = recordTrackerStart(nodePID, version, targetPort, false)
 
 	log.Printf("Launching owlcms-tracker %s (PID: %d), waiting for port %s...\n", version, nodePID, targetPort)
 	statusLabel.SetText(fmt.Sprintf("Starting owlcms-tracker %s (PID: %d), waiting for port %s.\nFull startup can take up to 15 seconds.", version, nodePID, targetPort))
@@ -687,29 +686,6 @@ func continueTrackerLaunch(version, targetPort string, launchButton, stopBtn *wi
 		fyne.Do(func() {
 			stopContainer.Refresh()
 		})
-
-		detachedDaemon := shared.GetGoos() == "linux" && shared.IsRunAsDaemonEnabled()
-		if detachedDaemon {
-			log.Printf("Tracker %s detached daemon is ready; reattaching UI to runtime metadata", version)
-			currentProcess = nil
-			reconnected := false
-			fyne.DoAndWait(func() {
-				reconnected = reconnectTrackerRuntime()
-			})
-			if !reconnected {
-				if activeRuntime == nil {
-					activeRuntime = &shared.RuntimeMetadata{
-						PID:     nodePID,
-						Version: version,
-						Port:    targetPort,
-					}
-				}
-				fyne.Do(func() {
-					restoreTrackerRunningUI(version, targetPort, activeRuntime.PID)
-				})
-			}
-			return
-		}
 
 		// Auto-open the browser when the tracker is ready
 		if err := shared.OpenBrowser(url); err != nil {

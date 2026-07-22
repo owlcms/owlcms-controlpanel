@@ -22,6 +22,7 @@ type RuntimeMetadata struct {
 	PID               int    `json:"pid"`
 	Version           string `json:"version"`
 	Port              string `json:"port"`
+	Daemon            bool   `json:"daemon"`
 	ProcessStartTicks uint64 `json:"processStartTicks"`
 	StartedAt         string `json:"startedAt"`
 }
@@ -65,7 +66,7 @@ func LoadRuntimeMetadata(filePath string) (*RuntimeMetadata, error) {
 }
 
 // WriteRuntimeMetadata writes runtime metadata atomically.
-func WriteRuntimeMetadata(filePath string, pid int, version, port string) (*RuntimeMetadata, error) {
+func WriteRuntimeMetadata(filePath string, pid int, version, port string, daemon bool) (*RuntimeMetadata, error) {
 	if err := EnsureDir0755(filepath.Dir(filePath)); err != nil {
 		return nil, fmt.Errorf("creating runtime metadata directory: %w", err)
 	}
@@ -79,6 +80,7 @@ func WriteRuntimeMetadata(filePath string, pid int, version, port string) (*Runt
 		PID:               pid,
 		Version:           version,
 		Port:              strings.TrimSpace(port),
+		Daemon:            daemon,
 		ProcessStartTicks: startTicks,
 		StartedAt:         time.Now().UTC().Format(time.RFC3339),
 	}

@@ -706,6 +706,16 @@ func restoreLocalFilesFromPreviousVersion(newDir, oldDir string) error {
 			// Both lists have files, compare them
 			cmp := strings.Compare(jarPath, localPath)
 			if cmp == 0 {
+				// Directory markers are included for whole-directory change detection,
+				// but they must not be passed to the file checksum routine.
+				if isDirectoryEntry(localPath) {
+					processedJarFiles[jarPath] = true
+					processedLocalFiles[localPath] = true
+					jarIdx++
+					localIdx++
+					continue
+				}
+
 				// Same file in both - compute checksum and check if modified
 				oldFilePath := filepath.Join(oldLocal, localPath)
 				oldLocalChecksum, err := fileChecksum(oldFilePath)
@@ -1014,6 +1024,11 @@ func getLocalFiles(dir string, topLevelDirs []string) (map[string]struct{}, erro
 		return nil
 	})
 	return result, err
+}
+
+// isDirectoryEntry reports whether a relative path is a directory marker.
+func isDirectoryEntry(path string) bool {
+	return strings.HasSuffix(path, string(filepath.Separator))
 }
 
 // fileChecksum returns the SHA256 checksum of a file.

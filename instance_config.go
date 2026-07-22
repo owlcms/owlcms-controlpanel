@@ -60,7 +60,7 @@ func parseCLIOptions(args []string) cliOptions {
 			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				i++
 			}
-		case "--launch", "--stop", "--list", "--import", "--daemon-mode", "--background":
+		case "--launch", "--stop", "--list", "--import", "--background":
 		case "--owlcms", "--tracker":
 			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") {
 				i++
@@ -137,7 +137,7 @@ func printUsage() {
 	fmt.Println("    --remove <local-version>             Removes an installed version directory")
 	fmt.Println("  Launch options:")
 	fmt.Println("    --version <latest|previous|version>  Local version selector; default: latest")
-	fmt.Println("    --background, --daemon-mode          Runs detached and returns the terminal")
+	fmt.Println("    --background                         Runs detached and returns the terminal")
 	fmt.Println("    --port <port>                        Stores a version-specific launch port")
 	fmt.Println("    --local-tracker [port]               OWLCMS only; default tracker port 8096")
 	fmt.Println("    --mqtt                               OWLCMS only; enables embedded MQTT")

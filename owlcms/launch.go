@@ -307,7 +307,7 @@ func buildOwlcmsCommand(params *owlcmsLaunchParams, useDaemonWrapper bool) *exec
 }
 
 // recordOwlcmsStart writes the PID file and runtime metadata after a successful cmd.Start().
-func recordOwlcmsStart(pid int, version, port string) *shared.RuntimeMetadata {
+func recordOwlcmsStart(pid int, version, port string, daemon bool) *shared.RuntimeMetadata {
 	if err := os.WriteFile(pidFilePath, []byte(fmt.Sprintf("%d\n", pid)), 0644); err != nil {
 		log.Printf("Failed to write PID to PID file: %v\n", err)
 	} else {
@@ -316,7 +316,7 @@ func recordOwlcmsStart(pid int, version, port string) *shared.RuntimeMetadata {
 
 	SaveLastRunVersion(version)
 
-	metadata, err := shared.WriteRuntimeMetadata(runtimeMetadataPath(), pid, version, port)
+	metadata, err := shared.WriteRuntimeMetadata(runtimeMetadataPath(), pid, version, port, daemon)
 	if err != nil {
 		log.Printf("Failed to write OWLCMS runtime metadata: %v", err)
 		return nil
@@ -367,7 +367,7 @@ func LaunchDaemon(version string, enableEmbeddedMQTT bool) error {
 	}
 
 	if shared.IsRunningUnderSystemd() {
-		return launchSupervisedForeground(version, params)
+		return launchSupervisedForeground(version, params, true)
 	}
 	return launchDaemonDetached(version, params)
 }
@@ -388,13 +388,13 @@ func LaunchForeground(version string, enableEmbeddedMQTT bool) error {
 			return fmt.Errorf("port %s is still in use after cleanup", params.TargetPort)
 		}
 	}
-	return launchSupervisedForeground(version, params)
+	return launchSupervisedForeground(version, params, false)
 }
 
 // launchSupervisedForeground starts OWLCMS, waits for readiness, then blocks
 // on cmd.Wait(). It is used by command-line foreground launches and by
 // systemd/docker-style foreground supervision.
-func launchSupervisedForeground(version string, params *owlcmsLaunchParams) error {
+func launchSupervisedForeground(version string, params *owlcmsLaunchParams, daemon bool) error {
 	cmd := buildOwlcmsCommand(params, false)
 	shared.ConfigureNoConsoleWindow(cmd)
 	cmd.Env = params.Env
@@ -408,7 +408,7 @@ func launchSupervisedForeground(version string, params *owlcmsLaunchParams) erro
 	}
 
 	pid := cmd.Process.Pid
-	activeRuntime = recordOwlcmsStart(pid, version, params.TargetPort)
+	activeRuntime = recordOwlcmsStart(pid, version, params.TargetPort, daemon)
 	log.Printf("LaunchSupervisedForeground: OWLCMS %s (PID %d), waiting for port %s...", version, pid, params.TargetPort)
 
 	// Wait for the port to come up before declaring success.
@@ -467,7 +467,7 @@ func launchDaemonDetached(version string, params *owlcmsLaunchParams) error {
 	}
 
 	pid := cmd.Process.Pid
-	activeRuntime = recordOwlcmsStart(pid, version, params.TargetPort)
+	activeRuntime = recordOwlcmsStart(pid, version, params.TargetPort, true)
 
 	log.Printf("LaunchDaemon: OWLCMS %s (PID %d), waiting for port %s...", version, pid, params.TargetPort)
 	deadline := time.Now().Add(60 * time.Second)
@@ -623,10 +623,8 @@ func continueOwlcmsLaunch(version string, params *owlcmsLaunchParams, launchButt
 
 	var launchAttempt func(retryCount int)
 	launchAttempt = func(retryCount int) {
-		useDaemonWrapper := shouldUseOwlcmsDaemonWrapper()
-		cmd := buildOwlcmsCommand(params, useDaemonWrapper)
+		cmd := buildOwlcmsCommand(params, false)
 		shared.ConfigureNoConsoleWindow(cmd)
-		shared.ConfigureDetachedDaemonProcess(cmd, useDaemonWrapper)
 		cmd.Env = params.Env
 		cmd.Dir = params.VersionDir
 
@@ -650,7 +648,7 @@ func continueOwlcmsLaunch(version string, params *owlcmsLaunchParams, launchButt
 		}
 
 		javaPID = cmd.Process.Pid
-		activeRuntime = recordOwlcmsStart(javaPID, version, targetPort)
+		activeRuntime = recordOwlcmsStart(javaPID, version, targetPort, false)
 
 		log.Printf("Launching OWLCMS %s (PID: %d), waiting for port %s...\n", version, javaPID, targetPort)
 		statusLabel.SetText(fmt.Sprintf("Starting OWLCMS %s (PID: %d), waiting for port %s.\nFull startup can take up to 30 seconds.", version, javaPID, targetPort))
@@ -725,28 +723,6 @@ func continueOwlcmsLaunch(version string, params *owlcmsLaunchParams, launchButt
 
 			// Close the startup log area now that OWLCMS is ready
 			hideStartupLogArea()
-
-			if useDaemonWrapper {
-				log.Printf("OWLCMS %s detached daemon is ready; reattaching UI to runtime metadata", version)
-				currentProcess = nil
-				reconnected := false
-				fyne.DoAndWait(func() {
-					reconnected = reconnectOwlcmsRuntime()
-				})
-				if !reconnected {
-					if activeRuntime == nil {
-						activeRuntime = &shared.RuntimeMetadata{
-							PID:     pid,
-							Version: version,
-							Port:    targetPort,
-						}
-					}
-					fyne.Do(func() {
-						restoreOwlcmsRunningUI(version, targetPort, activeRuntime.PID)
-					})
-				}
-				return
-			}
 
 			err := <-done
 

@@ -354,17 +354,6 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 	trackerToggleItem.Label = "Default Tracker Connection"
 
 	optionsMenuItems := []*fyne.MenuItem{setPortItem, trackerToggleItem}
-	if shared.GetGoos() == "linux" {
-		daemonModeItem := fyne.NewMenuItem(daemonModeLabel(), nil)
-		daemonModeItem.Action = func() {
-			newState := !GetRunAsDaemon()
-			if err := SetRunAsDaemon(newState); err != nil {
-				log.Printf("failed to save daemon setting: %v", err)
-			}
-			daemonModeItem.Label = daemonModeLabel()
-		}
-		optionsMenuItems = append(optionsMenuItems, daemonModeItem)
-	}
 
 	optionsMenu := shared.CreateMenuButton("Options", optionsMenuItems)
 
@@ -376,13 +365,6 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 		spacer,
 		container.NewHBox(fileMenu, processMenu, optionsMenu),
 	)
-}
-
-func daemonModeLabel() string {
-	if GetRunAsDaemon() {
-		return "Disable daemon mode"
-	}
-	return "Enable daemon mode"
 }
 
 func defaultTrackerPort() string {
@@ -1108,14 +1090,14 @@ func IsRunning() bool {
 	return currentProcess != nil || activeRuntime != nil
 }
 
-// IsLocalProcessRunning returns true when this control panel instance owns the running process.
+// IsLocalProcessRunning returns true when the running process should stop with this control panel.
 func IsLocalProcessRunning() bool {
-	return currentProcess != nil
+	return currentProcess != nil || (activeRuntime != nil && !activeRuntime.Daemon)
 }
 
 // IsRecoveredDaemonRunning returns true when the UI reattached to an existing daemon process.
 func IsRecoveredDaemonRunning() bool {
-	return currentProcess == nil && activeRuntime != nil
+	return currentProcess == nil && activeRuntime != nil && activeRuntime.Daemon
 }
 
 // StopRunningProcess stops the running OWLCMS process

@@ -50,14 +50,14 @@ func IsRunning() bool {
 	return currentProcess != nil || activeRuntime != nil
 }
 
-// IsLocalProcessRunning returns true when this control panel instance owns the running process.
+// IsLocalProcessRunning returns true when the running process should stop with this control panel.
 func IsLocalProcessRunning() bool {
-	return currentProcess != nil
+	return currentProcess != nil || (activeRuntime != nil && !activeRuntime.Daemon)
 }
 
 // IsRecoveredDaemonRunning returns true when the UI reattached to an existing daemon process.
 func IsRecoveredDaemonRunning() bool {
-	return currentProcess == nil && activeRuntime != nil
+	return currentProcess == nil && activeRuntime != nil && activeRuntime.Daemon
 }
 
 // OnTabSelected is called when the Tracker tab is selected.
@@ -339,17 +339,6 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 		showPortNumberDialog(w)
 	})
 	optionsMenuItems := []*fyne.MenuItem{setPortItem}
-	if shared.GetGoos() == "linux" {
-		daemonModeItem := fyne.NewMenuItem(daemonModeLabel(), nil)
-		daemonModeItem.Action = func() {
-			newState := !GetRunAsDaemon()
-			if err := SetRunAsDaemon(newState); err != nil {
-				log.Printf("failed to save daemon setting: %v", err)
-			}
-			daemonModeItem.Label = daemonModeLabel()
-		}
-		optionsMenuItems = append(optionsMenuItems, daemonModeItem)
-	}
 	optionsMenu := shared.CreateMenuButton("Options", optionsMenuItems)
 
 	// Add small vertical padding
@@ -362,13 +351,6 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 		spacer,
 		menuRow,
 	)
-}
-
-func daemonModeLabel() string {
-	if GetRunAsDaemon() {
-		return "Disable daemon mode"
-	}
-	return "Enable daemon mode"
 }
 
 func showPortNumberDialog(w fyne.Window) {

@@ -179,7 +179,7 @@ func parseModuleCommand(args []string) (moduleCLICommand, bool, error) {
 			i = next
 		case "--local-tracker":
 			cmd.LocalTrackerPort, i = optionalValueAfter(i, "8096")
-		case "--daemon-mode", "--background":
+		case "--background":
 			cmd.DaemonMode = true
 		case "--mqtt":
 			cmd.MQTT = true

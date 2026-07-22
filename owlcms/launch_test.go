@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"controlpanel/shared"
+
 	"github.com/magiconair/properties"
 )
 
@@ -98,6 +100,42 @@ func TestSetEnvValueReplacesExistingValue(t *testing.T) {
 	}
 	if matches != 1 {
 		t.Fatalf("expected exactly one mqtt env entry, got %d in %v", matches, env)
+	}
+}
+
+func TestRecoveredInteractiveRuntimeIsClosable(t *testing.T) {
+	previousProcess := currentProcess
+	previousRuntime := activeRuntime
+	currentProcess = nil
+	activeRuntime = &shared.RuntimeMetadata{Daemon: false}
+	t.Cleanup(func() {
+		currentProcess = previousProcess
+		activeRuntime = previousRuntime
+	})
+
+	if !IsLocalProcessRunning() {
+		t.Fatal("expected recovered interactive runtime to be closable")
+	}
+	if IsRecoveredDaemonRunning() {
+		t.Fatal("did not expect recovered interactive runtime to be treated as a daemon")
+	}
+}
+
+func TestRecoveredDaemonRuntimeIsNotClosable(t *testing.T) {
+	previousProcess := currentProcess
+	previousRuntime := activeRuntime
+	currentProcess = nil
+	activeRuntime = &shared.RuntimeMetadata{Daemon: true}
+	t.Cleanup(func() {
+		currentProcess = previousProcess
+		activeRuntime = previousRuntime
+	})
+
+	if IsLocalProcessRunning() {
+		t.Fatal("did not expect recovered daemon runtime to be closable")
+	}
+	if !IsRecoveredDaemonRunning() {
+		t.Fatal("expected recovered daemon runtime to be identified as a daemon")
 	}
 }
 
