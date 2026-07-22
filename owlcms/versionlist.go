@@ -3,6 +3,7 @@ package owlcms
 import (
 	"archive/zip"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"image/color"
 	"io"
@@ -291,6 +292,15 @@ func createImportButton(versions []string, version string, w fyne.Window, button
 						}
 
 						if _, err := ImportDataAndConfig(sourceVersion, version); err != nil {
+							if showFileInUseRecovery(err, w, func() {
+								if _, retryErr := ImportDataAndConfig(sourceVersion, version); retryErr != nil {
+									dialog.ShowError(fmt.Errorf("failed to process local files: %w", retryErr), w)
+									return
+								}
+								dialog.ShowInformation("Import Complete", fmt.Sprintf("Successfully imported data and config from version %s to version %s", sourceVersion, version), w)
+							}) {
+								return
+							}
 							log.Printf("Error while processing local files: %v\n", err)
 							dialog.ShowError(fmt.Errorf("failed to process local files: %w", err), w)
 							return
@@ -505,6 +515,11 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	actionResult, actionErr := UpdateRelease(existingVersion, targetVersion, actionProgressCallback, actionCancel)
 	if actionErr != nil {
 		actionProgressDialog.Hide()
+		if showFileInUseRecovery(actionErr, w, func() {
+			updateVersion(existingVersion, targetVersion, w)
+		}) {
+			return
+		}
 		dialog.ShowError(actionErr, w)
 		return
 	}
@@ -529,6 +544,50 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 		w.Content().Refresh()
 	})
 	actionSuccessDialog.Show()
+}
+
+func showFileInUseRecovery(err error, w fyne.Window, retry func()) bool {
+	var fileInUse *shared.FileInUseError
+	if !errors.As(err, &fileInUse) || len(fileInUse.Processes) == 0 {
+		return false
+	}
+
+	processes := make([]string, 0, len(fileInUse.Processes))
+	for _, process := range fileInUse.Processes {
+		processes = append(processes, fmt.Sprintf("%s (PID %d)", process.DisplayName(), process.PID))
+	}
+
+	message := fmt.Sprintf(
+		"%s is currently in use by:\n\n%s\n\nStopping these process(es) can discard unsaved competition changes. Stop them and retry?",
+		fileInUse.FileName(),
+		strings.Join(processes, "\n"),
+	)
+	confirmDialog := dialog.NewConfirm("Database File In Use", message, func(stop bool) {
+		if !stop {
+			return
+		}
+
+		go func() {
+			var stopErrors []string
+			for _, process := range fileInUse.Processes {
+				if stopErr := shared.GracefullyStopPID(process.PID); stopErr != nil {
+					stopErrors = append(stopErrors, fmt.Sprintf("%s (PID %d): %v", process.DisplayName(), process.PID, stopErr))
+				}
+			}
+
+			fyne.Do(func() {
+				if len(stopErrors) > 0 {
+					dialog.ShowError(fmt.Errorf("could not stop process(es):\n%s", strings.Join(stopErrors, "\n")), w)
+					return
+				}
+				retry()
+			})
+		}()
+	}, w)
+	confirmDialog.SetConfirmText("Stop Process and Retry")
+	confirmDialog.SetDismissText("Cancel")
+	confirmDialog.Show()
+	return true
 }
 
 // restoreLocalFilesFromPreviousVersion restores files in newDir/local from oldDir/local
@@ -1248,7 +1307,7 @@ func copyFiles(srcDir, destDir string, alwaysCopy bool) error {
 
 		srcFile, err := os.Open(path)
 		if err != nil {
-			return err
+			return shared.WrapFileInUseError(path, err)
 		}
 		defer srcFile.Close()
 
