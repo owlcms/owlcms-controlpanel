@@ -766,11 +766,12 @@ func configureTrackerConnectionForHeadlessTandem(owlcmsVersion, trackerVersion s
 	if trackerPort == "" {
 		return fmt.Errorf("selected tracker version %q has no configured port", trackerVersion)
 	}
-	if err := owlcms.ConfigureTrackerConnectionForRelease(owlcmsVersion, trackerPort); err != nil {
+	trackerHost := "127.0.0.1"
+	trackerURL := fmt.Sprintf("ws://%s/ws", trackerHost)
+	if err := owlcms.ConfigureTrackerConnectionForReleaseURL(owlcmsVersion, trackerURL, trackerPort); err != nil {
 		return err
 	}
-	trackerHost := "127.0.0.1"
-	trackerURL := fmt.Sprintf("ws://%s:%s/ws", trackerHost, trackerPort)
+	trackerURL = fmt.Sprintf("ws://%s:%s/ws", trackerHost, trackerPort)
 	log.Printf("Configured OWLCMS %s to connect to Tracker %s using host=%s port=%s url=%s; updated %s",
 		owlcmsVersion, trackerVersion, trackerHost, trackerPort, trackerURL, owlcms.GetReleaseEnvPath(owlcmsVersion))
 	return nil

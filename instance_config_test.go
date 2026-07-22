@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -95,8 +96,11 @@ func TestInitWithoutInstanceUsesMainInstance(t *testing.T) {
 func TestImplicitHeadlessInstanceUsesInitializedInstance(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("GOOS", "linux")
-	t.Setenv("APPDATA", "")
+	if runtime.GOOS == "windows" {
+		t.Setenv("APPDATA", home)
+	} else {
+		t.Setenv("APPDATA", "")
+	}
 	t.Setenv("CONTROLPANEL_INSTALLDIR", "")
 	t.Setenv("OWLCMS_INSTALLDIR", "")
 	t.Setenv("TRACKER_INSTALLDIR", "")
@@ -129,8 +133,7 @@ func TestImplicitHeadlessInstanceUsesInitializedInstance(t *testing.T) {
 		t.Fatalf("expected CONTROLPANEL_INSTANCE=records, got %q", got)
 	}
 
-	wantOwlcmsDir := filepath.Join(home, ".local", "share", "owlcms-records")
-	wantOwlcmsDir = filepath.Join(home, ".local", "share", "records-owlcms")
+	wantOwlcmsDir := filepath.Join(filepath.Dir(shared.DefaultControlPanelInstallDir()), "records-owlcms")
 	if got := owlcms.GetInstallDir(); got != wantOwlcmsDir {
 		t.Fatalf("expected owlcms install dir %q, got %q", wantOwlcmsDir, got)
 	}
@@ -203,7 +206,8 @@ func TestResolveInstancePathsForSimpleNameUsesPrefixNaming(t *testing.T) {
 }
 
 func TestResolveInstancePathsForAbsolutePathUsesBaseNameAsInstance(t *testing.T) {
-	paths, err := resolveInstancePaths(filepath.Join(string(os.PathSeparator), "data", "records"))
+	root := t.TempDir()
+	paths, err := resolveInstancePaths(filepath.Join(root, "records"))
 	if err != nil {
 		t.Fatalf("resolve instance paths: %v", err)
 	}
@@ -211,19 +215,20 @@ func TestResolveInstancePathsForAbsolutePathUsesBaseNameAsInstance(t *testing.T)
 	if paths.InstanceName != "records" {
 		t.Fatalf("unexpected instance name %q", paths.InstanceName)
 	}
-	if paths.ControlPanelDir != filepath.Join(string(os.PathSeparator), "data", "records") {
+	if paths.ControlPanelDir != filepath.Join(root, "records") {
 		t.Fatalf("unexpected control panel dir %q", paths.ControlPanelDir)
 	}
-	if paths.OwlcmsDir != filepath.Join(string(os.PathSeparator), "data", "records-owlcms") {
+	if paths.OwlcmsDir != filepath.Join(root, "records-owlcms") {
 		t.Fatalf("unexpected owlcms dir %q", paths.OwlcmsDir)
 	}
-	if paths.TrackerDir != filepath.Join(string(os.PathSeparator), "data", "records-tracker") {
+	if paths.TrackerDir != filepath.Join(root, "records-tracker") {
 		t.Fatalf("unexpected tracker dir %q", paths.TrackerDir)
 	}
 }
 
 func TestResolveInstancePathsForAbsoluteControlPanelPathStripsSuffix(t *testing.T) {
-	paths, err := resolveInstancePaths(filepath.Join(string(os.PathSeparator), "data", "records-controlpanel"))
+	root := t.TempDir()
+	paths, err := resolveInstancePaths(filepath.Join(root, "records-controlpanel"))
 	if err != nil {
 		t.Fatalf("resolve instance paths: %v", err)
 	}
@@ -231,10 +236,10 @@ func TestResolveInstancePathsForAbsoluteControlPanelPathStripsSuffix(t *testing.
 	if paths.InstanceName != "records" {
 		t.Fatalf("unexpected instance name %q", paths.InstanceName)
 	}
-	if paths.OwlcmsDir != filepath.Join(string(os.PathSeparator), "data", "records-owlcms") {
+	if paths.OwlcmsDir != filepath.Join(root, "records-owlcms") {
 		t.Fatalf("unexpected owlcms dir %q", paths.OwlcmsDir)
 	}
-	if paths.TrackerDir != filepath.Join(string(os.PathSeparator), "data", "records-tracker") {
+	if paths.TrackerDir != filepath.Join(root, "records-tracker") {
 		t.Fatalf("unexpected tracker dir %q", paths.TrackerDir)
 	}
 }
