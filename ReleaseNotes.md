@@ -12,25 +12,7 @@ The control panel is installed once. It will automatically download the correct 
 - 3.5.0-rc06: Notarization of macOS .dmg files to allow direct DMG install
 
 - 3.5.0: on macOS support brew for install and updates
-  - to install stable
-    ```
-    brew install --cask owlcms/brew/controlpanel --force
-    ```
-  - to upgrade stable
-    ```
-    brew update
-    brew upgrade --cask owlcms/brew/controlpanel
-    ```
-  - to switch to between release and prerelease, uninstall first
-    ```
-    brew uninstall --cask owlcms/brew/controlpanel 
-    brew install --cask owlcms/brew/controlpanel-prerelease
-    ```
-  - you can also install an explicit version 
-    ```
-    brew uninstall --cask --force $(brew list --cask | grep '^controlpanel')
-    brew install --cask owlcms/brew/controlpanel@3.5.0-rc03
-    ```
+
 - 3.5.0: Processing of default values
   - separated global defaults from versin defaults in OWLCMS
   - local versions override the global default
