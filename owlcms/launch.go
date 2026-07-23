@@ -450,9 +450,8 @@ func launchSupervisedForeground(version string, params *owlcmsLaunchParams, daem
 }
 
 // launchDaemonDetached starts OWLCMS detached using MainWrapper and setsid.
-// This is the original fire-and-forget behavior for interactive daemon mode
-// ("Run as daemon" checkbox) where the Go process exits and the Java child
-// survives.  Not used under systemd.
+// It is used by CLI daemon launches where the Java child must survive after
+// the command exits. It is not used by GUI launches or under systemd.
 func launchDaemonDetached(version string, params *owlcmsLaunchParams) error {
 	useDaemonWrapper := shouldUseOwlcmsDaemonWrapper()
 	cmd := buildOwlcmsCommand(params, useDaemonWrapper)
@@ -500,18 +499,14 @@ func acquireJavaLock() (*flock.Flock, error) {
 	if pid == 0 {
 		return nil, nil
 	}
-
 	if source == "pid file" {
 		log.Printf("Another instance of OWLCMS is already running with PID %d", pid)
 		return nil, fmt.Errorf("another instance of OWLCMS is already running with PID %d", pid)
 	}
 
-	log.Printf("No running PID from PID file, stopping PID %d resolved from %s", pid, source)
+	log.Printf("No running PID from PID file; clearing stale lock before checking PID %d resolved from %s", pid, source)
 	os.Remove(pidFilePath)
 	os.Remove(lockFilePath)
-	if err := StopProcessByPort(GetPort()); err != nil {
-		log.Printf("Warning: failed to stop process after stale PID cleanup: %v", err)
-	}
 
 	return nil, nil
 }
@@ -563,34 +558,43 @@ func launchOwlcms(version string, launchButton, stopBtn *widget.Button) error {
 
 	targetPort := params.TargetPort
 	if shared.CheckPort(targetPort) == nil {
-		log.Printf("Port %s is in use, attempting to free it...", targetPort)
-		progressLabel := widget.NewLabel(fmt.Sprintf("Port %s is busy, stopping the process that is using it...", targetPort))
-		progressDialog := dialog.NewCustom("Freeing Port", "", progressLabel, mainWindow)
-		progressDialog.Show()
+		log.Printf("Port %s is in use; asking before freeing it", targetPort)
+		dialog.ShowConfirm("Port In Use", fmt.Sprintf("Port %s is already in use. Stop the process using it and launch OWLCMS %s?", targetPort, version), func(confirm bool) {
+			if !confirm {
+				log.Printf("User cancelled freeing port %s", targetPort)
+				releaseJavaLock()
+				goBackToMainScreen()
+				return
+			}
 
-		go func() {
-			err := shared.EnsurePortFree(targetPort)
-			fyne.Do(func() {
-				progressDialog.Hide()
+			progressLabel := widget.NewLabel(fmt.Sprintf("Port %s is busy, stopping the process that is using it...", targetPort))
+			progressDialog := dialog.NewCustom("Freeing Port", "", progressLabel, mainWindow)
+			progressDialog.Show()
 
-				if err != nil {
-					log.Printf("Cannot free port %s: %v", targetPort, err)
-					dialog.ShowError(fmt.Errorf("cannot free port %s: %w", targetPort, err), mainWindow)
-					goBackToMainScreen()
-					return
-				}
-				if shared.CheckPort(targetPort) == nil {
-					log.Printf("Port %s is still in use after cleanup", targetPort)
-					dialog.ShowError(fmt.Errorf("port %s is still in use after cleanup", targetPort), mainWindow)
-					goBackToMainScreen()
-					return
-				}
+			go func() {
+				err := shared.EnsurePortFree(targetPort)
+				fyne.Do(func() {
+					progressDialog.Hide()
 
-				log.Printf("Port %s successfully freed", targetPort)
-				dialog.ShowInformation("Port Freed", fmt.Sprintf("Port %s has been freed. Launching OWLCMS %s...", targetPort, version), mainWindow)
-				continueOwlcmsLaunch(version, params, launchButton, stopBtn)
-			})
-		}()
+					if err != nil {
+						log.Printf("Cannot free port %s: %v", targetPort, err)
+						dialog.ShowError(fmt.Errorf("cannot free port %s: %w", targetPort, err), mainWindow)
+						goBackToMainScreen()
+						return
+					}
+					if shared.CheckPort(targetPort) == nil {
+						log.Printf("Port %s is still in use after cleanup", targetPort)
+						dialog.ShowError(fmt.Errorf("port %s is still in use after cleanup", targetPort), mainWindow)
+						goBackToMainScreen()
+						return
+					}
+
+					log.Printf("Port %s successfully freed", targetPort)
+					dialog.ShowInformation("Port Freed", fmt.Sprintf("Port %s has been freed. Launching OWLCMS %s...", targetPort, version), mainWindow)
+					continueOwlcmsLaunch(version, params, launchButton, stopBtn)
+				})
+			}()
+		}, mainWindow)
 		return nil
 	}
 

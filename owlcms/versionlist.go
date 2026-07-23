@@ -419,17 +419,7 @@ func createLaunchButton(w fyne.Window, version string, stopBtn *widget.Button, b
 			}
 		}
 
-		if shared.GetGoos() == "linux" && GetRunAsDaemon() {
-			dialog.ShowConfirm("Daemon Mode",
-				"OWLCMS will keep running even if you exit the control panel.\nProceed?",
-				func(ok bool) {
-					if ok {
-						doLaunch()
-					}
-				}, w)
-		} else {
-			doLaunch()
-		}
+		doLaunch()
 	}
 	buttonContainer.Add(container.NewPadded(launchButton))
 }
