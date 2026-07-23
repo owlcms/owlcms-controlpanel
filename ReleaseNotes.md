@@ -9,9 +9,10 @@ The control panel is installed once. It will automatically download the correct 
 
 ## Release Log
 
-- 3.5.0-rc06: Notarization of macOS .dmg files to allow direct DMG install
-
-- 3.5.0: on macOS support brew for install and updates
+- 3.5.0: Improve detection of already running stale instance of OWLCMS that can hold the database and prevent upgrade
+- 3.5.0: (macOS) Notarization of macOS .dmg files to allow direct DMG install
+- 3.5.0: (macOS) support brew for install and updates
+- 3.5.0: (Linux) restrict background daemon launching of owlcms to the command-line interface
 
 - 3.5.0: Processing of default values
   - separated global defaults from versin defaults in OWLCMS
