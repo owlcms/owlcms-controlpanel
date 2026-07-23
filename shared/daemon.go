@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -576,21 +576,19 @@ func EnsurePortFree(port string) error {
 	return StopPIDFileOrPortProcess("", port)
 }
 
-// CheckPort tries to connect to localhost:port and returns nil if a server is responding.
+// CheckPort tries to connect to localhost:port and returns nil if a TCP server is listening.
 func CheckPort(port string) error {
-	client := &http.Client{Timeout: 2 * time.Second}
-	resp, err := client.Get(fmt.Sprintf("http://localhost:%s", port))
+	conn, err := net.DialTimeout("tcp", net.JoinHostPort("localhost", strings.TrimSpace(port)), 2*time.Second)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer conn.Close()
 	return nil
 }
 
-// CheckDaemonRunning loads runtime metadata and checks whether the daemon is
-// still alive.  It first validates the PID (with start-ticks on Linux).  If the
-// PID is gone it falls back to probing the recorded port.  Returns the metadata
-// and true when the daemon appears to be running.
+// CheckDaemonRunning loads runtime metadata and checks whether the recorded
+// daemon is still alive by validating its PID (with start-ticks on Linux).
+// It does not adopt an arbitrary process listening on the recorded port.
 func CheckDaemonRunning(metadataPath string) (*RuntimeMetadata, bool) {
 	metadata, err := LoadRuntimeMetadata(metadataPath)
 	if err != nil || metadata == nil {
@@ -602,22 +600,6 @@ func CheckDaemonRunning(metadataPath string) (*RuntimeMetadata, bool) {
 
 	// Primary: PID check (with start-ticks validation on Linux)
 	if metadata.PID > 0 && PIDMatchesStartTicks(metadata.PID, metadata.ProcessStartTicks) {
-		return metadata, true
-	}
-
-	// Fallback: something is listening on the expected port
-	if CheckPort(metadata.Port) == nil {
-		// Try to resolve the actual PID owning this port
-		portNum, err := strconv.Atoi(strings.TrimSpace(metadata.Port))
-		if err == nil {
-			if pid, err := FindPIDByPort(portNum); err == nil && pid > 0 {
-				log.Printf("Resolved PID %d from port %s", pid, metadata.Port)
-				metadata.PID = pid
-				if startTicks, err := ReadProcessStartTicks(pid); err == nil {
-					metadata.ProcessStartTicks = startTicks
-				}
-			}
-		}
 		return metadata, true
 	}
 
