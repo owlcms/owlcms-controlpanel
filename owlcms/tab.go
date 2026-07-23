@@ -368,10 +368,7 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 }
 
 func defaultTrackerPort() string {
-	if len(tracker.GetAllInstalledVersions()) > 0 {
-		return tracker.GetPort()
-	}
-	return defaultTrackerConnectionPort
+	return tracker.GetPort()
 }
 
 func showTrackerConnectionDialog(w fyne.Window) {
@@ -380,30 +377,21 @@ func showTrackerConnectionDialog(w fyne.Window) {
 	urlEntry.SetPlaceHolder(defaultTrackerConnectionURL)
 	portEntry := widget.NewEntry()
 	portEntry.SetPlaceHolder(defaultTrackerPort())
-	if enabled {
-		urlEntry.SetText(trackerURL)
-		portEntry.SetText(trackerPort)
-	}
-	enabledCheck := widget.NewCheck("Enable default Tracker connection", nil)
+	urlEntry.SetText(trackerURL)
+	portEntry.SetText(trackerPort)
+	enabledCheck := widget.NewCheck("Enable tracker connection by default", nil)
 	enabledCheck.SetChecked(enabled)
 	statusLabel := widget.NewLabel("")
 	statusLabel.Wrapping = fyne.TextWrapWord
 
 	updateStatusText := func() {
 		if !enabledCheck.Checked {
-			statusLabel.SetText("No default Tracker connection will be used.")
+			statusLabel.SetText(fmt.Sprintf("New OWLCMS versions will not connect by default. Versions can use %s on port %s individually.", urlEntry.Text, portEntry.Text))
 		} else {
-			statusLabel.SetText(fmt.Sprintf("The default Tracker connection will use %s on port %s.", urlEntry.Text, portEntry.Text))
+			statusLabel.SetText(fmt.Sprintf("New OWLCMS versions will connect to Tracker at %s on port %s.", urlEntry.Text, portEntry.Text))
 		}
 	}
-	enabledCheck.OnChanged = func(checked bool) {
-		if checked {
-			urlEntry.SetText(defaultTrackerConnectionURL)
-			portEntry.SetText(defaultTrackerPort())
-		} else {
-			urlEntry.SetText("")
-			portEntry.SetText("")
-		}
+	enabledCheck.OnChanged = func(_ bool) {
 		updateStatusText()
 	}
 	urlEntry.OnChanged = func(_ string) {
@@ -433,15 +421,6 @@ func showTrackerConnectionDialog(w fyne.Window) {
 				return
 			}
 
-			if !enabledCheck.Checked {
-				if err := SaveProperty(trackerConnectionEnv, ""); err != nil {
-					dialog.ShowError(fmt.Errorf("failed to disable default tracker connection: %w", err), w)
-					return
-				}
-				dialog.ShowInformation("Default Tracker Connection", "The default Tracker connection is disabled.", w)
-				return
-			}
-
 			baseURL := strings.TrimSpace(urlEntry.Text)
 			port := strings.TrimSpace(portEntry.Text)
 			if port != "" {
@@ -455,12 +434,7 @@ func showTrackerConnectionDialog(w fyne.Window) {
 				dialog.ShowError(fmt.Errorf("tracker connection URL is invalid"), w)
 				return
 			}
-			trackerConnection := trackerConnectionURL(baseURL, port)
-			if trackerConnection == "" {
-				dialog.ShowError(fmt.Errorf("tracker connection URL and port are required"), w)
-				return
-			}
-			if err := SaveProperty(trackerConnectionEnv, trackerConnection); err != nil {
+			if err := SaveDefaultTrackerConnection(baseURL, port, enabledCheck.Checked); err != nil {
 				dialog.ShowError(fmt.Errorf("failed to save default tracker connection: %w", err), w)
 				return
 			}
@@ -477,27 +451,42 @@ func showTrackerConnectionDialogForVersion(w fyne.Window, version string) {
 		return
 	}
 
-	defaultURL, defaultPort, hasDefault := GetTrackerConnectionSettings()
-	if !hasDefault {
-		defaultURL = defaultTrackerConnectionURL
-		defaultPort = defaultTrackerPort()
-	}
-	enabledCheck := widget.NewCheck(fmt.Sprintf("Enable connection to local tracker (port %s)", defaultPort), nil)
+	defaultURL, defaultPort, _ := GetTrackerConnectionSettings()
+	urlEntry := widget.NewEntry()
+	urlEntry.SetText(defaultURL)
+	portEntry := widget.NewEntry()
+	portEntry.SetText(defaultPort)
+	enabledCheck := widget.NewCheck("Enable Tracker connection", nil)
 	statusLabel := widget.NewLabel("")
 	statusLabel.Wrapping = fyne.TextWrapWord
 
-	updateState := func() {
-		isEnabled := GetTrackerConnectionPortForRelease(version) != ""
-		enabledCheck.SetChecked(isEnabled)
-		if isEnabled {
-			statusLabel.SetText(fmt.Sprintf("Version %s will connect to Tracker at %s on port %s.", version, defaultURL, defaultPort))
+	updateStatusText := func() {
+		if enabledCheck.Checked {
+			statusLabel.SetText(fmt.Sprintf("Version %s will connect to Tracker at %s on port %s.", version, urlEntry.Text, portEntry.Text))
 		} else {
-			statusLabel.SetText(fmt.Sprintf("Version %s will now connect to the local Tracker.", version))
+			statusLabel.SetText(fmt.Sprintf("Version %s will not connect to Tracker.", version))
 		}
 	}
-	updateState()
+	enabledCheck.OnChanged = func(_ bool) {
+		updateStatusText()
+	}
+	urlEntry.OnChanged = func(_ string) {
+		updateStatusText()
+	}
+	portEntry.OnChanged = func(_ string) {
+		updateStatusText()
+	}
+	enabledCheck.SetChecked(GetTrackerConnectionPortForRelease(version) != "")
+	updateStatusText()
 
-	content := container.NewVBox(enabledCheck, statusLabel)
+	content := container.NewVBox(
+		enabledCheck,
+		widget.NewForm(
+			widget.NewFormItem("URL", container.NewGridWrap(fyne.NewSize(300, urlEntry.MinSize().Height), urlEntry)),
+			widget.NewFormItem("Port Number", portEntry),
+		),
+		statusLabel,
+	)
 	d := dialog.NewCustomConfirm(
 		"Tracker Connection",
 		"Save",
@@ -509,11 +498,21 @@ func showTrackerConnectionDialogForVersion(w fyne.Window, version string) {
 			}
 
 			if enabledCheck.Checked {
-				if err := ConfigureTrackerConnectionForReleaseURL(version, defaultURL, defaultPort); err != nil {
+				baseURL := strings.TrimSpace(urlEntry.Text)
+				port := strings.TrimSpace(portEntry.Text)
+				if portNumber, err := strconv.Atoi(port); err != nil || portNumber < 1 || portNumber > 65535 {
+					dialog.ShowError(fmt.Errorf("tracker connection port must be an integer between 1 and 65535"), w)
+					return
+				}
+				if _, err := url.Parse(baseURL); err != nil {
+					dialog.ShowError(fmt.Errorf("tracker connection URL is invalid"), w)
+					return
+				}
+				if err := ConfigureTrackerConnectionForReleaseURL(version, baseURL, port); err != nil {
 					dialog.ShowError(fmt.Errorf("failed to enable tracker connection: %w", err), w)
 					return
 				}
-				dialog.ShowInformation("Tracker Connection", fmt.Sprintf("Tracker connection enabled for version %s on port %s. Restart OWLCMS for that version to apply the change.", version, defaultPort), w)
+				dialog.ShowInformation("Tracker Connection", fmt.Sprintf("Tracker connection enabled for version %s on port %s. Restart OWLCMS for that version to apply the change.", version, port), w)
 				return
 			}
 

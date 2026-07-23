@@ -2,6 +2,7 @@ package owlcms
 
 import (
 	"controlpanel/shared"
+	"controlpanel/tracker"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -25,7 +26,12 @@ var (
 	installDir  = shared.GetOwlcmsInstallDir()
 )
 
-const trackerConnectionEnv = "OWLCMS_VIDEODATA"
+const (
+	trackerConnectionEnv               = "OWLCMS_VIDEODATA"
+	trackerConnectionURLSetting        = "CONTROLPANEL_TRACKER_URL"
+	trackerConnectionPortSetting       = "CONTROLPANEL_TRACKER_PORT"
+	trackerConnectionDefaultEnabledKey = "CONTROLPANEL_TRACKER_CONNECTION_ENABLED_BY_DEFAULT"
+)
 
 const (
 	defaultTrackerConnectionURL  = "ws://localhost/ws"
@@ -138,6 +144,45 @@ func trackerConnectionSettings(value string) (string, string, bool) {
 func trackerConnectionPort(value string) (string, bool) {
 	_, port, ok := trackerConnectionSettings(value)
 	return port, ok
+}
+
+func trackerConnectionEnabled(value string) bool {
+	value = strings.TrimSpace(strings.ToLower(value))
+	return value == "1" || value == "true" || value == "yes" || value == "on"
+}
+
+func defaultTrackerConnectionSettings() (string, string) {
+	return defaultTrackerConnectionURL, tracker.GetPort()
+}
+
+// SaveDefaultTrackerConnection saves the endpoint independently of whether new
+// OWLCMS versions should use it by default.
+func SaveDefaultTrackerConnection(baseURL, trackerPort string, enabled bool) error {
+	baseURL = strings.TrimSpace(baseURL)
+	trackerPort = strings.TrimSpace(trackerPort)
+	if trackerConnectionURL(baseURL, trackerPort) == "" {
+		return fmt.Errorf("tracker connection URL and port are required")
+	}
+
+	enabledValue := "false"
+	if enabled {
+		enabledValue = "true"
+	}
+	if err := SaveProperty(trackerConnectionURLSetting, baseURL); err != nil {
+		return err
+	}
+	if err := SaveProperty(trackerConnectionPortSetting, trackerPort); err != nil {
+		return err
+	}
+	if err := SaveProperty(trackerConnectionDefaultEnabledKey, enabledValue); err != nil {
+		return err
+	}
+
+	connection := ""
+	if enabled {
+		connection = trackerConnectionURL(baseURL, trackerPort)
+	}
+	return SaveProperty(trackerConnectionEnv, connection)
 }
 
 // ConfigureTrackerConnectionForRelease stores the local tracker websocket URL in
@@ -740,31 +785,41 @@ func DeleteProperty(key string) error {
 	return nil
 }
 
-// GetTrackerConnectionEnabled returns true if OWLCMS_VIDEODATA is set to a local tracker URL
+// GetTrackerConnectionEnabled returns whether new OWLCMS versions use the default endpoint.
 func GetTrackerConnectionEnabled() bool {
-	return GetTrackerConnectionPort() != ""
+	_, _, enabled := GetTrackerConnectionSettings()
+	return enabled
 }
 
-// GetTrackerConnectionPort returns the shared default local tracker port,
-// or empty when the default tracker connection is disabled.
+// GetTrackerConnectionPort returns the configured default tracker port.
 func GetTrackerConnectionPort() string {
-	_, port, ok := GetTrackerConnectionSettings()
-	if !ok {
-		return ""
-	}
+	_, port, _ := GetTrackerConnectionSettings()
 	return port
 }
 
-// GetTrackerConnectionSettings returns the shared default tracker URL and port.
+// GetTrackerConnectionSettings returns the configured default tracker URL and
+// port, plus whether new OWLCMS versions use that endpoint by default.
 func GetTrackerConnectionSettings() (string, string, bool) {
+	defaultURL, defaultPort := defaultTrackerConnectionSettings()
 	if environment == nil {
-		return "", "", false
+		return defaultURL, defaultPort, false
 	}
-	value, ok := environment.Get(trackerConnectionEnv)
-	if !ok {
-		return "", "", false
+
+	url := getPropertyOrDefault(environment, trackerConnectionURLSetting, defaultURL)
+	port := getPropertyOrDefault(environment, trackerConnectionPortSetting, defaultPort)
+	if value, ok := environment.Get(trackerConnectionDefaultEnabledKey); ok {
+		return url, port, trackerConnectionEnabled(value)
 	}
-	return trackerConnectionSettings(value)
+
+	// Preserve existing installations where OWLCMS_VIDEODATA was both the
+	// configured default endpoint and the enable switch.
+	if value, ok := environment.Get(trackerConnectionEnv); ok {
+		if legacyURL, legacyPort, valid := trackerConnectionSettings(value); valid {
+			return legacyURL, legacyPort, true
+		}
+	}
+
+	return url, port, false
 }
 
 // GetTrackerConnectionEnabledForRelease returns true if the version-specific

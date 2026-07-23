@@ -185,3 +185,32 @@ func TestTrackerConnectionPortAcceptsExternalTrackerURL(t *testing.T) {
 		t.Fatalf("expected secure external URL to be accepted, got port=%q ok=%v", port, ok)
 	}
 }
+
+func TestDefaultTrackerConnectionRetainsEndpointWhenDisabled(t *testing.T) {
+	installDir := t.TempDir()
+	previousDir := GetInstallDir()
+	SetInstallDir(installDir)
+	t.Cleanup(func() {
+		SetInstallDir(previousDir)
+	})
+
+	if err := SaveDefaultTrackerConnection("wss://tracker.example.com/ws", "443", false); err != nil {
+		t.Fatalf("save disabled default tracker connection: %v", err)
+	}
+
+	url, port, enabled := GetTrackerConnectionSettings()
+	if url != "wss://tracker.example.com/ws" || port != "443" || enabled {
+		t.Fatalf("unexpected default tracker settings: url=%q port=%q enabled=%v", url, port, enabled)
+	}
+	if GetTrackerConnectionEnabled() {
+		t.Fatal("expected default tracker connection to remain disabled")
+	}
+
+	content, err := os.ReadFile(filepath.Join(installDir, "env.properties"))
+	if err != nil {
+		t.Fatalf("read shared env: %v", err)
+	}
+	if !strings.Contains(string(content), "OWLCMS_VIDEODATA = ") {
+		t.Fatalf("expected disabled default to clear OWLCMS_VIDEODATA, got %q", string(content))
+	}
+}

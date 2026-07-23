@@ -196,7 +196,11 @@ func applyOwlcmsPropertiesToEnv(env []string, props *properties.Properties) []st
 		return env
 	}
 
-	skipKeys := map[string]struct{}{}
+	skipKeys := map[string]struct{}{
+		trackerConnectionURLSetting:        {},
+		trackerConnectionPortSetting:       {},
+		trackerConnectionDefaultEnabledKey: {},
+	}
 	if value, ok := props.Get(trackerConnectionEnv); ok && strings.TrimSpace(value) == "" {
 		env = removeEnvKey(env, trackerConnectionEnv)
 		skipKeys[trackerConnectionEnv] = struct{}{}
