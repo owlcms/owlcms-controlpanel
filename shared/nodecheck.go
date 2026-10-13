@@ -164,46 +164,32 @@ func FindLocalNodeForVersion(version string, goosFunc func() string) (string, er
 			continue
 		}
 
-		versionPath := filepath.Join(nodeBaseDir, versionDir.Name())
-
-		// Look for node-v*-platform-arch directories
-		entries, err := os.ReadDir(versionPath)
+		major, minor, patch, err := ExtractNodeVersion(versionDir.Name())
 		if err != nil {
 			continue
 		}
 
-		for _, entry := range entries {
-			if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "node-") {
-				continue
-			}
+		// Normally node-v*-platform-arch/[bin/]node, but older Windows installs
+		// were extracted with the archive root stripped (node.exe directly here).
+		versionPath := filepath.Join(nodeBaseDir, versionDir.Name())
+		nodePath := findNodeExecutable(versionPath, nodeExe)
 
-			// Extract version from directory name
-			major, minor, patch, err := ExtractNodeVersion(versionDir.Name())
-			if err != nil {
-				continue
-			}
-
-			// Search for node executable recursively in this directory
-			extractedPath := filepath.Join(versionPath, entry.Name())
-			nodePath := findNodeExecutable(extractedPath, nodeExe)
-
-			if nodePath != "" {
-				nodeInstalls = append(nodeInstalls, struct {
-					versionDir string
-					nodePath   string
-					fullPath   string
-					major      int
-					minor      int
-					patch      int
-				}{
-					versionDir: versionDir.Name(),
-					nodePath:   entry.Name(),
-					fullPath:   nodePath,
-					major:      major,
-					minor:      minor,
-					patch:      patch,
-				})
-			}
+		if nodePath != "" {
+			nodeInstalls = append(nodeInstalls, struct {
+				versionDir string
+				nodePath   string
+				fullPath   string
+				major      int
+				minor      int
+				patch      int
+			}{
+				versionDir: versionDir.Name(),
+				nodePath:   nodePath,
+				fullPath:   nodePath,
+				major:      major,
+				minor:      minor,
+				patch:      patch,
+			})
 		}
 	}
 
@@ -407,7 +393,7 @@ func DownloadAndInstallNode(version string, progressCallback func(downloaded, to
 
 	// Extract the archive
 	if ext == "zip" {
-		if err := ExtractZip(archivePath, nodeBaseDir); err != nil {
+		if err := ExtractZip(archivePath, nodeBaseDir, false); err != nil {
 			return "", fmt.Errorf("failed to extract Node.js: %w", err)
 		}
 	} else {
