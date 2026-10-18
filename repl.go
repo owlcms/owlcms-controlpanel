@@ -131,7 +131,7 @@ func executeREPLLine(line string, session *replSession, out io.Writer) (bool, er
 		writeREPLContext(out)
 		return false, nil
 	case "owlcms", "tracker":
-		return false, executeREPLModule(args[0], args[1:], session, out)
+		return false, executeREPLModule(args[0], args[1:], out)
 	case "secret":
 		return false, executeREPLSecret(args[1:], out)
 	default:
@@ -271,7 +271,7 @@ func writeREPLTrackerHelp(out io.Writer) {
 	fmt.Fprintln(out, "  tracker default new-versions on|off")
 }
 
-func executeREPLModule(module string, args []string, session *replSession, out io.Writer) error {
+func executeREPLModule(module string, args []string, out io.Writer) error {
 	module = strings.ToLower(module)
 	if len(args) == 0 {
 		return fmt.Errorf("%s requires an action", module)
