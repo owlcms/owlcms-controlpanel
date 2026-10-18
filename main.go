@@ -13,11 +13,9 @@ import (
 	"syscall"
 	"time"
 
-	"controlpanel/cameras"
 	"controlpanel/firmata"
 	"controlpanel/owlcms"
 	"controlpanel/owlcms/javacheck"
-	"controlpanel/replays"
 	"controlpanel/shared"
 	"controlpanel/tracker"
 	"controlpanel/video"
@@ -39,8 +37,6 @@ const (
 	moduleTrackerPreference = "modules.tracker.visible"
 	moduleFirmataPreference = "modules.firmata.visible"
 	moduleVideoPreference   = "modules.video.visible"
-	moduleCamerasPreference = "modules.cameras.visible"
-	moduleReplaysPreference = "modules.replays.visible"
 )
 
 type moduleVisibility struct {
@@ -48,8 +44,6 @@ type moduleVisibility struct {
 	tracker bool
 	firmata bool
 	video   bool
-	cameras bool
-	replays bool
 }
 
 type myTheme struct {
@@ -123,8 +117,6 @@ func loadModuleVisibility(preferences fyne.Preferences, defaults moduleVisibilit
 		tracker: preferences.BoolWithFallback(moduleTrackerPreference, defaults.tracker),
 		firmata: preferences.BoolWithFallback(moduleFirmataPreference, defaults.firmata),
 		video:   preferences.BoolWithFallback(moduleVideoPreference, defaults.video),
-		cameras: preferences.BoolWithFallback(moduleCamerasPreference, defaults.cameras),
-		replays: preferences.BoolWithFallback(moduleReplaysPreference, defaults.replays),
 	}
 }
 
@@ -133,8 +125,6 @@ func saveModuleVisibility(preferences fyne.Preferences, visibility moduleVisibil
 	preferences.SetBool(moduleTrackerPreference, visibility.tracker)
 	preferences.SetBool(moduleFirmataPreference, visibility.firmata)
 	preferences.SetBool(moduleVideoPreference, visibility.video)
-	preferences.SetBool(moduleCamerasPreference, visibility.cameras)
-	preferences.SetBool(moduleReplaysPreference, visibility.replays)
 }
 
 func main() {
@@ -231,14 +221,10 @@ func startControlPanelUI(w fyne.Window, a fyne.App, initialWindowSize fyne.Size)
 	trackerTabContent := tracker.CreateTab(w)
 	firmataTabContent := firmata.CreateTab(w)
 	videoTabContent := video.CreateTab(w)
-	camerasTabContent := cameras.CreateTab(w)
-	replaysTabContent := replays.CreateTab(w)
 	owlcmsTab := container.NewTabItem("OWLCMS", owlcmsTabContent)
 	trackerTab := container.NewTabItem("Tracker", trackerTabContent)
 	firmataTab := container.NewTabItem("Arduino Devices", firmataTabContent)
 	videoTab := container.NewTabItem("Video", videoTabContent)
-	camerasTab := container.NewTabItem("Cameras", camerasTabContent)
-	replaysTab := container.NewTabItem("Replays", replaysTabContent)
 	mainContent := container.NewAppTabs()
 
 	// Refresh tracker version list when its tab is selected (to update OWLCMS version warning)
@@ -253,12 +239,10 @@ func startControlPanelUI(w fyne.Window, a fyne.App, initialWindowSize fyne.Size)
 		tracker: true,
 		firmata: hasInstalledVersions(firmata.GetInstallDir()),
 		video:   hasInstalledVersions(video.GetInstallDir()),
-		cameras: hasInstalledVersions(cameras.GetInstallDir()),
-		replays: hasInstalledVersions(replays.GetInstallDir()),
 	})
 	var modulesMenu *fyne.Menu
 	refreshTabs := func() {
-		visible := make([]*container.TabItem, 0, 6)
+		visible := make([]*container.TabItem, 0, 4)
 		if selection.owlcms {
 			visible = append(visible, owlcmsTab)
 		}
@@ -270,12 +254,6 @@ func startControlPanelUI(w fyne.Window, a fyne.App, initialWindowSize fyne.Size)
 		}
 		if selection.video {
 			visible = append(visible, videoTab)
-		}
-		if selection.cameras {
-			visible = append(visible, camerasTab)
-		}
-		if selection.replays {
-			visible = append(visible, replaysTab)
 		}
 		if len(visible) == 0 {
 			selection.owlcms = true
@@ -293,10 +271,6 @@ func startControlPanelUI(w fyne.Window, a fyne.App, initialWindowSize fyne.Size)
 				item.Checked = selection.firmata
 			case "Video":
 				item.Checked = selection.video
-			case "Cameras":
-				item.Checked = selection.cameras
-			case "Replays":
-				item.Checked = selection.replays
 			}
 		}
 		modulesMenu.Refresh()
@@ -313,8 +287,6 @@ func startControlPanelUI(w fyne.Window, a fyne.App, initialWindowSize fyne.Size)
 		newModuleItem("Tracker", &selection.tracker),
 		newModuleItem("Arduino Devices", &selection.firmata),
 		newModuleItem("Video", &selection.video),
-		newModuleItem("Cameras", &selection.cameras),
-		newModuleItem("Replays", &selection.replays),
 	)
 	refreshTabs()
 
@@ -455,7 +427,7 @@ func anyDaemonRunning() bool {
 }
 
 func closableProgramNames() []string {
-	programs := make([]string, 0, 6)
+	programs := make([]string, 0, 4)
 	if owlcms.IsLocalProcessRunning() {
 		programs = append(programs, "OWLCMS")
 	}
@@ -464,12 +436,6 @@ func closableProgramNames() []string {
 	}
 	if firmata.IsRunning() {
 		programs = append(programs, "Firmata")
-	}
-	if cameras.IsRunning() {
-		programs = append(programs, "Cameras")
-	}
-	if replays.IsRunning() {
-		programs = append(programs, "Replays")
 	}
 	if video.IsRunning() {
 		programs = append(programs, "Video")
@@ -513,8 +479,6 @@ func stopClosableRunningProcesses(w fyne.Window) {
 		tracker.StopRunningProcess(w)
 	}
 	firmata.StopRunningProcess(w)
-	cameras.StopRunningProcess(w)
-	replays.StopRunningProcess(w)
 	video.StopRunningProcess(w)
 }
 
@@ -530,14 +494,6 @@ func stopClosableRunningProcessesForSignal() {
 	if firmata.IsRunning() {
 		log.Println("Signal cleanup: forcefully stopping Firmata process")
 		firmata.HandleSignalCleanup()
-	}
-	if cameras.IsRunning() {
-		log.Println("Signal cleanup: forcefully stopping Cameras process")
-		cameras.HandleSignalCleanup()
-	}
-	if replays.IsRunning() {
-		log.Println("Signal cleanup: forcefully stopping Replays process")
-		replays.HandleSignalCleanup()
 	}
 	if video.IsRunning() {
 		log.Println("Signal cleanup: forcefully stopping Video process")
@@ -701,8 +657,6 @@ func setupMenus(w fyne.Window, modulesMenu *fyne.Menu) *fyne.MainMenu {
 			tracker.RefreshVersionList(w)
 			firmata.RefreshVersionList(w)
 			video.RefreshVersionList(w)
-			cameras.RefreshVersionList(w)
-			replays.RefreshVersionList(w)
 		}),
 		fyne.NewMenuItemSeparator(),
 		fyne.NewMenuItem("Quit", func() {
