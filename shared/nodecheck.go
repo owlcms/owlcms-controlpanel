@@ -480,8 +480,9 @@ func CleanupObsoleteNodeVersions(statusLabel *widget.Label, w fyne.Window) ([]st
 	// Step 4: If we don't have required Node, download the latest LTS
 	if !hasRequiredNode && (highestMajor > 0 || len(requiredVersions) == 0) {
 		if statusLabel != nil {
-			statusLabel.SetText("Downloading required Node.js version...")
-			statusLabel.Refresh()
+			fyne.Do(func() {
+				statusLabel.SetText("Downloading required Node.js version...")
+			})
 		}
 
 		var targetVersion string
@@ -528,8 +529,9 @@ func CleanupObsoleteNodeVersions(statusLabel *widget.Label, w fyne.Window) ([]st
 				versionPath := filepath.Join(nodeBaseDir, version)
 
 				if statusLabel != nil {
-					statusLabel.SetText(fmt.Sprintf("Removing Node.js %s...", version))
-					statusLabel.Refresh()
+					fyne.Do(func() {
+						statusLabel.SetText(fmt.Sprintf("Removing Node.js %s...", version))
+					})
 				}
 
 				log.Printf("Removing Node.js version: %s\n", version)
@@ -566,8 +568,9 @@ func CleanupObsoleteNodeVersions(statusLabel *widget.Label, w fyne.Window) ([]st
 				nodePath := findNodeExecutable(versionPath, nodeExe)
 				if nodePath != "" {
 					if statusLabel != nil {
-						statusLabel.SetText(fmt.Sprintf("Removing bundled Node from tracker %s...", dir.Name()))
-						statusLabel.Refresh()
+						fyne.Do(func() {
+							statusLabel.SetText(fmt.Sprintf("Removing bundled Node from tracker %s...", dir.Name()))
+						})
 					}
 
 					log.Printf("Removing bundled %s from tracker %s at: %s\n", nodeExe, dir.Name(), nodePath)

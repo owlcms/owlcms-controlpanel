@@ -261,14 +261,16 @@ func createReleaseDropdown(w fyne.Window) (*widget.Select, *fyne.Container) {
 				log.Printf("failed to fetch releases after prerelease toggle: %v", err)
 				return
 			}
-			allReleases = releases
-			populateReleaseSelect(selectWidget)
-			checkForNewerVersion()
-			// Keep the dropdown visible while the user is toggling prereleases.
-			ShowDownloadables()
-			if downloadContainer != nil {
-				downloadContainer.Refresh()
-			}
+			fyne.Do(func() {
+				allReleases = releases
+				populateReleaseSelect(selectWidget)
+				checkForNewerVersion()
+				// Keep the dropdown visible while the user is toggling prereleases.
+				ShowDownloadables()
+				if downloadContainer != nil {
+					downloadContainer.Refresh()
+				}
+			})
 		}()
 	})
 	prereleaseCheckbox.Hide()
@@ -364,7 +366,7 @@ func InstallDefault(w fyne.Window, usePrerelease bool) {
 			statusLabel.SetText("Installing Firmata " + latest)
 			statusLabel.Show()
 		}
-		go downloadAndInstallVersion(latest, w)
+		downloadAndInstallVersion(latest, w)
 	} else {
 		track := "stable"
 		if usePrerelease {

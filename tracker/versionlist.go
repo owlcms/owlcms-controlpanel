@@ -470,41 +470,44 @@ func updateVersion(existingVersion string, targetVersion string, w fyne.Window) 
 	runActionUpdate := func() {
 		downloadProgress := func(downloaded, total int64) {
 			if total > 0 && actionProgressBar != nil {
-				actionProgressBar.SetValue(float64(downloaded) / float64(total))
+				value := float64(downloaded) / float64(total)
+				fyne.Do(func() { actionProgressBar.SetValue(value) })
 			}
 		}
 		extractProgress := func(extracted, total int64) {
 			if total > 0 && actionProgressBar != nil {
-				if actionMessageLabel != nil {
-					actionMessageLabel.SetText("Extracting files...")
-					actionMessageLabel.Refresh()
-				}
-				actionProgressBar.SetValue(float64(extracted) / float64(total))
+				value := float64(extracted) / float64(total)
+				fyne.Do(func() {
+					if actionMessageLabel != nil {
+						actionMessageLabel.SetText("Extracting files...")
+					}
+					actionProgressBar.SetValue(value)
+				})
 			}
 		}
 
 		actionResult, actionErr := UpdateRelease(existingVersion, targetVersion, downloadProgress, extractProgress)
-		if actionProgressDialog != nil {
-			actionProgressDialog.Hide()
-		}
-		if actionErr != nil {
-			if w != nil {
-				dialog.ShowError(actionErr, w)
-			} else {
+		if w == nil {
+			if actionErr != nil {
 				log.Printf("Error: %v", actionErr)
+				return
 			}
+			log.Printf("Successfully updated to version %s\n", actionResult.Version)
+			fmt.Printf("Successfully updated to version %s\n", actionResult.Version)
 			return
 		}
 
-		if w != nil {
+		fyne.Do(func() {
+			actionProgressDialog.Hide()
+			if actionErr != nil {
+				dialog.ShowError(actionErr, w)
+				return
+			}
 			dialog.ShowInformation("Update Complete", fmt.Sprintf("Successfully updated to version %s", actionResult.Version), w)
 			recomputeVersionList(w)
 			latestInstalled = findLatestInstalled()
 			checkForNewerVersion()
-		} else {
-			log.Printf("Successfully updated to version %s\n", actionResult.Version)
-			fmt.Printf("Successfully updated to version %s\n", actionResult.Version)
-		}
+		})
 	}
 	if w != nil {
 		go runActionUpdate()

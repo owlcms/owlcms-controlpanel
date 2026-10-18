@@ -298,70 +298,78 @@ func launchFirmata(version string, launchButton *widget.Button) error {
 	go func() {
 		if err := <-monitorChan; err != nil {
 			log.Printf("owlcms-firmata process %d failed to start properly: %v\n", javaPID, err)
-			statusLabel.SetText(fmt.Sprintf("owlcms-firmata process %d failed to start properly", javaPID))
-			stopButton.Hide()
-			stopContainer.Hide()
-			launchButton.Show()
 			currentProcess = nil
-			downloadContainer.Show()
-			versionContainer.Show()
-			showSelectionLayout()
+			fyne.Do(func() {
+				statusLabel.SetText(fmt.Sprintf("owlcms-firmata process %d failed to start properly", javaPID))
+				stopButton.Hide()
+				stopContainer.Hide()
+				launchButton.Show()
+				downloadContainer.Show()
+				versionContainer.Show()
+				showSelectionLayout()
+			})
 			releaseJavaLock()
 			return
 		}
 
 		log.Printf("owlcms-firmata process %d is ready (port %s responding)\n", javaPID, targetPort)
-		statusLabel.SetText(fmt.Sprintf("owlcms-firmata running (PID: %d) on port %s", javaPID, targetPort))
-		url := fmt.Sprintf("http://localhost:%s", targetPort)
-		urlLink.SetURLFromString(url)
-		urlLink.SetText("Open owlcms-firmata in a browser")
-		urlLink.Show()
-
-		// Close the startup log area now that firmata is ready
-		hideStartupLogArea()
-
 		appDir := filepath.Join(installDir, version)
-		appDirLink.SetText(fmt.Sprintf("Open owlcms-firmata %s directory", version))
-		appDirLink.SetURL(nil)
-		appDirLink.OnTapped = func() {
-			shared.OpenFileExplorer(appDir)
-		}
-		appDirLink.Show()
-		configureTailLogLink(version, appDir)
+		fyne.Do(func() {
+			statusLabel.SetText(fmt.Sprintf("owlcms-firmata running (PID: %d) on port %s", javaPID, targetPort))
+			url := fmt.Sprintf("http://localhost:%s", targetPort)
+			urlLink.SetURLFromString(url)
+			urlLink.SetText("Open owlcms-firmata in a browser")
+			urlLink.Show()
+
+			// Close the startup log area now that firmata is ready
+			hideStartupLogArea()
+
+			appDirLink.SetText(fmt.Sprintf("Open owlcms-firmata %s directory", version))
+			appDirLink.SetURL(nil)
+			appDirLink.OnTapped = func() {
+				shared.OpenFileExplorer(appDir)
+			}
+			appDirLink.Show()
+			configureTailLogLink(version, appDir)
+		})
 
 		// Process is stable, wait for it to end
 		err := <-done
 		pid := cmd.Process.Pid
 
+		var exitMessage string
 		if killedByUs {
 			// If we killed it, just report normal termination
 			log.Printf("owlcms-firmata %s (PID: %d) was stopped by user\n", version, pid)
-			statusLabel.SetText(fmt.Sprintf("owlcms-firmata %s (PID: %d) was stopped by user", version, pid))
+			exitMessage = fmt.Sprintf("owlcms-firmata %s (PID: %d) was stopped by user", version, pid)
 		} else if err != nil {
 			// Only report error if it wasn't killed by us
 			log.Printf("owlcms-firmata %s (PID: %d) terminated with error: %v\n", version, pid, err)
-			statusLabel.SetText(fmt.Sprintf("owlcms-firmata %s (PID: %d) terminated with error", version, pid))
+			exitMessage = fmt.Sprintf("owlcms-firmata %s (PID: %d) terminated with error", version, pid)
 		} else {
 			log.Printf("owlcms-firmata %s (PID: %d) exited normally\n", version, pid)
-			statusLabel.SetText(fmt.Sprintf("owlcms-firmata %s (PID: %d) exited normally", version, pid))
+			exitMessage = fmt.Sprintf("owlcms-firmata %s (PID: %d) exited normally", version, pid)
 		}
 
 		currentProcess = nil
 		killedByUs = false // Reset flag
-		stopButton.Hide()
-		stopContainer.Hide()
-		launchButton.Show()
-		downloadContainer.Show()
-		versionContainer.Show()
-		showSelectionLayout()
-		urlLink.Hide()
-		if appDirLink != nil {
-			appDirLink.Hide()
-		}
-		if tailLogLink != nil {
-			tailLogLink.Hide()
-		}
-		hideStartupLogArea()
+		fyne.Do(func() {
+			statusLabel.SetText(exitMessage)
+			stopButton.Hide()
+			stopContainer.Hide()
+			launchButton.Show()
+			downloadContainer.Show()
+			versionContainer.Show()
+			showSelectionLayout()
+			urlLink.Hide()
+			if appDirLink != nil {
+				appDirLink.Hide()
+			}
+			if tailLogLink != nil {
+				tailLogLink.Hide()
+			}
+			hideStartupLogArea()
+		})
 		releaseJavaLock()
 	}()
 
@@ -427,7 +435,7 @@ func showStartupLogArea() {
 	go func(stopCh chan struct{}) {
 		select {
 		case <-time.After(60 * time.Second):
-			hideStartupLogArea()
+			fyne.Do(hideStartupLogArea)
 		case <-stopCh:
 			return
 		}
@@ -490,21 +498,26 @@ func firmataSupportsStartupLog(version string) bool {
 func monitorStartupLog(appDir, version string) {
 	if !firmataSupportsStartupLog(version) {
 		// Older firmata versions don't generate logs/startup.log
-		showStartupLogArea()
-		setStartupLogText(fmt.Sprintf(
+		message := fmt.Sprintf(
 			"owlcms-firmata %s does not generate logs/startup.log.\nWaiting for owlcms-firmata to respond on port %s...\n",
 			version,
 			GetPort(),
-		))
+		)
+		fyne.Do(func() {
+			showStartupLogArea()
+			setStartupLogText(message)
+		})
 		return
 	}
 
 	startupLogPath := filepath.Join(appDir, "logs", "startup.log")
 	log.Printf("Monitoring for startup.log at: %s\n", startupLogPath)
 
-	// Show the startup log area immediately
-	showStartupLogArea()
-	setStartupLogText("Waiting for startup.log...\n")
+	// Show the startup log area immediately; wait so the tail sees the new stop channel.
+	fyne.DoAndWait(func() {
+		showStartupLogArea()
+		setStartupLogText("Waiting for startup.log...\n")
+	})
 
 	// Real file monitoring
 	// Check every 500ms for up to 60 seconds
@@ -519,7 +532,9 @@ func monitorStartupLog(appDir, version string) {
 	}
 
 	log.Printf("startup.log not found after monitoring period\n")
-	setStartupLogText("startup.log not found after monitoring period\n")
+	fyne.Do(func() {
+		setStartupLogText("startup.log not found after monitoring period\n")
+	})
 }
 
 func tailStartupLog(logPath string) {
@@ -538,7 +553,10 @@ func tailStartupLog(logPath string) {
 	// Read initial content
 	content, err := os.ReadFile(logPath)
 	if err == nil {
-		setStartupLogText(string(content))
+		initialText := string(content)
+		fyne.Do(func() {
+			setStartupLogText(initialText)
+		})
 	}
 
 	// Monitor for changes for 60 seconds (or until firmata becomes ready)
@@ -568,7 +586,9 @@ func tailStartupLog(logPath string) {
 				content, err := os.ReadFile(logPath)
 				if err == nil {
 					contentStr := string(content)
-					setStartupLogText(contentStr)
+					fyne.Do(func() {
+						setStartupLogText(contentStr)
+					})
 					lastSize = stat.Size()
 
 					// Check if firmata is ready
@@ -586,7 +606,7 @@ func tailStartupLog(logPath string) {
 	// If we didn't find "Firmata Ready." after timeout, show error dialog
 	if !foundReady {
 		logsDir := filepath.Dir(logPath)
-		go func() {
+		fyne.Do(func() {
 			dialog.ShowCustomConfirm("owlcms-firmata Startup Issue", "Open Logs Folder", "Close",
 				widget.NewLabel("owlcms-firmata did not report ready status within 60 seconds.\nPlease check the logs and send them to owlcms@jflamy.dev if the issue persists."),
 				func(ok bool) {
@@ -594,10 +614,10 @@ func tailStartupLog(logPath string) {
 						shared.OpenFileExplorer(logsDir)
 					}
 				}, mainWindow)
-		}()
+		})
 		// Keep the log display visible so user can see what went wrong
 	} else {
 		// Close the startup log display only if startup was successful
-		hideStartupLogArea()
+		fyne.Do(hideStartupLogArea)
 	}
 }

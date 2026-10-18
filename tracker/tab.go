@@ -563,27 +563,29 @@ func showPortNumberDialogForVersion(w fyne.Window, version string) {
 func refreshAvailableVersions(w fyne.Window) {
 	go func() {
 		releases, err := fetchReleases()
-		if err != nil {
-			dialog.ShowError(fmt.Errorf("failed to refresh available versions: %w", err), w)
-			return
-		}
-		allReleases = releases
+		fyne.Do(func() {
+			if err != nil {
+				dialog.ShowError(fmt.Errorf("failed to refresh available versions: %w", err), w)
+				return
+			}
+			allReleases = releases
 
-		// If the dropdown exists, repopulate it.
-		if releaseDropdown != nil {
-			for _, obj := range releaseDropdown.Objects {
-				if selectWidget, ok := obj.(*widget.Select); ok {
-					populateReleaseSelect(selectWidget)
-					break
+			// If the dropdown exists, repopulate it.
+			if releaseDropdown != nil {
+				for _, obj := range releaseDropdown.Objects {
+					if selectWidget, ok := obj.(*widget.Select); ok {
+						populateReleaseSelect(selectWidget)
+						break
+					}
 				}
 			}
-		}
 
-		recomputeVersionList(w)
-		checkForNewerVersion()
-		if downloadContainer != nil {
-			downloadContainer.Refresh()
-		}
+			recomputeVersionList(w)
+			checkForNewerVersion()
+			if downloadContainer != nil {
+				downloadContainer.Refresh()
+			}
+		})
 	}()
 }
 

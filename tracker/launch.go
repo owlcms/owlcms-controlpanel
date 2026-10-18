@@ -475,24 +475,27 @@ func launchTracker(version string, launchButton, stopBtn *widget.Button) error {
 
 		go func() {
 			err := shared.EnsurePortFree(targetPort)
-			progressDialog.Hide()
+			stillInUse := err == nil && shared.CheckPort(targetPort) == nil
 
-			if err != nil {
-				log.Printf("Cannot free port %s: %v", targetPort, err)
-				dialog.ShowError(fmt.Errorf("cannot free port %s: %w", targetPort, err), mainWindow)
-				goBackToMainScreen()
-				return
-			}
-			if shared.CheckPort(targetPort) == nil {
-				log.Printf("Port %s is still in use after cleanup", targetPort)
-				dialog.ShowError(fmt.Errorf("port %s is still in use after cleanup", targetPort), mainWindow)
-				goBackToMainScreen()
-				return
-			}
+			fyne.Do(func() {
+				progressDialog.Hide()
+				if err != nil {
+					log.Printf("Cannot free port %s: %v", targetPort, err)
+					dialog.ShowError(fmt.Errorf("cannot free port %s: %w", targetPort, err), mainWindow)
+					goBackToMainScreen()
+					return
+				}
+				if stillInUse {
+					log.Printf("Port %s is still in use after cleanup", targetPort)
+					dialog.ShowError(fmt.Errorf("port %s is still in use after cleanup", targetPort), mainWindow)
+					goBackToMainScreen()
+					return
+				}
 
-			log.Printf("Port %s successfully freed", targetPort)
-			dialog.ShowInformation("Port Freed", fmt.Sprintf("Port %s has been freed. Launching tracker %s...", targetPort, version), mainWindow)
-			continueTrackerLaunch(version, targetPort, launchButton, stopBtn)
+				log.Printf("Port %s successfully freed", targetPort)
+				dialog.ShowInformation("Port Freed", fmt.Sprintf("Port %s has been freed. Launching tracker %s...", targetPort, version), mainWindow)
+				continueTrackerLaunch(version, targetPort, launchButton, stopBtn)
+			})
 		}()
 		return nil
 	}

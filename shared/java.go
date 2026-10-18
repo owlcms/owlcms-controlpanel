@@ -89,9 +89,10 @@ func CheckAndInstallJava(requiredVersion string, statusLabel *widget.Label, w fy
 // DownloadAndInstallJava downloads and installs a specific Java version
 func DownloadAndInstallJava(temurinVersion string, statusLabel *widget.Label, w fyne.Window, goosFunc func() string) error {
 	if statusLabel != nil {
-		statusLabel.SetText("Downloading required Java version...")
-		statusLabel.Refresh()
-		statusLabel.Show()
+		fyne.Do(func() {
+			statusLabel.SetText("Downloading required Java version...")
+			statusLabel.Show()
+		})
 	}
 
 	// Create a cancel channel
@@ -103,8 +104,8 @@ func DownloadAndInstallJava(temurinVersion string, statusLabel *widget.Label, w 
 	if w != nil {
 		progressBar = widget.NewProgressBar()
 		progressDialog = dialog.NewCustom("Installing Java", "Cancel", progressBar, w)
-		progressDialog.Show()
-		progressBar.SetValue(0.01)
+		fyne.Do(progressDialog.Show)
+		fyne.Do(func() { progressBar.SetValue(0.01) })
 	}
 
 	// Use shared Java directory
@@ -114,7 +115,7 @@ func DownloadAndInstallJava(temurinVersion string, statusLabel *widget.Label, w 
 	if _, err := os.Stat(javaDir); err == nil {
 		if err := os.RemoveAll(javaDir); err != nil {
 			if progressDialog != nil {
-				progressDialog.Hide()
+				fyne.Do(progressDialog.Hide)
 			}
 			return fmt.Errorf("failed to delete existing java directory: %w", err)
 		}
@@ -123,19 +124,19 @@ func DownloadAndInstallJava(temurinVersion string, statusLabel *widget.Label, w 
 	// Ensure the java directory exists
 	if err := EnsureDir0755(javaDir); err != nil {
 		if progressDialog != nil {
-			progressDialog.Hide()
+			fyne.Do(progressDialog.Hide)
 		}
 		return fmt.Errorf("creating java directory: %w", err)
 	}
 
 	// Show activity while getting the download URL
 	if progressBar != nil {
-		progressBar.SetValue(0.05)
+		fyne.Do(func() { progressBar.SetValue(0.05) })
 	}
 	downloadURL, err := GetTemurinDownloadURL(temurinVersion, goosFunc, "controlpanel")
 	if err != nil {
 		if progressDialog != nil {
-			progressDialog.Hide()
+			fyne.Do(progressDialog.Hide)
 		}
 		return fmt.Errorf("getting Temurin download URL: %w", err)
 	}
@@ -150,13 +151,13 @@ func DownloadAndInstallJava(temurinVersion string, statusLabel *widget.Label, w 
 	progressCallback := func(downloaded, total int64) {
 		if total > 0 && progressBar != nil {
 			percentage := float64(downloaded) / float64(total)
-			progressBar.SetValue(percentage)
+			fyne.Do(func() { progressBar.SetValue(percentage) })
 		}
 	}
 
 	if err := DownloadArchive(downloadURL, archivePath, progressCallback, cancel); err != nil {
 		if progressDialog != nil {
-			progressDialog.Hide()
+			fyne.Do(progressDialog.Hide)
 		}
 		if err.Error() == "download cancelled" {
 			// Clean up the incomplete archive file
@@ -168,19 +169,19 @@ func DownloadAndInstallJava(temurinVersion string, statusLabel *widget.Label, w 
 
 	// Show extraction progress
 	if progressBar != nil {
-		progressBar.SetValue(0.9)
+		fyne.Do(func() { progressBar.SetValue(0.9) })
 	}
 	if goosFunc() == "windows" && !IsWSL() {
 		if err := ExtractZip(archivePath, javaDir, false); err != nil {
 			if progressDialog != nil {
-				progressDialog.Hide()
+				fyne.Do(progressDialog.Hide)
 			}
 			return fmt.Errorf("error extracting Temurin zip: %w", err)
 		}
 	} else {
 		if err := ExtractTarGz(archivePath, javaDir); err != nil {
 			if progressDialog != nil {
-				progressDialog.Hide()
+				fyne.Do(progressDialog.Hide)
 			}
 			return fmt.Errorf("extracting Temurin tar.gz: %w", err)
 		}
@@ -188,10 +189,10 @@ func DownloadAndInstallJava(temurinVersion string, statusLabel *widget.Label, w 
 
 	// Indicate completion
 	if progressBar != nil {
-		progressBar.SetValue(1.0)
+		fyne.Do(func() { progressBar.SetValue(1.0) })
 	}
 	if progressDialog != nil {
-		progressDialog.Hide()
+		fyne.Do(progressDialog.Hide)
 	}
 
 	return nil
@@ -338,8 +339,9 @@ func CleanupObsoleteJavaVersions(owlcmsInstallDir, firmataInstallDir string, sta
 
 		// Try to download and install
 		if statusLabel != nil {
-			statusLabel.SetText(fmt.Sprintf("Java %d required but not found. Downloading...", highestMajor))
-			statusLabel.Refresh()
+			fyne.Do(func() {
+				statusLabel.SetText(fmt.Sprintf("Java %d required but not found. Downloading...", highestMajor))
+			})
 		}
 
 		err := DownloadAndInstallJava(versionToDownload, statusLabel, w, func() string {

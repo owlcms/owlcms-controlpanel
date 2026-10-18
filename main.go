@@ -519,25 +519,9 @@ func cleanupJavaVersions(w fyne.Window) {
 			go func() {
 				// Pass legacy directories for bundled cleanup, but scanning happens in control panel
 				removed, err := shared.CleanupObsoleteJavaVersions(owlcms.GetInstallDir(), firmata.GetInstallDir(), statusLabel, w)
-				progressDialog.Hide()
-
-				if err != nil {
-					dialog.ShowError(fmt.Errorf("cleanup failed: %w", err), w)
-					return
-				}
-
-				if len(removed) == 0 {
-					dialog.ShowInformation("Cleanup Complete", "No obsolete Java versions found.", w)
-				} else {
-					var message strings.Builder
-					message.WriteString("Cleanup results:\n\n")
-					for _, v := range removed {
-						message.WriteString("• ")
-						message.WriteString(v)
-						message.WriteString("\n")
-					}
-					dialog.ShowInformation("Cleanup Complete", message.String(), w)
-				}
+				fyne.Do(func() {
+					showCleanupResult(progressDialog, removed, err, "No obsolete Java versions found.", w)
+				})
 			}()
 		},
 		w,
@@ -561,29 +545,36 @@ func cleanupNodeVersions(w fyne.Window) {
 			// Run cleanup in goroutine to allow UI updates
 			go func() {
 				removed, err := shared.CleanupObsoleteNodeVersions(statusLabel, w)
-				progressDialog.Hide()
-
-				if err != nil {
-					dialog.ShowError(fmt.Errorf("cleanup failed: %w", err), w)
-					return
-				}
-
-				if len(removed) == 0 {
-					dialog.ShowInformation("Cleanup Complete", "No obsolete Node.js versions found.", w)
-				} else {
-					var message strings.Builder
-					message.WriteString("Cleanup results:\n\n")
-					for _, v := range removed {
-						message.WriteString("• ")
-						message.WriteString(v)
-						message.WriteString("\n")
-					}
-					dialog.ShowInformation("Cleanup Complete", message.String(), w)
-				}
+				fyne.Do(func() {
+					showCleanupResult(progressDialog, removed, err, "No obsolete Node.js versions found.", w)
+				})
 			}()
 		},
 		w,
 	)
+}
+
+func showCleanupResult(progressDialog dialog.Dialog, removed []string, err error, nothingRemovedMessage string, w fyne.Window) {
+	progressDialog.Hide()
+
+	if err != nil {
+		dialog.ShowError(fmt.Errorf("cleanup failed: %w", err), w)
+		return
+	}
+
+	if len(removed) == 0 {
+		dialog.ShowInformation("Cleanup Complete", nothingRemovedMessage, w)
+		return
+	}
+
+	var message strings.Builder
+	message.WriteString("Cleanup results:\n\n")
+	for _, v := range removed {
+		message.WriteString("• ")
+		message.WriteString(v)
+		message.WriteString("\n")
+	}
+	dialog.ShowInformation("Cleanup Complete", message.String(), w)
 }
 
 func requestExit(w fyne.Window) {
@@ -684,7 +675,7 @@ func setupMenus(w fyne.Window, modulesMenu *fyne.Menu) *fyne.MainMenu {
 		}),
 		fyne.NewMenuItem("Check for Updates", func() {
 			// Show confirmation dialog when checking from menu
-			owlcms.CheckForUpdates(w, true)
+			go owlcms.CheckForUpdates(w, true)
 		}),
 		fyne.NewMenuItem("About", func() {
 			dialog.ShowInformation("About", "OWLCMS Launcher version "+shared.GetLauncherVersion(), w)

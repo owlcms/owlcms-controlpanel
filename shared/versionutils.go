@@ -425,43 +425,40 @@ func ShowDuplicateVersionDialog(installDir, version string, w fyne.Window, onSuc
 		// Perform duplication in background
 		go func() {
 			newVersion, err := DuplicateVersionWithName(installDir, version, newBuild)
-
-			if err != nil {
-				// Re-enable on error
-				statusLabel.SetText("")
-				statusLabel.Refresh()
-				stopProgress()
-				progressBar.Hide()
-				buildEntry.Enable()
-				duplicateBtn.Enable()
-				cancelBtn.Enable()
-				dialog.ShowError(fmt.Errorf("failed to duplicate version: %w", err), w)
-				return
-			}
-
-			// Show success message
 			stopProgress()
-			progressBar.SetValue(1)
-			progressBar.Refresh()
-			statusLabel.SetText(fmt.Sprintf("Successfully created %s as a duplicate of %s", newVersion, version))
-			statusLabel.Refresh()
 
-			// Hide the form fields and note
-			formRow.Hide()
-			noteLabel.Hide()
+			fyne.Do(func() {
+				if err != nil {
+					// Re-enable on error
+					statusLabel.SetText("")
+					progressBar.Hide()
+					buildEntry.Enable()
+					duplicateBtn.Enable()
+					cancelBtn.Enable()
+					dialog.ShowError(fmt.Errorf("failed to duplicate version: %w", err), w)
+					return
+				}
 
-			// Change button to "Close"
-			duplicateBtn.SetText("Close")
-			duplicateBtn.OnTapped = func() {
-				if d != nil {
-					d.Hide()
+				// Show success message
+				progressBar.SetValue(1)
+				statusLabel.SetText(fmt.Sprintf("Successfully created %s as a duplicate of %s", newVersion, version))
+
+				// Hide the form fields and note
+				formRow.Hide()
+				noteLabel.Hide()
+
+				// Change button to "Close"
+				duplicateBtn.SetText("Close")
+				duplicateBtn.OnTapped = func() {
+					if d != nil {
+						d.Hide()
+					}
+					if onSuccess != nil {
+						onSuccess(newVersion)
+					}
 				}
-				if onSuccess != nil {
-					onSuccess(newVersion)
-				}
-			}
-			duplicateBtn.Enable()
-			duplicateBtn.Refresh()
+				duplicateBtn.Enable()
+			})
 		}()
 	}
 
@@ -611,7 +608,7 @@ func startTimedProgress(bar *widget.ProgressBar, start, end float64, duration ti
 					frac = 1
 				}
 				value := start + (end-start)*frac
-				bar.SetValue(value)
+				fyne.Do(func() { bar.SetValue(value) })
 				if frac >= 1 {
 					return
 				}

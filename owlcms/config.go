@@ -1090,7 +1090,9 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 			widget.NewLabel(fmt.Sprintf("A new version (%s) is available. You are currently using version %s.\nYou can simply download the new installer and install over the current version.", newerRelease.TagName, shared.GetLauncherVersion())),
 			links,
 		)
-		dialog.ShowCustom("Update Available", "Close", content, win)
+		fyne.Do(func() {
+			dialog.ShowCustom("Update Available", "Close", content, win)
+		})
 	} else {
 		log.Println("No updates available - the latest version is installed.")
 		if showConfirmation {
@@ -1100,7 +1102,9 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 				widget.NewLabel(fmt.Sprintf("The latest version is installed (%s)", shared.GetLauncherVersion())),
 				releasesLink,
 			)
-			dialog.ShowCustom("No Updates", "Close", content, win)
+			fyne.Do(func() {
+				dialog.ShowCustom("No Updates", "Close", content, win)
+			})
 		}
 	}
 }

@@ -268,24 +268,26 @@ func createMenuBar(w fyne.Window) *fyne.Container {
 func refreshAvailableVersions(w fyne.Window) {
 	go func() {
 		releases, err := fetchReleases()
-		if err != nil {
-			dialog.ShowError(fmt.Errorf("failed to refresh available versions: %w", err), w)
-			return
-		}
-		allReleases = releases
-		if releaseDropdown != nil {
-			for _, obj := range releaseDropdown.Objects {
-				if selectWidget, ok := obj.(*widget.Select); ok {
-					populateReleaseSelect(selectWidget)
-					break
+		fyne.Do(func() {
+			if err != nil {
+				dialog.ShowError(fmt.Errorf("failed to refresh available versions: %w", err), w)
+				return
+			}
+			allReleases = releases
+			if releaseDropdown != nil {
+				for _, obj := range releaseDropdown.Objects {
+					if selectWidget, ok := obj.(*widget.Select); ok {
+						populateReleaseSelect(selectWidget)
+						break
+					}
 				}
 			}
-		}
-		recomputeVersionList(w)
-		checkForNewerVersion()
-		if downloadContainer != nil {
-			downloadContainer.Refresh()
-		}
+			recomputeVersionList(w)
+			checkForNewerVersion()
+			if downloadContainer != nil {
+				downloadContainer.Refresh()
+			}
+		})
 	}()
 }
 
