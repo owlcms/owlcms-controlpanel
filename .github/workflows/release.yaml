@@ -134,6 +134,15 @@ jobs:
         codesign --force --timestamp \
           --sign "$APPLE_SIGNING_IDENTITY" artifacts/macOS_Intel_OWLCMS.dmg
 
+    # Intel runners drop stapler's HTTP/3 (UDP 443) connection to api.apple-cloudkit.com.
+    # Blocking UDP 443 forces a fallback to HTTPS over TCP, which works.
+    # Remove once https://github.com/actions/runner-images/issues/14924 is resolved.
+    - name: Work around stapling issue (actions/runner-images#14924)
+      if: ${{ env.BUILD_MAC == 'true' && inputs.notarize }}
+      run: |
+        echo "block return out quick proto udp from any to any port 443" | sudo pfctl -f -
+        sudo pfctl -E
+
     - name: Notarize and staple macOS amd64 DMG
       if: ${{ env.BUILD_MAC == 'true' && inputs.notarize }}
       run: |
@@ -142,7 +151,18 @@ jobs:
           --team-id "$APPLE_TEAM_ID" \
           --password "$APPLE_APP_SPECIFIC_PASSWORD" \
           --wait
-        xcrun stapler staple artifacts/macOS_Intel_OWLCMS.dmg
+        # Stapling fetches the ticket from Apple's CloudKit, which can fail transiently.
+        for attempt in 1 2 3 4 5; do
+          if xcrun stapler staple artifacts/macOS_Intel_OWLCMS.dmg; then
+            break
+          fi
+          if [ "$attempt" -eq 5 ]; then
+            echo "Stapling failed after $attempt attempts"
+            exit 1
+          fi
+          echo "Stapling attempt $attempt failed; retrying in 30 seconds..."
+          sleep 30
+        done
 
     - name: Upload macOS amd64 DMG
       if: ${{ env.BUILD_MAC == 'true' }}
@@ -268,7 +288,18 @@ jobs:
           --team-id "$APPLE_TEAM_ID" \
           --password "$APPLE_APP_SPECIFIC_PASSWORD" \
           --wait
-        xcrun stapler staple artifacts/macOS_OWLCMS.dmg
+        # Stapling fetches the ticket from Apple's CloudKit, which can fail transiently.
+        for attempt in 1 2 3 4 5; do
+          if xcrun stapler staple artifacts/macOS_OWLCMS.dmg; then
+            break
+          fi
+          if [ "$attempt" -eq 5 ]; then
+            echo "Stapling failed after $attempt attempts"
+            exit 1
+          fi
+          echo "Stapling attempt $attempt failed; retrying in 30 seconds..."
+          sleep 30
+        done
 
     - name: Upload macOS arm64 DMG
       if: ${{ env.BUILD_MAC == 'true' }}
