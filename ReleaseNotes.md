@@ -17,6 +17,7 @@ The control panel is installed once. It will automatically download the correct 
   - Prereleases are only proposed to users who already run a prerelease. This now also applies to the OWLCMS "Check for Updates" dialog.
   - All versions can still be installed from the release list by using "Show Prereleases".
 - The "Check for Updates" menu entry now runs in the background so the window stays responsive.
+- When a new control panel version is available, the download link now points to the GitHub installer for the platform (Windows, macOS Apple Silicon or Intel, Linux, Raspberry Pi). The "No Updates" dialog also links to the latest installer for the platform.
 - (internal) Screen updates from background tasks (downloads, release lists, process monitoring, cleanup) are now applied safely on the display thread. This removes the "Error in Fyne call thread" warnings and possible display glitches.
 
 ### 3.8.1

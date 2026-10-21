@@ -1011,12 +1011,15 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 	}
 
 	type releaseInfo struct {
-		TagName string `json:"tag_name"`
-		HTMLURL string `json:"html_url"`
+		TagName string                `json:"tag_name"`
+		HTMLURL string                `json:"html_url"`
+		Assets  []shared.ReleaseAsset `json:"assets"`
 	}
 
 	var newerRelease *releaseInfo
 	var newerSemver *semver.Version
+	var latestRelease *releaseInfo
+	var latestSemver *semver.Version
 
 	if isCurrentPrerelease {
 		// Parse array of releases and find the newest one (stable or prerelease) that's newer than current
@@ -1039,10 +1042,15 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 				continue
 			}
 
+			if remoteSemver.GreaterThan(currentSemver) && !shared.ShouldProposeUpdate(currentVersion, remoteVersion) {
+				continue
+			}
+			if latestSemver == nil || remoteSemver.GreaterThan(latestSemver) {
+				latestSemver = remoteSemver
+				releaseCopy := release
+				latestRelease = &releaseCopy
+			}
 			if remoteSemver.GreaterThan(currentSemver) {
-				if !shared.ShouldProposeUpdate(currentVersion, remoteVersion) {
-					continue
-				}
 				if newerSemver == nil || remoteSemver.GreaterThan(newerSemver) {
 					newerSemver = remoteSemver
 					releaseCopy := release
@@ -1071,6 +1079,8 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 			return
 		}
 
+		latestSemver = remoteSemver
+		latestRelease = &release
 		if remoteSemver.GreaterThan(currentSemver) {
 			newerSemver = remoteSemver
 			newerRelease = &release
@@ -1087,11 +1097,20 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 			return
 		}
 		releaseNotesLink := widget.NewHyperlink("Release Notes", parsedURL)
-		installerLink := widget.NewHyperlink("Download the Installer", parsedURL)
-		links := container.NewHBox(installerLink, releaseNotesLink)
+		installerLabel, installerURL, found := shared.ControlPanelInstallerLink(newerRelease.TagName, newerRelease.Assets, shared.GetGoos(), shared.GetGoarch())
+		if found {
+			installerLabel = "Download the " + installerLabel
+		}
+		parsedInstallerURL, err := url.Parse(installerURL)
+		if err != nil {
+			parsedInstallerURL = parsedURL
+		}
+		installerLink := widget.NewHyperlink(installerLabel, parsedInstallerURL)
 		content := container.NewVBox(
-			widget.NewLabel(fmt.Sprintf("A new version (%s) is available. You are currently using version %s.\nYou can simply download the new installer and install over the current version.", newerRelease.TagName, shared.GetLauncherVersion())),
-			links,
+			widget.NewLabel(fmt.Sprintf("A new version (%s) is available. You are currently using version %s.", newerRelease.TagName, shared.GetLauncherVersion())),
+			releaseNotesLink,
+			widget.NewLabel("You can download the new installer by clicking on the link.\nThen exit this program and install over the current version."),
+			installerLink,
 		)
 		fyne.Do(func() {
 			dialog.ShowCustom("Update Available", "Close", content, win)
@@ -1099,12 +1118,18 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 	} else {
 		log.Println("No updates available - the latest version is installed.")
 		if showConfirmation {
-			releasesURL, _ := url.Parse("https://github.com/owlcms/owlcms-controlpanel/releases")
+			releasesURL, _ := url.Parse(shared.ControlPanelReleasesURL)
 			releasesLink := widget.NewHyperlink("GitHub Releases", releasesURL)
 			content := container.NewVBox(
 				widget.NewLabel(fmt.Sprintf("The latest version is installed (%s)", shared.GetLauncherVersion())),
 				releasesLink,
 			)
+			if latestRelease != nil {
+				installerLabel, installerURL, _ := shared.ControlPanelInstallerLink(latestRelease.TagName, latestRelease.Assets, shared.GetGoos(), shared.GetGoarch())
+				if parsedInstallerURL, err := url.Parse(installerURL); err == nil {
+					content.Add(widget.NewHyperlink(fmt.Sprintf("Latest %s - %s", installerLabel, latestRelease.TagName), parsedInstallerURL))
+				}
+			}
 			fyne.Do(func() {
 				dialog.ShowCustom("No Updates", "Close", content, win)
 			})
