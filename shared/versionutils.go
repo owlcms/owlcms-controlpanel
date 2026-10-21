@@ -70,6 +70,30 @@ func IsPrerelease(version string) bool {
 	return v.Prerelease() != ""
 }
 
+// IsAlpha checks if a version string is an alpha prerelease (e.g. "69.0.0-alpha00").
+func IsAlpha(version string) bool {
+	tag := ExtractSemver(version)
+	v, err := semver.NewVersion(tag)
+	if err != nil {
+		return strings.Contains(strings.ToLower(tag), "-alpha")
+	}
+	return strings.HasPrefix(strings.ToLower(v.Prerelease()), "alpha")
+}
+
+// ShouldProposeUpdate reports whether a newer release may be announced as an available
+// update to a user whose most recent installed version is installed.
+// Prereleases are only proposed to users already running a prerelease, and alphas only
+// to users already running an alpha. Other releases remain available from the release menu.
+func ShouldProposeUpdate(installed, candidate string) bool {
+	if !IsPrerelease(ExtractSemver(candidate)) {
+		return true
+	}
+	if !IsPrerelease(ExtractSemver(installed)) {
+		return false
+	}
+	return !IsAlpha(candidate) || IsAlpha(installed)
+}
+
 // normalizeForComparison converts SNAPSHOT to lowercase so it sorts after rc/alpha/beta.
 // Semver sorts prereleases alphabetically, so "snapshot" > "rc" > "beta" > "alpha".
 // This is only used for comparison; actual version strings remain unchanged.

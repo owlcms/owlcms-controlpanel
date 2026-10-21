@@ -9,6 +9,16 @@ The control panel is installed once. It will automatically download the correct 
 
 ## Release Log
 
+### 3.9.0
+
+- The separate Cameras and Replays tabs have been removed. The Video module replaces both programs.
+- Update notifications are more conservative about prereleases:
+  - Alpha versions are only proposed as updates to users who already run an alpha version. Users running a beta or release candidate are no longer told about the next alpha.
+  - Prereleases are only proposed to users who already run a prerelease. This now also applies to the OWLCMS "Check for Updates" dialog.
+  - All versions can still be installed from the release list by using "Show Prereleases".
+- The "Check for Updates" menu entry now runs in the background so the window stays responsive.
+- (internal) Screen updates from background tasks (downloads, release lists, process monitoring, cleanup) are now applied safely on the display thread. This removes the "Error in Fyne call thread" warnings and possible display glitches.
+
 ### 3.8.1
 
 - 3.8.1 Tracker installation on Windows was not putting the node executables in the correct locations.

@@ -1050,12 +1050,11 @@ func checkForNewerVersion() {
 			releaseURL := GetReleaseTagURL(release)
 
 			var versionType string
+			if !shared.ShouldProposeUpdate(latestInstalled, release) {
+				continue
+			}
 			if containsPreReleaseTag(release) {
 				versionType = "prerelease"
-				// Only offer prerelease if one is already installed
-				if !containsPreReleaseTag(latestInstalled) {
-					continue // Skip prerelease if user has stable installed
-				}
 			} else {
 				versionType = "stable"
 			}

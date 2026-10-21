@@ -1040,6 +1040,9 @@ func CheckForUpdates(win fyne.Window, showConfirmation bool) {
 			}
 
 			if remoteSemver.GreaterThan(currentSemver) {
+				if !shared.ShouldProposeUpdate(currentVersion, remoteVersion) {
+					continue
+				}
 				if newerSemver == nil || remoteSemver.GreaterThan(newerSemver) {
 					newerSemver = remoteSemver
 					releaseCopy := release
